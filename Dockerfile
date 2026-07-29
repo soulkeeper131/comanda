@@ -14,6 +14,7 @@ FROM node:20-slim AS runtime
 WORKDIR /app
 
 RUN mkdir -p /app/data
+ENV HOSTNAME=0.0.0.0
 
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
