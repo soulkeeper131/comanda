@@ -8,26 +8,15 @@ export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
-    // Disable FK checks temporarily
+    // Disable FK then delete only tables that exist
     db.run(sql`PRAGMA foreign_keys = OFF`);
-
-    // Delete all existing data in correct order
-    db.run(sql`DELETE FROM offers`);
-    db.run(sql`DELETE FROM finding_photos`);
-    db.run(sql`DELETE FROM findings`);
-    db.run(sql`DELETE FROM evidence`);
-    db.run(sql`DELETE FROM job_items`);
-    db.run(sql`DELETE FROM jobs`);
-    db.run(sql`DELETE FROM plans`);
-    db.run(sql`DELETE FROM template_items`);
-    db.run(sql`DELETE FROM service_templates`);
-    db.run(sql`DELETE FROM zones`);
     db.run(sql`DELETE FROM properties`);
     db.run(sql`DELETE FROM users`);
     db.run(sql`DELETE FROM organizations`);
-
-    // Re-enable FK checks
     db.run(sql`PRAGMA foreign_keys = ON`);
+
+    // Re-insert org
+    db.run(sql`INSERT OR REPLACE INTO organizations (id, name, slug) VALUES ('org1', 'КОМАНДА', 'komanda')`);
 
     const list = [
       { id: "u1", email: "admin@komanda.bg",    password: "admin1234",    role: "admin",     name: "Админ" },
@@ -49,7 +38,24 @@ export async function POST() {
       }).run();
     }
 
-    return NextResponse.json({ success: true, count: list.length });
+    // Re-insert 5 properties
+    const dbDirect = db as any;
+    const props = [
+      ["ул. Цар Иван Асен II 12", 42.6934, 23.3247, "apartment"],
+      ["бул. България 81", 42.6791, 23.3025, "apartment"],
+      ["ул. Оборище 45", 42.6972, 23.3412, "house"],
+      ["жк. Лозенец, ул. Златовръх 3", 42.6762, 23.3198, "apartment"],
+      ["кв. Драгалевци, ул. Панорамен път 7", 42.6321, 23.3057, "house"],
+    ];
+
+    for (const [addr, lat, lng, kind] of props) {
+      dbDirect.run(
+        `INSERT INTO properties (id, org_id, owner_id, name, address, lat, lng, kind) VALUES (?, 'org1', 'u2', ?, 'София, ' || ?, ?, ?, ?)`,
+        [crypto.randomUUID(), addr.split(",")[0].trim().replace(/^(ул\.|бул\.|жк\.|кв\.)\s*/, ""), addr, lat, lng, kind]
+      );
+    }
+
+    return NextResponse.json({ success: true, users: list.length, properties: props.length });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
