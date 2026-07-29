@@ -61,6 +61,11 @@ export default function DashboardPage() {
   const [teamUsers, setTeamUsers] = useState<any[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
 
+  // Inline edit state for Team tab
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState<UserRole>("worker");
+
   // Fetch user role
   useEffect(() => {
     fetch("/api/me")
@@ -166,6 +171,57 @@ export default function DashboardPage() {
       .catch(() => setTeamUsers([]))
       .finally(() => setTeamLoading(false));
   }, [tab]);
+
+  const handleEditStart = (user: any) => {
+    setEditingUserId(user.id);
+    setEditName(user.name || "");
+    setEditRole((user.role as UserRole) || "worker");
+  };
+
+  const handleEditCancel = () => {
+    setEditingUserId(null);
+    setEditName("");
+    setEditRole("worker");
+  };
+
+  const handleEditSave = async (userId: string) => {
+    try {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: userId, full_name: editName.trim(), role: editRole }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setTeamUsers((prev) => prev.map((u) => (u.id === userId ? updated : u)));
+        showToast("✅ Потребителят е обновен");
+      } else {
+        showToast("❌ Грешка при обновяване");
+      }
+    } catch {
+      showToast("❌ Грешка при обновяване");
+    }
+    handleEditCancel();
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm("Сигурни ли сте, че искате да деактивирате този потребител?")) return;
+    try {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: userId, active: false }),
+      });
+      if (res.ok) {
+        setTeamUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, active: false } : u)));
+        showToast("✅ Потребителят е деактивиран");
+      } else {
+        showToast("❌ Грешка при деактивиране");
+      }
+    } catch {
+      showToast("❌ Грешка при деактивиране");
+    }
+  };
 
   const filtered = properties.filter(
     (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.addr || "").toLowerCase().includes(search.toLowerCase())
@@ -567,6 +623,56 @@ export default function DashboardPage() {
                 {teamUsers.map((u) => {
                   const roleBadge = ROLE_BADGE[u.role];
                   const initial = (u.name || "?").charAt(0).toUpperCase();
+                  const isEditing = editingUserId === u.id;
+
+                  if (isEditing) {
+                    return (
+                      <div
+                        key={u.id}
+                        className="p-4 rounded-xl border bg-white"
+                        style={{ borderColor: "#e4e9f0" }}
+                      >
+                        <div className="flex flex-col gap-3">
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Име"
+                            className="w-full px-3 py-2 rounded-lg border text-sm"
+                            style={{ fontSize: 16, borderColor: "#e4e9f0", color: "#006494" }}
+                          />
+                          <select
+                            value={editRole}
+                            onChange={(e) => setEditRole(e.target.value as UserRole)}
+                            className="w-full px-3 py-2 rounded-lg border text-sm"
+                            style={{ fontSize: 16, borderColor: "#e4e9f0", color: "#006494" }}
+                          >
+                            <option value="admin">Админ</option>
+                            <option value="owner">Собственик</option>
+                            <option value="worker">Работник</option>
+                            <option value="inspector">Инспектор</option>
+                          </select>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditSave(u.id)}
+                              className="flex-1 min-h-[44px] py-2 rounded-lg text-xs font-semibold text-white"
+                              style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}
+                            >
+                              💾 Запази
+                            </button>
+                            <button
+                              onClick={handleEditCancel}
+                              className="flex-1 min-h-[44px] py-2 rounded-lg text-xs font-semibold border"
+                              style={{ borderColor: "#e4e9f0", color: "#247ba0" }}
+                            >
+                              Отказ
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={u.id}
@@ -588,7 +694,7 @@ export default function DashboardPage() {
                         <div className="text-sm font-semibold" style={{ color: "#006494" }}>{u.name}</div>
                         <div className="text-xs truncate" style={{ color: "#247ba0" }}>{u.email}</div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                         {roleBadge && (
                           <span
                             className="text-xs font-bold px-2 py-1 rounded-md"
@@ -606,6 +712,25 @@ export default function DashboardPage() {
                           style={{ background: u.active !== false ? "#16a34a" : "#dc2626" }}
                           title={u.active !== false ? "Активен" : "Неактивен"}
                         />
+                      </div>
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-1 ml-1 flex-shrink-0">
+                        <button
+                          onClick={() => handleEditStart(u)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-sm hover:bg-gray-100 transition"
+                          title="Редактирай"
+                          style={{ fontSize: 16 }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(u.id)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-sm hover:bg-red-50 transition"
+                          title="Деактивирай"
+                          style={{ fontSize: 16 }}
+                        >
+                          🗑️
+                        </button>
                       </div>
                     </div>
                   );

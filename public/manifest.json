@@ -1,0 +1,11 @@
+{
+  "name": "Ко Манда — Управление на имоти",
+  "short_name": "Ко Манда",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#e8f1f2",
+  "theme_color": "#006494",
+  "icons": [
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
