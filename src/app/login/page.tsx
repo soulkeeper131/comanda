@@ -26,8 +26,7 @@ export default function LoginPage() {
         const data = await res.json();
         setError(data.error || "Грешка при вход");
       } else {
-        router.push("/dashboard");
-        router.refresh();
+        window.location.href = "/dashboard";
       }
     } catch {
       setError("Възникна грешка. Опитай отново.");
