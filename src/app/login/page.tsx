@@ -51,7 +51,7 @@ export default function LoginPage() {
             ◉
           </div>
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#006494" }}>
-            Ко Манда
+            КОМАНДА
           </h1>
           <p className="text-sm mt-2" style={{ color: "#247ba0" }}>
             Влез в профила си

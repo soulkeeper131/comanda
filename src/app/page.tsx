@@ -7,7 +7,7 @@ export default function Home() {
       <nav className="l-nav">
         <div className="l-wrap">
           <div className="brand">
-            <img src="/logo.png" alt="Ко Манда" style={{ height: 34, width: "auto", display: "block" }} />
+            <img src="/logo.png" alt="КОМАНДА" style={{ height: 34, width: "auto", display: "block" }} />
           </div>
           <div className="spacer" />
           <Link href="/login" className="l-btn l-btn-g" style={{ padding: "10px 18px", fontSize: "14.5px" }}>
@@ -436,7 +436,7 @@ export default function Home() {
             </Link>
           </div>
           <div className="l-foot">
-            Ко Манда — стопанисване на имоти
+            КОМАНДА — стопанисване и управление на имоти
             <br />
             София ·{" "}
             <a href="mailto:vladimir.jotov@gmail.com" style={{ color: "var(--accent)" }}>
