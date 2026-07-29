@@ -8,8 +8,27 @@ export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
-    // Delete all existing users
+    // Disable FK checks temporarily
+    db.run(sql`PRAGMA foreign_keys = OFF`);
+
+    // Delete all existing data in correct order
+    db.run(sql`DELETE FROM push_subscriptions`);
+    db.run(sql`DELETE FROM offers`);
+    db.run(sql`DELETE FROM finding_photos`);
+    db.run(sql`DELETE FROM findings`);
+    db.run(sql`DELETE FROM evidence`);
+    db.run(sql`DELETE FROM job_items`);
+    db.run(sql`DELETE FROM jobs`);
+    db.run(sql`DELETE FROM plans`);
+    db.run(sql`DELETE FROM template_items`);
+    db.run(sql`DELETE FROM service_templates`);
+    db.run(sql`DELETE FROM zones`);
+    db.run(sql`DELETE FROM properties`);
     db.run(sql`DELETE FROM users`);
+    db.run(sql`DELETE FROM organizations`);
+
+    // Re-enable FK checks
+    db.run(sql`PRAGMA foreign_keys = ON`);
 
     const list = [
       { id: "u1", email: "admin@komanda.bg",    password: "admin1234",    role: "admin",     name: "Админ" },
