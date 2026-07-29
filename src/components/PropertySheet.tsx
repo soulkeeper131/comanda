@@ -2,12 +2,42 @@
 
 import { useState } from "react";
 import { MOCK_PROPERTIES, MOCK_TEMPLATES, type MockProperty, type MockTemplate } from "@/lib/mock-data";
+import TrustScore, { type TrustScoreDetail } from "@/components/TrustScore";
 
 function daysAgo(ts: string) {
   const d = Math.round((Date.now() - new Date(ts).getTime()) / 86400000);
   if (d === 0) return "днес";
   if (d === 1) return "вчера";
   return `преди ${d} дни`;
+}
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    hash = (hash << 5) - hash + c;
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function generateTrustScore(id: string): { score: number; maxScore: number; details: TrustScoreDetail[] } {
+  const h = hashString(id);
+  const s1 = ((h * 7) % 100) / 100;
+  const s2 = ((h * 13) % 100) / 100;
+  const s3 = ((h * 17) % 100) / 100;
+  const s4 = ((h * 23) % 100) / 100;
+
+  const details: TrustScoreDetail[] = [
+    { label: "Редовност на обходи", value: Math.round(6 + s1 * 6), max: 12 },
+    { label: "Снимкови отчети", value: Math.round(5 + s2 * 7), max: 12 },
+    { label: "GPS потвърждение", value: Math.round(7 + s3 * 5), max: 12 },
+    { label: "Без констатации", value: Math.round(1 + s4 * 2), max: 3 },
+  ];
+
+  const avgRatio = details.map((d) => d.value / d.max).reduce((a, b) => a + b, 0) / details.length;
+  const score = Math.round(avgRatio * 100);
+  return { score, maxScore: 100, details };
 }
 
 export default function PropertySheet({ property, onClose }: { property: MockProperty; onClose: () => void }) {
@@ -56,6 +86,9 @@ export default function PropertySheet({ property, onClose }: { property: MockPro
           <div className="p-3 rounded-xl mb-4 text-sm" style={{ background: "#f0f7ff", color: "#247ba0", border: "1px solid #d0e5ff" }}>
             <strong style={{ color: "#006494" }}>🔧 Комуникации:</strong> {property.utils}
           </div>
+
+          {/* Trust Score */}
+          <TrustScore {...generateTrustScore(property.id)} />
 
           {/* Zones */}
           <h4 className="text-sm font-bold mb-2" style={{ color: "#006494" }}>

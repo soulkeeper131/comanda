@@ -1,16 +1,34 @@
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+
+const ROLE_BADGE: Record<string, { label: string; color: string }> = {
+  admin: { label: "Админ", color: "#a663cc" },
+  owner: { label: "Собственик", color: "#1b98e0" },
+  worker: { label: "Работник", color: "#247ba0" },
+  inspector: { label: "Инспектор", color: "#d97706" },
+};
 
 export default function Topbar() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => data && setUser({ name: data.name, role: data.role }))
+      .catch(() => {});
+  }, []);
 
   const handleSignOut = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/");
     router.refresh();
   };
+
+  const badge = user ? ROLE_BADGE[user.role] : null;
+  const initial = user ? user.name.charAt(0) : "В";
 
   return (
     <header
@@ -30,15 +48,25 @@ export default function Topbar() {
       <div className="flex-1" />
 
       {/* User menu */}
-      <div className="relative">
+      <div className="relative flex items-center gap-2">
+        {badge && (
+          <span
+            className="hidden sm:inline-block px-2 py-0.5 rounded-full text-xs font-bold"
+            style={{ background: badge.color + "18", color: badge.color, border: `1px solid ${badge.color}40` }}
+          >
+            {badge.label}
+          </span>
+        )}
         <button
           onClick={() => setMenuOpen(!menuOpen)}
           className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm"
           style={{
-            background: "linear-gradient(140deg, #a663cc, #247ba0)",
+            background: badge
+              ? `linear-gradient(140deg, ${badge.color}, #006494)`
+              : "linear-gradient(140deg, #a663cc, #247ba0)",
           }}
         >
-          В
+          {initial}
         </button>
 
         {menuOpen && (
