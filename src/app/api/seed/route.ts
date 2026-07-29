@@ -6,8 +6,12 @@ import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    // Check for force-reseed
+    const url = new URL(request.url);
+    const force = url.searchParams.get("force") === "true";
+
     // Create tables if they don't exist
     db.run(sql`
       CREATE TABLE IF NOT EXISTS organizations (
@@ -38,7 +42,13 @@ export async function POST() {
       )
     `);
 
-    // Seed default org + users + properties
+    // Force reseed: delete all existing data
+    if (force) {
+      db.run(sql`DELETE FROM properties`);
+      db.run(sql`DELETE FROM users`);
+      db.run(sql`DELETE FROM organizations`);
+    }
+
     const existing = db.select().from(properties).all();
     if (existing.length > 0) {
       return NextResponse.json({ message: "Вече има данни", count: existing.length });
