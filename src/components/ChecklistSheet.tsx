@@ -233,7 +233,7 @@ export default function ChecklistSheet({ propertyName, propertyAddr, onClose, on
                         <div className="relative inline-block mt-2" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={(ev) => { ev.stopPropagation(); setShowPhotoMenu(showPhotoMenu === item.id ? null : item.id); }}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border"
+                            className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold border"
                             style={{ borderColor: "#c9ddf0", color: "#1b98e0", background: "#eff6ff" }}>
                             📷 Снимка
                           </button>

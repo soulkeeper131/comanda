@@ -59,7 +59,7 @@ export default function Topbar() {
         )}
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm"
+          className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm"
           style={{
             background: badge
               ? `linear-gradient(140deg, ${badge.color}, #006494)`
