@@ -204,3 +204,14 @@ export const inquiries = sqliteTable("inquiries", {
   status: text("status").default("new"),
   created_at: text("created_at").default(sql`(datetime('now'))`),
 });
+
+// ============================================================
+// Push абонаменти (Web Push / VAPID)
+// ============================================================
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  user_id: text("user_id").references(() => users.id),
+  subscription: text("subscription").notNull(), // JSON string of PushSubscriptionJSON
+  user_agent: text("user_agent"),
+  created_at: text("created_at").default(sql`(datetime('now'))`),
+});

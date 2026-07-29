@@ -100,6 +100,12 @@ export default function LoginPage() {
               началната страница
             </a>
           </p>
+
+          <p className="text-center text-sm mt-3">
+            <a href="/register" className="font-semibold hover:underline" style={{ color: "#a663cc" }}>
+              Нямаш профил? Регистрирай се →
+            </a>
+          </p>
         </form>
 
         <div className="mt-6 p-4 rounded-xl text-xs text-center" style={{ backgroundColor: "rgba(0,100,148,0.05)", color: "#247ba0" }}>

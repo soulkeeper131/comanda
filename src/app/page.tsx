@@ -443,8 +443,8 @@ export default function Home() {
               vladimir.jotov@gmail.com
             </a>
             <br />
-            <Link href="/dashboard" style={{ color: "var(--muted)", textDecoration: "underline", fontSize: "12.5px", marginTop: 8, display: "inline-block" }}>
-              Демо на приложението
+            <Link href="/login" style={{ color: "var(--muted)", textDecoration: "underline", fontSize: "12.5px", marginTop: 8, display: "inline-block" }}>
+              Вход в приложението
             </Link>
           </div>
         </div>

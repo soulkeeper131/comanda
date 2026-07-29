@@ -5,7 +5,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow API and static files
-  if (pathname.startsWith("/api/") || pathname.startsWith("/_next") || pathname.startsWith("/login") || pathname === "/" || /\.(html|css|js|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot|pdf|json|xml|txt|map)$/i.test(pathname)) {
+  if (pathname.startsWith("/api/") || pathname.startsWith("/_next") || pathname.startsWith("/login") || pathname.startsWith("/register") || pathname === "/" || pathname.startsWith("/manifest.json") || pathname.startsWith("/sw.js") || pathname.startsWith("/logo") || /\.(html|css|js|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot|pdf|json|xml|txt|map)$/i.test(pathname)) {
     return NextResponse.next();
   }
 

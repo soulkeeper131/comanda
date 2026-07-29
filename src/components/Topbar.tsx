@@ -51,7 +51,7 @@ export default function Topbar() {
       <div className="relative flex items-center gap-2">
         {badge && (
           <span
-            className="hidden sm:inline-block px-2 py-0.5 rounded-full text-xs font-bold"
+            className="inline-block px-2 py-0.5 rounded-full text-xs font-bold mr-1"
             style={{ background: badge.color + "18", color: badge.color, border: `1px solid ${badge.color}40` }}
           >
             {badge.label}
@@ -76,14 +76,20 @@ export default function Topbar() {
               className="absolute right-0 top-11 z-20 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden min-w-[200px] py-1"
             >
               <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider" style={{ color: "#247ba0" }}>
-                Меню
+                {user?.name || "Меню"}
               </div>
+              {badge && (
+                <div className="px-4 py-1 text-xs" style={{ color: badge.color }}>
+                  {badge.label}
+                </div>
+              )}
+              <div className="border-t my-1" style={{ borderColor: "#e4e9f0" }} />
               <button
                 onClick={handleSignOut}
                 className="w-full text-left px-4 min-h-[44px] py-3 text-sm hover:bg-gray-50 transition"
                 style={{ color: "#006494" }}
               >
-                Изход
+                🚪 Изход
               </button>
             </div>
           </>
