@@ -26,17 +26,8 @@ export default function Topbar() {
       }}
     >
       {/* Brand */}
-      <Link href="/dashboard" className="flex items-center gap-2.5 font-bold text-lg tracking-tight no-underline">
-        <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs"
-          style={{
-            background: "linear-gradient(140deg, #1b98e0, #006494)",
-            boxShadow: "0 2px 6px rgba(0,100,148,0.3)",
-          }}
-        >
-          ◉
-        </div>
-        <span style={{ color: "#006494" }}>Ко Манда</span>
+      <Link href="/dashboard" className="flex items-center no-underline">
+        <img src="/logo.png" alt="Ко Манда" className="h-8 w-auto" />
       </Link>
 
       <div className="flex-1" />
