@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import PushBell from "./PushBell";
 
 const ROLE_BADGE: Record<string, { label: string; color: string }> = {
   admin: { label: "Админ", color: "#a663cc" },
@@ -57,6 +58,7 @@ export default function Topbar() {
             {badge.label}
           </span>
         )}
+        <PushBell />
         <button
           onClick={() => setMenuOpen(!menuOpen)}
           className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm"
