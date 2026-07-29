@@ -57,26 +57,17 @@ export default function MapView({ properties, onPropertyClick }: MapViewProps) {
       const icon = L.divIcon({
         className: "custom-marker",
         html: `<div style="
-          width:28px;height:28px;border-radius:50%;background:${color};
+          width:44px;height:44px;border-radius:50%;background:${color};
           border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.25);
           display:flex;align-items:center;justify-content:center;
-          font-size:12px;color:#fff;font-weight:bold;
+          font-size:16px;color:#fff;font-weight:bold;
         ">${p.status === "ok" ? "✓" : p.status === "warn" ? "!" : "✕"}</div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-        popupAnchor: [0, -14],
+        iconSize: [44, 44],
+        iconAnchor: [22, 22],
+        popupAnchor: [0, -22],
       });
 
       const marker = L.marker([p.lat, p.lng], { icon }).addTo(map);
-
-      const popup = L.popup({ offset: [0, -10], closeButton: false }).setContent(
-        `<div style="font-family:system-ui,sans-serif;cursor:pointer;min-width:120px">
-          <div style="font-weight:700;font-size:13px;color:#006494">${p.name}</div>
-          <div style="font-size:11px;color:#666;margin-top:2px">${p.address}</div>
-        </div>`
-      );
-
-      marker.bindPopup(popup);
 
       marker.on("click", () => {
         onPropertyClick(p);
@@ -84,5 +75,5 @@ export default function MapView({ properties, onPropertyClick }: MapViewProps) {
     });
   }, [L, map, properties, onPropertyClick]);
 
-  return <div id="map-container" style={{ width: "100%", height: "100%", background: "#e8f1f2" }} />;
+  return <div id="map-container" style={{ width: "100%", height: "100%", background: "#e8f1f2", touchAction: "manipulation" }} />;
 }
