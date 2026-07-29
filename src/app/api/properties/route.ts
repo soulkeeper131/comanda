@@ -18,10 +18,54 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, address, lat, lng, kind, owner_id } = body;
+    let { name, address, lat, lng, kind, owner_id } = body;
 
-    if (!name || !address || !lat || !lng) {
-      return NextResponse.json({ error: "Име, адрес и координати са задължителни" }, { status: 400 });
+    if (!name || !address) {
+      return NextResponse.json(
+        { error: "Име и адрес са задължителни" },
+        { status: 400 },
+      );
+    }
+
+    // Auto-geocode if lat/lng not provided but address is
+    if ((lat === undefined || lng === undefined) && address) {
+      try {
+        const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&accept-language=bg`;
+        const geoRes = await fetch(geocodeUrl, {
+          headers: { "User-Agent": "KoManda/1.0" },
+        });
+
+        if (!geoRes.ok) {
+          return NextResponse.json(
+            { error: "Грешка при геокодиране на адреса" },
+            { status: 400 },
+          );
+        }
+
+        const geoData = await geoRes.json();
+
+        if (!Array.isArray(geoData) || geoData.length === 0) {
+          return NextResponse.json(
+            { error: "Адресът не е намерен. Моля, въведете координати ръчно." },
+            { status: 400 },
+          );
+        }
+
+        lat = parseFloat(geoData[0].lat);
+        lng = parseFloat(geoData[0].lon);
+      } catch {
+        return NextResponse.json(
+          { error: "Грешка при геокодиране на адреса" },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (!lat || !lng) {
+      return NextResponse.json(
+        { error: "Координатите са задължителни" },
+        { status: 400 },
+      );
     }
 
     const [property] = await db

@@ -425,6 +425,10 @@ export default function DashboardPage() {
       {showAddForm && (
         <PropertyForm
           onAdd={async (data) => {
+            if (!data.lat || !data.lng) {
+              showToast("❌ Моля, геокодирайте адреса първо");
+              return;
+            }
             try {
               const res = await fetch("/api/properties", {
                 method: "POST",
@@ -432,8 +436,8 @@ export default function DashboardPage() {
                 body: JSON.stringify({
                   name: data.name,
                   address: data.addr,
-                  lat: 42.69 + Math.random() * 0.02,
-                  lng: 23.31 + Math.random() * 0.04,
+                  lat: data.lat,
+                  lng: data.lng,
                   kind: data.type,
                 }),
               });

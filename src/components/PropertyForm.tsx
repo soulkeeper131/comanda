@@ -7,10 +7,37 @@ type PropertyFormData = {
   addr: string;
   type: string;
   access: string;
+  lat?: number;
+  lng?: number;
 };
 
 export default function PropertyForm({ onAdd, onClose }: { onAdd: (data: PropertyFormData) => void; onClose: () => void }) {
   const [data, setData] = useState<PropertyFormData>({ name: "", addr: "", type: "apartment", access: "" });
+  const [geocodeLoading, setGeocodeLoading] = useState(false);
+  const [geocodeResult, setGeocodeResult] = useState<{ display_name: string; lat: number; lng: number } | null>(null);
+  const [geocodeError, setGeocodeError] = useState("");
+
+  const handleGeocode = async () => {
+    if (!data.addr.trim()) return;
+    setGeocodeLoading(true);
+    setGeocodeError("");
+    setGeocodeResult(null);
+    try {
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(data.addr)}`);
+      if (res.ok) {
+        const json = await res.json();
+        setGeocodeResult(json);
+        setData(prev => ({ ...prev, lat: json.lat, lng: json.lng }));
+      } else {
+        setGeocodeError("Адресът не е намерен");
+        setData(prev => ({ ...prev, lat: undefined, lng: undefined }));
+      }
+    } catch {
+      setGeocodeError("Адресът не е намерен");
+      setData(prev => ({ ...prev, lat: undefined, lng: undefined }));
+    }
+    setGeocodeLoading(false);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,15 +61,38 @@ export default function PropertyForm({ onAdd, onClose }: { onAdd: (data: Propert
             style={{ borderColor: "#e4e9f0", fontSize: 16 }}
             required
           />
-          <input
-            type="text"
-            placeholder="Адрес"
-            value={data.addr}
-            onChange={(e) => setData({ ...data, addr: e.target.value })}
-            className="w-full px-4 py-3 rounded-xl border text-base"
-            style={{ borderColor: "#e4e9f0", fontSize: 16 }}
-            required
-          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Адрес"
+              value={data.addr}
+              onChange={(e) => setData({ ...data, addr: e.target.value })}
+              className="flex-1 px-4 py-3 rounded-xl border text-base"
+              style={{ borderColor: "#e4e9f0", fontSize: 16 }}
+              required
+            />
+            <button
+              type="button"
+              onClick={handleGeocode}
+              disabled={geocodeLoading}
+              className="min-h-[44px] min-w-[44px] px-3 py-3 rounded-xl text-sm font-semibold border flex items-center justify-center transition"
+              style={{
+                borderColor: geocodeError ? "#fecaca" : geocodeResult ? "#bbf7d0" : "#d0e5ff",
+                color: geocodeError ? "#dc2626" : geocodeResult ? "#16a34a" : "#1b98e0",
+                background: geocodeError ? "#fef2f2" : geocodeResult ? "#f0fdf4" : "#eff6ff",
+              }}
+            >
+              {geocodeLoading ? "⏳" : geocodeResult ? "✓" : "📍 Геокодирай"}
+            </button>
+          </div>
+          {geocodeResult && (
+            <p className="text-xs font-medium" style={{ color: "#16a34a" }}>
+              ✓ {geocodeResult.display_name} ({geocodeResult.lat.toFixed(4)}, {geocodeResult.lng.toFixed(4)})
+            </p>
+          )}
+          {geocodeError && (
+            <p className="text-xs font-medium" style={{ color: "#dc2626" }}>{geocodeError}</p>
+          )}
           <select
             value={data.type}
             onChange={(e) => setData({ ...data, type: e.target.value })}

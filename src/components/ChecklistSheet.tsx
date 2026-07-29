@@ -67,6 +67,7 @@ export default function ChecklistSheet({ propertyName, propertyAddr, onClose, on
   const [photos, setPhotos] = useState<Record<string, string[]>>({});
   const [showPhotoMenu, setShowPhotoMenu] = useState<string | null>(null);
   const [viewerPhoto, setViewerPhoto] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null);
 
   const done = items.filter(i => i.done).length;
   const total = items.length;
@@ -96,12 +97,24 @@ export default function ChecklistSheet({ propertyName, propertyAddr, onClose, on
     );
   };
 
-  const addPhoto = (itemId: string, file: File) => {
-    const url = URL.createObjectURL(file);
-    setPhotos(prev => ({
-      ...prev,
-      [itemId]: [...(prev[itemId] || []), url],
-    }));
+  const addPhoto = async (itemId: string, file: File) => {
+    setUploadingPhoto(itemId);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      if (res.ok) {
+        const json = await res.json();
+        const serverUrl = json.url;
+        setPhotos(prev => ({
+          ...prev,
+          [itemId]: [...(prev[itemId] || []), serverUrl],
+        }));
+      }
+    } catch {
+      // silently ignore upload errors
+    }
+    setUploadingPhoto(null);
     setShowPhotoMenu(null);
   };
 
@@ -231,12 +244,19 @@ export default function ChecklistSheet({ propertyName, propertyAddr, onClose, on
                       {/* Camera button */}
                       {item.proofType === "photo" && (
                         <div className="relative inline-block mt-2" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={(ev) => { ev.stopPropagation(); setShowPhotoMenu(showPhotoMenu === item.id ? null : item.id); }}
-                            className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold border"
-                            style={{ borderColor: "#c9ddf0", color: "#1b98e0", background: "#eff6ff" }}>
-                            📷 Снимка
-                          </button>
+                          {uploadingPhoto === item.id ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold"
+                              style={{ color: "#1b98e0", background: "#eff6ff" }}>
+                              ⏳ Качване...
+                            </span>
+                          ) : (
+                            <button
+                              onClick={(ev) => { ev.stopPropagation(); setShowPhotoMenu(showPhotoMenu === item.id ? null : item.id); }}
+                              className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold border"
+                              style={{ borderColor: "#c9ddf0", color: "#1b98e0", background: "#eff6ff" }}>
+                              📷 Снимка
+                            </button>
+                          )}
                           {showPhotoMenu === item.id && (
                             <div className="absolute bottom-full left-0 mb-1 bg-white rounded-xl shadow-xl border border-gray-100 p-1 z-50 min-w-[160px]">
                               <label className="flex items-center gap-2 px-3 py-2.5 text-xs font-medium cursor-pointer hover:bg-gray-50 rounded-lg"

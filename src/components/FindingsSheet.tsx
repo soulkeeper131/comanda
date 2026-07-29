@@ -29,14 +29,26 @@ export default function FindingsSheet({
   const [photos, setPhotos] = useState<string[]>([]);
   const [viewerPhoto, setViewerPhoto] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const canSave = type && title.trim();
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && photos.length < 3) {
-      const url = URL.createObjectURL(file);
-      setPhotos((prev) => [...prev, url]);
+      setUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        if (res.ok) {
+          const json = await res.json();
+          setPhotos((prev) => [...prev, json.url]);
+        }
+      } catch {
+        // silently ignore upload errors
+      }
+      setUploading(false);
     }
   };
 
@@ -209,21 +221,28 @@ export default function FindingsSheet({
 
           {photos.length < 3 && (
             <label
-              className="inline-flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border cursor-pointer"
+              className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border ${uploading ? "" : "cursor-pointer"}`}
               style={{
                 borderColor: "#c9ddf0",
                 color: "#1b98e0",
                 background: "#eff6ff",
               }}
             >
-              📷 Добави снимка
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={handleFileInput}
-              />
+              {uploading ? (
+                "⏳ Качване..."
+              ) : (
+                <>
+                  📷 Добави снимка
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handleFileInput}
+                    disabled={uploading}
+                  />
+                </>
+              )}
             </label>
           )}
         </div>
