@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import type { Property } from "./types";
 
 interface MapViewProps {
@@ -8,10 +8,18 @@ interface MapViewProps {
   onPropertyClick: (p: Property) => void;
 }
 
+const STATUS_COLORS: Record<string, string> = {
+  ok: "#22c55e",
+  warn: "#f59e0b",
+  bad: "#ef4444",
+};
+
 export default function MapView({ properties, onPropertyClick }: MapViewProps) {
   const [L, setL] = useState<any>(null);
-  const [map, setMap] = useState<any>(null);
+  const mapRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  // Load Leaflet once
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -22,13 +30,15 @@ export default function MapView({ properties, onPropertyClick }: MapViewProps) {
     return () => { cancelled = true; };
   }, []);
 
+  // Init map
   useEffect(() => {
-    if (!L || map) return;
+    if (!L || mapRef.current) return;
 
-    const m = L.map("map-container", {
+    const m = L.map(containerRef.current!, {
       center: [42.6977, 23.3219],
       zoom: 13,
       zoomControl: false,
+      // Don't set touchAction — Leaflet handles gestures internally
     });
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -36,44 +46,68 @@ export default function MapView({ properties, onPropertyClick }: MapViewProps) {
       maxZoom: 19,
     }).addTo(m);
 
-    setMap(m);
+    // Fix missing tiles on resize
+    setTimeout(() => m.invalidateSize(), 100);
+
+    mapRef.current = m;
 
     return () => {
       m.remove();
+      mapRef.current = null;
     };
   }, [L]);
 
-  useEffect(() => {
-    if (!L || !map) return;
+  // Stable callback ref to avoid re-rendering markers on every click handler change
+  const onClickRef = useRef(onPropertyClick);
+  onClickRef.current = onPropertyClick;
 
-    // Clear old markers
-    map.eachLayer((layer: any) => {
-      if (layer instanceof L.Marker) map.removeLayer(layer);
+  // Update markers
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!L || !m) return;
+
+    // Remove old markers
+    m.eachLayer((layer: any) => {
+      if (layer instanceof L.CircleMarker) m.removeLayer(layer);
     });
 
     properties.forEach((p) => {
-      const color = p.status === "ok" ? "#22c55e" : p.status === "warn" ? "#f59e0b" : "#ef4444";
+      const color = STATUS_COLORS[p.status] || "#22c55e";
 
-      const icon = L.divIcon({
-        className: "custom-marker",
-        html: `<div style="
-          width:44px;height:44px;border-radius:50%;background:${color};
-          border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.25);
-          display:flex;align-items:center;justify-content:center;
-          font-size:16px;color:#fff;font-weight:bold;
-        ">${p.status === "ok" ? "✓" : p.status === "warn" ? "!" : "✕"}</div>`,
-        iconSize: [44, 44],
-        iconAnchor: [22, 22],
-        popupAnchor: [0, -22],
-      });
+      // CircleMarker — SVG-based, works reliably on mobile
+      const marker = L.circleMarker([p.lat, p.lng], {
+        radius: 22,
+        fillColor: color,
+        color: "#fff",
+        weight: 3,
+        opacity: 1,
+        fillOpacity: 0.9,
+      }).addTo(m);
 
-      const marker = L.marker([p.lat, p.lng], { icon }).addTo(map);
-
+      // Click → open PropertySheet
       marker.on("click", () => {
-        onPropertyClick(p);
+        onClickRef.current(p);
       });
-    });
-  }, [L, map, properties, onPropertyClick]);
 
-  return <div id="map-container" style={{ width: "100%", height: "100%", background: "#e8f1f2", touchAction: "manipulation" }} />;
+      // Popup with property name
+      marker.bindPopup(
+        `<div style="font-family:system-ui,sans-serif;min-width:100px;text-align:center">
+          <div style="font-weight:700;font-size:13px;color:#006494">${p.name}</div>
+          <div style="font-size:11px;color:#666;margin-top:3px">${p.address?.split(",")[0] || ""}</div>
+        </div>`,
+        {
+          closeButton: false,
+          className: "property-popup",
+        }
+      );
+    });
+  }, [L, properties]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full h-full"
+      style={{ background: "#e8f1f2", minHeight: "300px" }}
+    />
+  );
 }

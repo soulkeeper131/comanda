@@ -822,3 +822,31 @@ p {
 .safe-top {
   padding-top: env(safe-area-inset-top, 0px);
 }
+
+/* Leaflet mobile fixes */
+.leaflet-container {
+  z-index: 0;
+  /* Disable browser tap highlight on markers */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Ensure popups are above map and PropertySheet */
+.leaflet-popup {
+  z-index: 1000 !important;
+}
+
+.property-popup .leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  padding: 2px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+
+.property-popup .leaflet-popup-content {
+  margin: 8px 12px;
+  cursor: pointer;
+}
+
+/* Allow map to receive touch events for panning */
+.leaflet-container {
+  touch-action: auto !important;
+}
