@@ -1,0 +1,35 @@
+{
+  "name": "comanda",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/leaflet": "^1.9.21",
+    "better-auth": "^1.6.25",
+    "better-sqlite3": "^12.11.1",
+    "drizzle-orm": "^0.45.2",
+    "framer-motion": "^12.43.0",
+    "leaflet": "^1.9.4",
+    "next": "14.2.35",
+    "react": "^18",
+    "react-dom": "^18",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.35",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}

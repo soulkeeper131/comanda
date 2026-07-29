@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #e8f1f2;
+  --foreground: #006494;
+  --brand-primary: #1b98e0;
+  --brand-secondary: #247ba0;
+  --brand-dark: #006494;
+  --brand-accent: #a663cc;
+  --brand-bg: #e8f1f2;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
