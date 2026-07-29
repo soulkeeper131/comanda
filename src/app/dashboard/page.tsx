@@ -439,7 +439,7 @@ export default function DashboardPage() {
               });
               if (res.ok) {
                 showToast("✅ Обектът е добавен");
-                loadProperties();
+                window.location.reload();
               } else {
                 showToast("❌ Грешка при добавяне");
               }
