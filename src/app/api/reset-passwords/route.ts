@@ -49,9 +49,11 @@ export async function POST() {
     ];
 
     for (const [addr, lat, lng, kind] of props) {
+      const name = addr.split(",")[0].trim().replace(/^(ул\.|бул\.|жк\.|кв\.)\s*/, "");
+      const fullAddr = `София, ${addr}`;
       dbDirect.run(
-        `INSERT INTO properties (id, org_id, owner_id, name, address, lat, lng, kind) VALUES (?, 'org1', 'u2', ?, 'София, ' || ?, ?, ?, ?)`,
-        [crypto.randomUUID(), addr.split(",")[0].trim().replace(/^(ул\.|бул\.|жк\.|кв\.)\s*/, ""), addr, lat, lng, kind]
+        `INSERT INTO properties (id, org_id, owner_id, name, address, lat, lng, kind) VALUES (?, 'org1', 'u2', ?, ?, ?, ?, ?)`,
+        [crypto.randomUUID(), name, fullAddr, lat, lng, kind]
       );
     }
 
