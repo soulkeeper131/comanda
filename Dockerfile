@@ -1,6 +1,6 @@
 # Ко Манда — production Dockerfile (Next.js standalone)
 
-FROM node:20-alpine AS build
+FROM node:20 AS build
 WORKDIR /app
 
 COPY package*.json ./
@@ -10,7 +10,7 @@ COPY . .
 RUN mkdir -p /app/data
 RUN npm run build
 
-FROM node:20-alpine AS runtime
+FROM node:20-slim AS runtime
 WORKDIR /app
 
 RUN mkdir -p /app/data
