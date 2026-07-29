@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "@/lib/auth-client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,14 +16,15 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const result = await signIn.email({
-        email,
-        password,
-        callbackURL: "/dashboard",
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
 
-      if (result?.error) {
-        setError("Грешен имейл или парола");
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Грешка при вход");
       } else {
         router.push("/dashboard");
         router.refresh();
@@ -39,30 +39,18 @@ export default function LoginPage() {
   return (
     <div className="min-h-[100dvh] flex items-center justify-center p-6" style={{ backgroundColor: "#e8f1f2" }}>
       <div className="w-full max-w-md">
-        {/* Brand */}
         <div className="text-center mb-10">
-          <div
-            className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-white text-xl font-bold mb-4"
-            style={{
-              background: "linear-gradient(140deg, #1b98e0, #006494)",
-              boxShadow: "0 4px 16px rgba(0,100,148,0.25)",
-            }}
-          >
-            ◉
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#006494" }}>
-            КОМАНДА
-          </h1>
+          <img
+            src="/logo.png"
+            alt="КОМАНДА"
+            className="h-14 mx-auto mb-4"
+          />
           <p className="text-sm mt-2" style={{ color: "#247ba0" }}>
             Влез в профила си
           </p>
         </div>
 
-        {/* Form */}
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100"
-        >
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
           {error && (
             <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-100 text-red-700 text-sm font-medium">
               {error}
@@ -70,24 +58,20 @@ export default function LoginPage() {
           )}
 
           <div className="mb-5">
-            <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>
-              Имейл
-            </label>
+            <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Имейл</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="ivan@example.com"
+              placeholder="admin@komanda.bg"
               required
               className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
-              style={{ fontSize: "16px", focusRingColor: "#1b98e0" }}
+              style={{ fontSize: "16px" }}
             />
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>
-              Парола
-            </label>
+            <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Парола</label>
             <input
               type="password"
               value={password}
@@ -118,6 +102,14 @@ export default function LoginPage() {
             </a>
           </p>
         </form>
+
+        <div className="mt-6 p-4 rounded-xl text-xs text-center" style={{ backgroundColor: "rgba(0,100,148,0.05)", color: "#247ba0" }}>
+          <strong>Тестови акаунти:</strong><br />
+          admin@komanda.bg / admin1234 (Admin)<br />
+          owner@komanda.bg / owner1234 (Owner)<br />
+          worker@komanda.bg / worker1234 (Worker)<br />
+          inspector@komanda.bg / inspector1234 (Inspector)
+        </div>
       </div>
     </div>
   );

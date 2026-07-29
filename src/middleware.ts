@@ -1,43 +1,25 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const publicPaths = [
-  "/login",
-  "/api/auth",
-  "/favicon.ico",
-  "/_next",
-  "/apple-touch-icon",
-  "/manifest",
-  "/icon",
-];
+const publicPaths = ["/login", "/api/auth", "/_next", "/favicon.ico", "/apple-touch-icon", "/manifest", "/icon", "/logo.png"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths
-  if (publicPaths.some((p) => pathname.startsWith(p))) {
+  if (publicPaths.some((p) => pathname.startsWith(p)) || /\.(html|css|js|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot|pdf|json|xml|txt|map)$/i.test(pathname)) {
     return NextResponse.next();
   }
 
-  // Allow static files
-  if (/\.(html|css|js|png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|eot|pdf|json|xml|txt|map)$/i.test(pathname)) {
-    return NextResponse.next();
-  }
+  if (pathname === "/") return NextResponse.next();
 
-  // Landing page is public
-  if (pathname === "/") {
-    return NextResponse.next();
-  }
-
-  // Check auth cookie (better-auth uses session cookie)
-  const session = request.cookies.get("better-auth.session_token");
+  const session = request.cookies.get("komanda_session");
   if (!session) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();
 }
 
-export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
-};
+export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)",] };

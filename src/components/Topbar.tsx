@@ -1,16 +1,13 @@
-"use client";
-
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signOut } from "@/lib/auth-client";
 
 export default function Topbar() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const handleSignOut = async () => {
-    await signOut();
+    await fetch("/api/auth/logout", { method: "POST" });
     router.push("/");
     router.refresh();
   };
