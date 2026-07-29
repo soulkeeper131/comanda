@@ -16,17 +16,26 @@ type TabDef = { id: string; label: string; roles: UserRole[] };
 
 const ALL_TABS: TabDef[] = [
   { id: "map", label: "🗺️ Карта", roles: ["admin", "owner", "worker", "inspector"] },
+  { id: "calendar", label: "📅 Календар", roles: ["admin", "owner", "inspector"] },
   { id: "tasks", label: "📋 Задачи", roles: ["admin", "worker"] },
   { id: "fixes", label: "🔧 Ремонти", roles: ["admin"] },
   { id: "findings", label: "⚠️ Констатации", roles: ["admin"] },
   { id: "props", label: "🏠 Обекти", roles: ["admin", "owner", "inspector"] },
   { id: "history", label: "📊 История", roles: ["admin", "owner", "inspector"] },
+  { id: "team", label: "👥 Екип", roles: ["admin"] },
 ];
 
 const TASKS = [
   { id: "t1", icon: "❄️", name: "Зимен обход (стандартен)", mins: 40, items: 12 },
   { id: "t2", icon: "☀️", name: "Летен обход (стандартен)", mins: 55, items: 15 },
 ];
+
+const ROLE_BADGE: Record<string, { label: string; color: string }> = {
+  admin: { label: "Админ", color: "#a663cc" },
+  owner: { label: "Собственик", color: "#1b98e0" },
+  worker: { label: "Работник", color: "#247ba0" },
+  inspector: { label: "Инспектор", color: "#d97706" },
+};
 
 export default function DashboardPage() {
   const [tab, setTab] = useState("map");
@@ -43,6 +52,14 @@ export default function DashboardPage() {
   const [selectedFinding, setSelectedFinding] = useState<any>(null);
   const [userRole, setUserRole] = useState<UserRole>("admin");
   const [roleLoading, setRoleLoading] = useState(true);
+
+  // Календар state
+  const [calendarJobs, setCalendarJobs] = useState<any[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+
+  // Екип state
+  const [teamUsers, setTeamUsers] = useState<any[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
 
   // Fetch user role
   useEffect(() => {
@@ -127,6 +144,28 @@ export default function DashboardPage() {
       loadFindings();
     }
   }, [tab, loadFindings]);
+
+  // Fetch calendar jobs
+  useEffect(() => {
+    if (tab !== "calendar") return;
+    setCalendarLoading(true);
+    fetch("/api/jobs")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setCalendarJobs(Array.isArray(data) ? data : []))
+      .catch(() => setCalendarJobs([]))
+      .finally(() => setCalendarLoading(false));
+  }, [tab]);
+
+  // Fetch team users
+  useEffect(() => {
+    if (tab !== "team") return;
+    setTeamLoading(true);
+    fetch("/api/users")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setTeamUsers(Array.isArray(data) ? data : []))
+      .catch(() => setTeamUsers([]))
+      .finally(() => setTeamLoading(false));
+  }, [tab]);
 
   const filtered = properties.filter(
     (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.addr || "").toLowerCase().includes(search.toLowerCase())
@@ -409,6 +448,172 @@ export default function DashboardPage() {
         )}
 
         {tab === "history" && <HistoryList />}
+
+        {tab === "calendar" && (
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            {calendarLoading ? (
+              <div className="text-center py-12" style={{ color: "#247ba0" }}>Зареждане...</div>
+            ) : calendarJobs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center text-center py-16">
+                <div className="text-5xl mb-4">📅</div>
+                <h3 className="text-lg font-bold mb-2" style={{ color: "#006494" }}>Няма планирани обходи</h3>
+                <p className="text-sm max-w-xs" style={{ color: "#247ba0" }}>
+                  Тук ще виждаш предстоящите и завършени обходи, групирани по дата.
+                </p>
+              </div>
+            ) : (() => {
+              const STATUS_BADGE: Record<string, { label: string; bg: string; color: string }> = {
+                planned: { label: "Планиран", bg: "#dbeafe", color: "#1b98e0" },
+                completed: { label: "Завършен", bg: "#dcfce7", color: "#16a34a" },
+                missed: { label: "Пропуснат", bg: "#fee2e2", color: "#dc2626" },
+              };
+
+              // Group by date
+              const grouped: Record<string, any[]> = {};
+              for (const job of calendarJobs) {
+                const date = job.planned_at ? job.planned_at.slice(0, 10) : "Без дата";
+                if (!grouped[date]) grouped[date] = [];
+                grouped[date].push(job);
+              }
+
+              const sortedDates = Object.keys(grouped).sort((a, b) =>
+                a === "Без дата" ? 1 : b === "Без дата" ? -1 : a.localeCompare(b)
+              );
+
+              return (
+                <div className="space-y-4">
+                  {sortedDates.map((date) => {
+                    const badge = date === new Date().toISOString().slice(0, 10) ? "ДНЕС" : null;
+                    const formatted = date === "Без дата" ? "Без дата" : new Date(date).toLocaleDateString("bg-BG", { weekday: "long", day: "numeric", month: "long" });
+
+                    return (
+                      <div key={date}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm font-bold" style={{ color: "#006494" }}>
+                            {formatted}
+                          </span>
+                          {badge && (
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "#dbeafe", color: "#1b98e0" }}>
+                              {badge}
+                            </span>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          {grouped[date].map((job) => {
+                            const status = STATUS_BADGE[job.status] || STATUS_BADGE.planned;
+                            const time = job.planned_at
+                              ? new Date(job.planned_at).toLocaleTimeString("bg-BG", { hour: "2-digit", minute: "2-digit" })
+                              : "--:--";
+                            return (
+                              <div
+                                key={job.id}
+                                className="flex items-start gap-3 p-4 rounded-xl border bg-white transition hover:shadow-md"
+                                style={{ borderColor: "#e4e9f0" }}
+                              >
+                                {/* Timeline dot */}
+                                <div className="flex flex-col items-center pt-1">
+                                  <div
+                                    className="w-3 h-3 rounded-full flex-shrink-0"
+                                    style={{ background: status.color }}
+                                  />
+                                  <div className="w-0.5 flex-1 mt-1" style={{ background: "#e4e9f0", minHeight: "12px" }} />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-semibold" style={{ color: "#006494" }}>
+                                      {job.property_name || "Имот"}
+                                    </span>
+                                    <span className="text-xs" style={{ color: "#247ba0" }}>{time}</span>
+                                  </div>
+                                  {job.worker_name && (
+                                    <div className="text-xs mt-0.5" style={{ color: "#247ba0" }}>
+                                      👤 {job.worker_name}
+                                    </div>
+                                  )}
+                                </div>
+                                <span
+                                  className="text-xs font-bold px-2 py-1 rounded-md flex-shrink-0"
+                                  style={{ background: status.bg, color: status.color }}
+                                >
+                                  {status.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {tab === "team" && (
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            {teamLoading ? (
+              <div className="text-center py-12" style={{ color: "#247ba0" }}>Зареждане...</div>
+            ) : teamUsers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center text-center py-16">
+                <div className="text-5xl mb-4">👥</div>
+                <h3 className="text-lg font-bold mb-2" style={{ color: "#006494" }}>Няма потребители</h3>
+                <p className="text-sm max-w-xs" style={{ color: "#247ba0" }}>
+                  Екипът ще се появи тук след като бъдат добавени потребители.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {teamUsers.map((u) => {
+                  const roleBadge = ROLE_BADGE[u.role];
+                  const initial = (u.name || "?").charAt(0).toUpperCase();
+                  return (
+                    <div
+                      key={u.id}
+                      className="flex items-center gap-3 p-4 rounded-xl border bg-white transition hover:shadow-md"
+                      style={{ borderColor: "#e4e9f0" }}
+                    >
+                      {/* Avatar */}
+                      <div
+                        className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                        style={{
+                          background: roleBadge
+                            ? `linear-gradient(140deg, ${roleBadge.color}, #006494)`
+                            : "linear-gradient(140deg, #a663cc, #247ba0)",
+                        }}
+                      >
+                        {initial}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold" style={{ color: "#006494" }}>{u.name}</div>
+                        <div className="text-xs truncate" style={{ color: "#247ba0" }}>{u.email}</div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {roleBadge && (
+                          <span
+                            className="text-xs font-bold px-2 py-1 rounded-md"
+                            style={{
+                              background: roleBadge.color + "18",
+                              color: roleBadge.color,
+                              border: `1px solid ${roleBadge.color}40`,
+                            }}
+                          >
+                            {roleBadge.label}
+                          </span>
+                        )}
+                        <span
+                          className="w-2 h-2 rounded-full"
+                          style={{ background: u.active !== false ? "#16a34a" : "#dc2626" }}
+                          title={u.active !== false ? "Активен" : "Неактивен"}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* FAB - only Admin */}
         {showFAB && (

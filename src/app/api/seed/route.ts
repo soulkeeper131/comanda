@@ -1,7 +1,8 @@
 import { db } from "@/db";
-import { properties } from "@/db/schema";
+import { properties, users, organizations } from "@/db/schema";
 import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
 
@@ -43,15 +44,31 @@ export async function POST() {
       return NextResponse.json({ message: "Вече има данни", count: existing.length });
     }
 
+    // Insert org
     db.run(sql`INSERT OR IGNORE INTO organizations (id, name, slug) VALUES ('org1', 'КОМАНДА', 'komanda')`);
-    db.run(sql`INSERT OR IGNORE INTO users (id, org_id, email, password_hash, role, full_name) VALUES
-      ('u1', 'org1', 'admin@komanda.bg', 'admin1234', 'admin', 'Админ'),
-      ('u2', 'org1', 'owner@komanda.bg', 'owner1234', 'owner', 'Собственик'),
-      ('u3', 'org1', 'worker@komanda.bg', 'worker1234', 'worker', 'Работник'),
-      ('u4', 'org1', 'inspector@komanda.bg', 'inspector1234', 'inspector', 'Инспектор')
-    `);
 
-    const props = [
+    // Hash passwords with bcrypt
+    const usersToCreate = [
+      { id: "u1", email: "admin@komanda.bg",    password: "admin1234",    role: "admin",     name: "Админ" },
+      { id: "u2", email: "owner@komanda.bg",    password: "owner1234",    role: "owner",     name: "Собственик" },
+      { id: "u3", email: "worker@komanda.bg",   password: "worker1234",   role: "worker",    name: "Работник" },
+      { id: "u4", email: "inspector@komanda.bg", password: "inspector1234", role: "inspector", name: "Инспектор" },
+    ];
+
+    for (const u of usersToCreate) {
+      const hash = await bcrypt.hash(u.password, 10);
+      db.insert(users).values({
+        id: u.id,
+        org_id: "org1",
+        email: u.email,
+        password_hash: hash,
+        role: u.role,
+        full_name: u.name,
+        active: true,
+      }).run();
+    }
+
+    const props: [string, number, number, string][] = [
       ["ул. Цар Иван Асен II 12", 42.6934, 23.3247, "apartment"],
       ["бул. България 81", 42.6791, 23.3025, "apartment"],
       ["ул. Оборище 45", 42.6972, 23.3412, "house"],

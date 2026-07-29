@@ -1,4 +1,8 @@
 import { cookies } from "next/headers";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 
 const envSecret = process.env.BETTER_AUTH_K;
 const K = envSecret || "komanda-dev-secret";
@@ -11,18 +15,66 @@ export type User = {
   role: "admin" | "owner" | "worker" | "inspector";
 };
 
-const USERS: (User & { password: string })[] = [
-  { id: "u1", email: "admin@komanda.bg", password: "admin1234", name: "Админ", role: "admin" },
-  { id: "u2", email: "owner@komanda.bg", password: "owner1234", name: "Собственик", role: "owner" },
-  { id: "u3", email: "worker@komanda.bg", password: "worker1234", name: "Работник", role: "worker" },
-  { id: "u4", email: "inspector@komanda.bg", password: "inspector1234", name: "Инспектор", role: "inspector" },
-];
+/** Query the DB for a user by email and verify password */
+export async function validateUser(email: string, password: string): Promise<User | null> {
+  const row = db.select().from(users).where(eq(users.email, email)).get();
+  if (!row) return null;
+  if (!row.active) return null;
 
-export function validateUser(email: string, password: string): User | null {
-  const user = USERS.find((u) => u.email === email);
-  if (!user || user.password !== password) return null;
-  const { password: _, ...safe } = user;
-  return safe;
+  const ok = await bcrypt.compare(password, row.password_hash);
+  if (!ok) return null;
+
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.full_name ?? "",
+    role: row.role as User["role"],
+  };
+}
+
+/** Create a new user with bcrypt-hashed password */
+export async function createUser(
+  email: string,
+  password: string,
+  name: string,
+  role: User["role"] = "worker",
+  org_id?: string,
+): Promise<User> {
+  const hash = await bcrypt.hash(password, 10);
+  const id = crypto.randomUUID();
+  db.insert(users).values({
+    id,
+    email,
+    password_hash: hash,
+    full_name: name,
+    role,
+    org_id: org_id ?? null,
+    active: true,
+  }).run();
+  return { id, email, name, role };
+}
+
+/** Return a single user by ID */
+export function getUser(uid: string): User | null {
+  const row = db.select().from(users).where(eq(users.id, uid)).get();
+  if (!row) return null;
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.full_name ?? "",
+    role: row.role as User["role"],
+  };
+}
+
+/** Return all active users (limited to 100) */
+export function listUsers(): User[] {
+  const rows = db.select().from(users).where(eq(users.active, true)).limit(100).all();
+  return rows.map((row) => ({
+    id: row.id,
+    email: row.email,
+    name: row.full_name ?? "",
+    role: row.role as User["role"],
+  }));
 }
 
 function sign(data: string): string {

@@ -13,7 +13,7 @@ export default function Home() {
           <Link href="/login" className="l-btn l-btn-g" style={{ padding: "10px 18px", fontSize: "14.5px" }}>
             Вход
           </Link>
-          <Link href="#contact" className="l-btn l-btn-p" style={{ padding: "10px 18px", fontSize: "14.5px" }}>
+          <Link href="/register" className="l-btn l-btn-p" style={{ padding: "10px 18px", fontSize: "14.5px" }}>
             Регистрация
           </Link>
         </div>
