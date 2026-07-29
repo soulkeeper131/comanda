@@ -8,9 +8,17 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    // Check for force-reseed
-    const url = new URL(request.url);
-    const force = url.searchParams.get("force") === "true";
+    // Check for force-reseed via body
+    let force = false;
+    try {
+      const body = await request.json();
+      force = body.force === true;
+    } catch {}
+    // Also check query param
+    if (!force) {
+      const url = new URL(request.url);
+      force = url.searchParams.get("force") === "true";
+    }
 
     // Create tables if they don't exist
     db.run(sql`

@@ -7,6 +7,8 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+# Cache-bust: change this on every deploy
+RUN echo "Deploy: $(date +%s)" > /app/.build_id
 RUN mkdir -p /app/data
 RUN npm run build
 
