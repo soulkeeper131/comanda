@@ -27,7 +27,7 @@ export default function Topbar() {
     >
       {/* Brand */}
       <Link href="/dashboard" className="flex items-center no-underline">
-        <img src="/logo.png" alt="Ко Манда" className="h-8 w-auto" />
+        <img src="/logo.png" alt="КОМАНДА" className="h-16 w-auto" />
       </Link>
 
       <div className="flex-1" />
