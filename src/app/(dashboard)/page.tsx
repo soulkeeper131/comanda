@@ -1,59 +1,67 @@
 "use client";
 
 import Topbar from "@/components/Topbar";
-import Link from "next/link";
+import MapView from "@/components/MapView";
+import { useState } from "react";
+
+const TABS = [
+  { id: "map", label: "🗺️ Карта" },
+  { id: "tasks", label: "📋 Задачи" },
+  { id: "fixes", label: "🔧 Ремонти" },
+  { id: "props", label: "🏠 Обекти" },
+  { id: "history", label: "📊 История" },
+];
 
 export default function DashboardPage() {
+  const [tab, setTab] = useState("map");
+
   return (
     <div className="flex flex-col h-[100dvh]" style={{ backgroundColor: "#e8f1f2" }}>
       <Topbar />
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto">
-        {/* Tabs */}
-        <div className="flex gap-0 border-b bg-white/70 backdrop-blur-sm px-2 overflow-x-auto"
-          style={{ borderColor: "#e4e9f0" }}>
-          {["🗺️ Карта", "📋 Задачи", "🔧 Ремонти", "🏠 Обекти", "📊 История"].map((tab, i) => (
-            <button
-              key={tab}
-              className={`px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition ${
-                i === 0 ? "border-current" : "border-transparent"
-              }`}
-              style={{
-                color: i === 0 ? "#1b98e0" : "#247ba0",
-                fontSize: "14px",
-              }}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
+      {/* Tabs */}
+      <div
+        className="flex gap-0 border-b flex-shrink-0 overflow-x-auto px-2"
+        style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(14px)", borderColor: "#e4e9f0" }}
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className="px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition"
+            style={{
+              fontSize: 14,
+              color: tab === t.id ? "#1b98e0" : "#247ba0",
+              borderColor: tab === t.id ? "#1b98e0" : "transparent",
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-        {/* Map placeholder */}
-        <div className="m-4 rounded-2xl overflow-hidden border shadow-sm bg-white"
-          style={{ height: "calc(100dvh - 230px)", borderColor: "#e4e9f0" }}>
-          <div className="h-full flex items-center justify-center text-center p-8">
+      {/* Content */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {tab === "map" && <MapView />}
+
+        {tab !== "map" && (
+          <div className="flex-1 flex items-center justify-center text-center p-8">
             <div>
-              <div className="text-4xl mb-4">🗺️</div>
+              <div className="text-4xl mb-4">
+                {tab === "tasks" ? "📋" : tab === "fixes" ? "🔧" : tab === "props" ? "🏠" : "📊"}
+              </div>
               <h3 className="text-lg font-bold mb-2" style={{ color: "#006494" }}>
-                Карта на обектите
+                {tab === "tasks" ? "Задачи" : tab === "fixes" ? "Ремонти" : tab === "props" ? "Обекти" : "История"}
               </h3>
               <p className="text-sm max-w-xs leading-relaxed" style={{ color: "#247ba0" }}>
-                Тук ще се показват всички имоти с маркери — зелени (наскоро проверени),
-                оранжеви (предстои обход) и червени (просрочени).
+                {tab === "tasks" && "Списък с активни обходи и задачи за изпълнение."}
+                {tab === "fixes" && "Проследяване на ремонти — от констатация до приключване."}
+                {tab === "props" && "Всички имоти под наблюдение с детайли и история."}
+                {tab === "history" && "Архив на обходи, доклади и намерени проблеми."}
               </p>
-              <Link
-                href="/"
-                className="inline-block mt-4 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition"
-                style={{
-                  background: "linear-gradient(140deg, #1b98e0, #006494)",
-                }}
-              >
-                ← Към сайта
-              </Link>
             </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );
