@@ -1,53 +1,88 @@
 "use client";
 
-import { MOCK_PROPERTIES, MOCK_TEMPLATES, type MockProperty } from "@/lib/mock-data";
+import { useEffect, useState } from "react";
+import type { Property } from "./types";
 
-export default function MapView({ onPropertyClick }: { onPropertyClick: (p: MockProperty) => void }) {
-  const statusColors: Record<string, string> = {
-    ok: "#16a34a",
-    soon: "#d97706",
-    overdue: "#dc2626",
-  };
+interface MapViewProps {
+  properties: Property[];
+  onPropertyClick: (p: Property) => void;
+}
 
-  return (
-    <div className="h-full w-full flex items-center justify-center bg-white">
-      <div className="text-center p-4" style={{ maxWidth: 480 }}>
-        <div className="text-5xl mb-4">🗺️</div>
-        <h3 className="text-lg font-bold mb-2" style={{ color: "#006494" }}>
-          Карта на обектите
-        </h3>
-        <p className="text-sm mb-6 leading-relaxed" style={{ color: "#247ba0" }}>
-          5 имота в София под наблюдение. Всеки маркер показва статус на последния обход.
-        </p>
+export default function MapView({ properties, onPropertyClick }: MapViewProps) {
+  const [L, setL] = useState<any>(null);
+  const [map, setMap] = useState<any>(null);
 
-        {/* Property quick cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
-          {MOCK_PROPERTIES.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => onPropertyClick(p)}
-              className="flex items-center gap-3 p-3 rounded-xl border transition hover:shadow-md bg-white text-left"
-              style={{ borderColor: "#e4e9f0" }}
-            >
-              <div
-                className="w-3 h-3 rounded-full flex-shrink-0"
-                style={{ backgroundColor: statusColors[p.status] }}
-              />
-              <div className="min-w-0">
-                <div className="text-sm font-semibold truncate" style={{ color: "#006494" }}>
-                  {p.name}
-                </div>
-                <div className="text-xs truncate" style={{ color: "#247ba0" }}>
-                  {p.addr.split(",")[0]}
-                </div>
-              </div>
-              <div className="ml-auto text-xs font-semibold flex-shrink-0" style={{ color: statusColors[p.status] }}>
-                {p.status === "ok" ? "✓" : p.status === "soon" ? "⏳" : "⚠"}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const leaflet = await import("leaflet");
+      if (cancelled) return;
+      setL(leaflet);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!L || map) return;
+
+    const m = L.map("map-container", {
+      center: [42.6977, 23.3219],
+      zoom: 13,
+      zoomControl: false,
+    });
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap",
+      maxZoom: 19,
+    }).addTo(m);
+
+    setMap(m);
+
+    return () => {
+      m.remove();
+    };
+  }, [L]);
+
+  useEffect(() => {
+    if (!L || !map) return;
+
+    // Clear old markers
+    map.eachLayer((layer: any) => {
+      if (layer instanceof L.Marker) map.removeLayer(layer);
+    });
+
+    properties.forEach((p) => {
+      const color = p.status === "ok" ? "#22c55e" : p.status === "warn" ? "#f59e0b" : "#ef4444";
+
+      const icon = L.divIcon({
+        className: "custom-marker",
+        html: `<div style="
+          width:28px;height:28px;border-radius:50%;background:${color};
+          border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.25);
+          display:flex;align-items:center;justify-content:center;
+          font-size:12px;color:#fff;font-weight:bold;
+        ">${p.status === "ok" ? "✓" : p.status === "warn" ? "!" : "✕"}</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+        popupAnchor: [0, -14],
+      });
+
+      const marker = L.marker([p.lat, p.lng], { icon }).addTo(map);
+
+      const popup = L.popup({ offset: [0, -10], closeButton: false }).setContent(
+        `<div style="font-family:system-ui,sans-serif;cursor:pointer;min-width:120px">
+          <div style="font-weight:700;font-size:13px;color:#006494">${p.name}</div>
+          <div style="font-size:11px;color:#666;margin-top:2px">${p.address}</div>
+        </div>`
+      );
+
+      marker.bindPopup(popup);
+
+      marker.on("click", () => {
+        onPropertyClick(p);
+      });
+    });
+  }, [L, map, properties, onPropertyClick]);
+
+  return <div id="map-container" style={{ width: "100%", height: "100%", background: "#e8f1f2" }} />;
 }

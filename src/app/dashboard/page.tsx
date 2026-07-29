@@ -62,7 +62,24 @@ export default function DashboardPage() {
 
       {/* Content */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
-        {tab === "map" && <MapView onPropertyClick={setSelectedProperty} />}
+        {tab === "map" && (
+          <MapView
+            properties={properties.map((p) => ({
+              id: p.id,
+              name: p.name,
+              address: p.addr,
+              lat: p.lat,
+              lng: p.lng,
+              status: p.status as "ok" | "warn" | "bad",
+              kind: p.kind,
+              zones: p.zones,
+              accessNotes: p.access,
+              lastVisit: p.lastVisit,
+              plan: p.plan,
+            }))}
+            onPropertyClick={(p) => setSelectedProperty(p as any)}
+          />
+        )}
 
         {tab === "props" && (
           <div className="flex-1 overflow-y-auto px-4 py-4">
