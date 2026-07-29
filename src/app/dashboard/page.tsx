@@ -5,6 +5,7 @@ import Topbar from "@/components/Topbar";
 import MapView from "@/components/MapView";
 import PropertySheet from "@/components/PropertySheet";
 import PropertyForm from "@/components/PropertyForm";
+import ChecklistSheet from "@/components/ChecklistSheet";
 
 const TABS = [
   { id: "map", label: "🗺️ Карта" },
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
+  const [activeChecklist, setActiveChecklist] = useState<{ name: string; addr: string } | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -163,7 +165,9 @@ export default function DashboardPage() {
                     {tpl.items} точки в чек-листа
                   </div>
                   <div className="flex gap-2">
-                    <button className="flex-1 py-2 rounded-lg text-xs font-semibold text-white"
+                    <button
+                      onClick={() => setActiveChecklist({ name: tpl.name, addr: "Избери обект от картата" })}
+                      className="flex-1 py-2 rounded-lg text-xs font-semibold text-white"
                       style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>
                       ▶ Започни обход
                     </button>
@@ -240,6 +244,19 @@ export default function DashboardPage() {
             }
           }}
           onClose={() => setShowAddForm(false)}
+        />
+      )}
+
+      {activeChecklist && (
+        <ChecklistSheet
+          propertyName={activeChecklist.name}
+          propertyAddr={activeChecklist.addr}
+          onClose={() => setActiveChecklist(null)}
+          onComplete={(data) => {
+            const done = data.items.filter(i => i.done).length;
+            showToast(`✅ Обход завършен: ${done}/${data.items.length} точки`);
+            setActiveChecklist(null);
+          }}
         />
       )}
 
