@@ -22,14 +22,28 @@ export async function validateUser(email: string, password: string): Promise<Use
   if (!row.active) return null;
 
   const ok = await bcrypt.compare(password, row.password_hash);
-  if (!ok) return null;
+  if (ok) {
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.full_name ?? "",
+      role: row.role as User["role"],
+    };
+  }
 
-  return {
-    id: row.id,
-    email: row.email,
-    name: row.full_name ?? "",
-    role: row.role as User["role"],
-  };
+  // Fallback: DB may have plaintext passwords from old seed. Auto-migrate to bcrypt.
+  if (row.password_hash === password) {
+    const newHash = await bcrypt.hash(password, 10);
+    db.update(users).set({ password_hash: newHash }).where(eq(users.id, row.id)).run();
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.full_name ?? "",
+      role: row.role as User["role"],
+    };
+  }
+
+  return null;
 }
 
 /** Create a new user with bcrypt-hashed password */
