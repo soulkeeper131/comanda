@@ -8,11 +8,24 @@ interface MapViewProps {
   onPropertyClick: (p: Property) => void;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  ok: "#22c55e",
-  warn: "#f59e0b",
-  bad: "#ef4444",
+const STATUS = {
+  ok:   { color: "#22c55e", emoji: "✓", label: "Активен" },
+  warn: { color: "#f59e0b", emoji: "⏳", label: "Предстои" },
+  bad:  { color: "#ef4444", emoji: "⚠", label: "Просрочен" },
+} as const;
+
+const KIND_ICON: Record<string, string> = {
+  apartment: "🏢", house: "🏠", studio: "🛏️", villa: "🏡",
 };
+
+function daysAgo(iso: string): string {
+  if (!iso) return "—";
+  const d = Math.round((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (d === 0) return "днес";
+  if (d === 1) return "вчера";
+  if (d < 7) return `преди ${d} дни`;
+  return new Date(iso).toLocaleDateString("bg-BG");
+}
 
 export default function MapView({ properties, onPropertyClick }: MapViewProps) {
   const [L, setL] = useState<any>(null);
@@ -38,7 +51,6 @@ export default function MapView({ properties, onPropertyClick }: MapViewProps) {
       center: [42.6977, 23.3219],
       zoom: 13,
       zoomControl: false,
-      // Don't set touchAction — Leaflet handles gestures internally
     });
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -46,9 +58,7 @@ export default function MapView({ properties, onPropertyClick }: MapViewProps) {
       maxZoom: 19,
     }).addTo(m);
 
-    // Fix missing tiles on resize
     setTimeout(() => m.invalidateSize(), 100);
-
     mapRef.current = m;
 
     return () => {
@@ -57,7 +67,7 @@ export default function MapView({ properties, onPropertyClick }: MapViewProps) {
     };
   }, [L]);
 
-  // Stable callback ref to avoid re-rendering markers on every click handler change
+  // Stable callback
   const onClickRef = useRef(onPropertyClick);
   onClickRef.current = onPropertyClick;
 
@@ -72,35 +82,65 @@ export default function MapView({ properties, onPropertyClick }: MapViewProps) {
     });
 
     properties.forEach((p) => {
-      const color = STATUS_COLORS[p.status] || "#22c55e";
+      const st = STATUS[p.status] || STATUS.ok;
+      const icon = KIND_ICON[p.kind] || "📍";
+      const addr = (p.address || "").split(",")[0];
+      const zoneCount = p.zones?.length || 0;
 
-      // CircleMarker — SVG-based, works reliably on mobile
       const marker = L.circleMarker([p.lat, p.lng], {
-        radius: 22,
-        fillColor: color,
+        radius: 16,
+        fillColor: st.color,
         color: "#fff",
         weight: 3,
         opacity: 1,
-        fillOpacity: 0.9,
+        fillOpacity: 0.85,
       }).addTo(m);
 
-      // Click → open PropertySheet
+      // Smart popup
+      marker.bindPopup(
+        `<div class="map-popup-content">
+          <div class="map-popup-status" style="background:${st.color}15;color:${st.color}">
+            ${st.emoji} ${st.label}
+          </div>
+          <div class="map-popup-name">${icon} ${p.name}</div>
+          <div class="map-popup-addr">${addr}</div>
+          <div class="map-popup-meta">
+            <span>📅 ${daysAgo(p.lastVisit)}</span>
+            <span>📋 ${zoneCount} зони</span>
+          </div>
+          <div class="map-popup-detail-btn" data-prop-id="${p.id}">
+            Подробности →
+          </div>
+        </div>`,
+        {
+          className: "smart-popup",
+          closeButton: false,
+          autoPan: true,
+        }
+      );
+
+      // Click marker → open PropertySheet
       marker.on("click", () => {
         onClickRef.current(p);
       });
 
-      // Popup with property name
-      marker.bindPopup(
-        `<div style="font-family:system-ui,sans-serif;min-width:100px;text-align:center">
-          <div style="font-weight:700;font-size:13px;color:#006494">${p.name}</div>
-          <div style="font-size:11px;color:#666;margin-top:3px">${p.address?.split(",")[0] || ""}</div>
-        </div>`,
-        {
-          closeButton: false,
-          className: "property-popup",
-        }
-      );
+      // Popup "Подробности" button — handled via delegation on map container
     });
+
+    // Delegate popup button clicks
+    const handlePopupClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.classList.contains("map-popup-detail-btn")) {
+        const propId = target.getAttribute("data-prop-id");
+        const prop = properties.find(p => p.id === propId);
+        if (prop) onClickRef.current(prop);
+      }
+    };
+    m.getContainer().addEventListener("click", handlePopupClick);
+
+    return () => {
+      m.getContainer()?.removeEventListener("click", handlePopupClick);
+    };
   }, [L, properties]);
 
   return (
