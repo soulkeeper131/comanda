@@ -12,7 +12,6 @@ export async function POST() {
     db.run(sql`PRAGMA foreign_keys = OFF`);
 
     // Delete all existing data in correct order
-    db.run(sql`DELETE FROM push_subscriptions`);
     db.run(sql`DELETE FROM offers`);
     db.run(sql`DELETE FROM finding_photos`);
     db.run(sql`DELETE FROM findings`);
