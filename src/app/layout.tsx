@@ -14,6 +14,12 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export const metadata: Metadata = {
   title: "КОМАНДА — Стопанисване и управление на имоти",
   description: "Редовни обходи, проверки и грижа за празни имоти в София. Снимков отчет, GPS локация, организиране на ремонти.",

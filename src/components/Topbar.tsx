@@ -80,7 +80,7 @@ export default function Topbar() {
               </div>
               <button
                 onClick={handleSignOut}
-                className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition"
+                className="w-full text-left px-4 min-h-[44px] py-3 text-sm hover:bg-gray-50 transition"
                 style={{ color: "#006494" }}
               >
                 Изход

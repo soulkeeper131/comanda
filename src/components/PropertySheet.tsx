@@ -46,7 +46,7 @@ export default function PropertySheet({ property, onClose }: { property: MockPro
       <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
       <div
         className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl flex flex-col"
-        style={{ maxHeight: "90dvh" }}
+        style={{ maxHeight: "90dvh", paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
       >
         <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1" style={{ background: "#D8DEE6" }} />
         <div className="px-5 py-3 border-b flex items-center gap-3" style={{ borderColor: "#e4e9f0" }}>
@@ -62,7 +62,7 @@ export default function PropertySheet({ property, onClose }: { property: MockPro
           >
             {property.status === "ok" ? "✓ Активен" : property.status === "soon" ? "⏳ Предстои" : "⚠ Просрочен"}
           </span>
-          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-base" style={{ background: "#e4e9f0", color: "#247ba0" }}>
+          <button onClick={onClose} className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center text-base" style={{ background: "#e4e9f0", color: "#247ba0" }}>
             ✕
           </button>
         </div>
@@ -104,11 +104,11 @@ export default function PropertySheet({ property, onClose }: { property: MockPro
 
           {/* Quick actions */}
           <div className="flex gap-2">
-            <button className="flex-1 py-3 rounded-xl text-sm font-semibold text-white"
+            <button className="flex-1 min-h-[44px] py-3 rounded-xl text-sm font-semibold text-white"
               style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>
               📋 Нов обход
             </button>
-            <button className="flex-1 py-3 rounded-xl text-sm font-semibold border" style={{ borderColor: "#d0e5ff", color: "#006494" }}>
+            <button className="flex-1 min-h-[44px] py-3 rounded-xl text-sm font-semibold border" style={{ borderColor: "#d0e5ff", color: "#006494" }}>
               🔧 Докладвай проблем
             </button>
           </div>

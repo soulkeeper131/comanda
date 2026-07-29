@@ -101,7 +101,7 @@ export default function FindingsSheet({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+            className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
             style={{ background: "#f1f5f9", color: "#64748b", fontSize: 15 }}
           >
             ✕
@@ -122,7 +122,7 @@ export default function FindingsSheet({
               <button
                 key={t}
                 onClick={() => setType(t)}
-                className="px-3 py-2 rounded-xl text-sm font-semibold border transition"
+                className="px-3 min-h-[44px] py-2.5 rounded-xl text-sm font-semibold border transition"
                 style={{
                   borderColor: type === t ? "#1b98e0" : "#e4e9f0",
                   background: type === t ? "#eff6ff" : "#fff",
@@ -231,11 +231,11 @@ export default function FindingsSheet({
         {/* Footer */}
         <div
           className="flex items-center gap-3 p-4 border-t flex-shrink-0"
-          style={{ borderColor: "#e4e9f0", background: "#fff" }}
+          style={{ borderColor: "#e4e9f0", background: "#fff", paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
         >
           <button
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl text-sm font-semibold border"
+            className="px-4 min-h-[44px] py-3 rounded-xl text-sm font-semibold border"
             style={{ borderColor: "#e4e9f0", color: "#64748b" }}
           >
             Отказ
@@ -243,7 +243,7 @@ export default function FindingsSheet({
           <button
             onClick={handleSave}
             disabled={!canSave || saving}
-            className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40"
+            className="flex-1 px-5 min-h-[44px] py-3 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40"
             style={{
               background:
                 "linear-gradient(140deg, #1b98e0, #006494)",

@@ -140,7 +140,7 @@ export default function OffersPanel({ findings, onAccept, onDecline }: Props) {
           <div className="flex gap-2">
             <button
               onClick={() => onAccept(finding.id)}
-              className="flex-1 py-2 rounded-lg text-xs font-semibold text-white"
+              className="flex-1 min-h-[44px] py-2.5 rounded-lg text-xs font-semibold text-white"
               style={{
                 background: "linear-gradient(140deg, #16a34a, #15803d)",
               }}
@@ -149,7 +149,7 @@ export default function OffersPanel({ findings, onAccept, onDecline }: Props) {
             </button>
             <button
               onClick={() => onDecline(finding.id)}
-              className="flex-1 py-2 rounded-lg text-xs font-semibold border"
+              className="flex-1 min-h-[44px] py-2.5 rounded-lg text-xs font-semibold border"
               style={{
                 borderColor: "#fecaca",
                 color: "#dc2626",

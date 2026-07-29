@@ -145,7 +145,7 @@ export default function ChecklistSheet({ propertyName, propertyAddr, onClose, on
                 <button
                   onClick={getGPS}
                   disabled={gpsLoading}
-                  className="text-xs font-semibold px-2.5 py-1 rounded-lg border"
+                  className="text-xs font-semibold min-h-[44px] min-w-[44px] px-3 py-2.5 rounded-lg border"
                   style={{ borderColor: gpsError ? "#fecaca" : "#d0e5ff", color: gpsError ? "#dc2626" : "#1b98e0" }}
                 >
                   {gpsLoading ? "📍 Търси..." : gpsError || "📍 Потвърди локация"}
@@ -153,7 +153,7 @@ export default function ChecklistSheet({ propertyName, propertyAddr, onClose, on
               )}
             </div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+          <button onClick={onClose} className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
             style={{ background: "#f1f5f9", color: "#64748b", fontSize: 15 }}>✕</button>
         </div>
 
@@ -264,7 +264,7 @@ export default function ChecklistSheet({ propertyName, propertyAddr, onClose, on
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-2 p-4 border-t flex-shrink-0" style={{ borderColor: "#e4e9f0", background: "#fff" }}>
+        <div className="flex items-center gap-2 p-4 border-t flex-shrink-0" style={{ borderColor: "#e4e9f0", background: "#fff", paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}>
           <div className="flex-1 text-xs font-semibold" style={{ color: "#247ba0" }}>
             📍 {gps ? "GPS ✓" : "GPS ✗"} · 📷 {Object.values(photos).flat().length} снимки
           </div>

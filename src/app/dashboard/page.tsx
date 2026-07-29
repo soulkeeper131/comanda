@@ -209,7 +209,7 @@ export default function DashboardPage() {
         style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(14px)", borderColor: "#e4e9f0" }}>
         {TABS.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className="px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition"
+            className="px-4 min-h-[44px] py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition leading-[44px]"
             style={{ fontSize: 14, color: tab === t.id ? "#1b98e0" : "#247ba0", borderColor: tab === t.id ? "#1b98e0" : "transparent" }}>
             {t.label}
           </button>
@@ -291,16 +291,16 @@ export default function DashboardPage() {
                   <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => setActiveChecklist({ name: tpl.name, addr: "Избери обект от картата" })}
-                      className="flex-1 py-2 rounded-lg text-xs font-semibold text-white min-w-[120px]"
+                      className="flex-1 min-h-[44px] py-2.5 rounded-lg text-xs font-semibold text-white min-w-[120px]"
                       style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>
                       ▶ Започни обход
                     </button>
-                    <button className="px-4 py-2 rounded-lg text-xs font-semibold border" style={{ borderColor: "#d0e5ff", color: "#006494" }}>
+                    <button className="px-4 min-h-[44px] py-2.5 rounded-lg text-xs font-semibold border" style={{ borderColor: "#d0e5ff", color: "#006494" }}>
                       👁 Преглед
                     </button>
                     <button
                       onClick={handleReportProblem}
-                      className="px-4 py-2 rounded-lg text-xs font-semibold border"
+                      className="px-4 min-h-[44px] py-2.5 rounded-lg text-xs font-semibold border"
                       style={{ borderColor: "#fed7aa", color: "#c2410c", background: "#fff7ed" }}>
                       ⚠️ Докладвай проблем
                     </button>
@@ -480,7 +480,7 @@ export default function DashboardPage() {
       )}
 
       {toast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full text-white text-sm font-semibold shadow-lg"
+        <div className="fixed bottom-[max(96px,calc(96px+env(safe-area-inset-bottom)))] left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full text-white text-sm font-semibold shadow-lg"
           style={{ background: "#006494" }}>
           {toast}
         </div>

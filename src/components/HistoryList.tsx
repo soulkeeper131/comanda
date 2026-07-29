@@ -169,6 +169,7 @@ export default function HistoryList() {
               background: "#fff",
               maxHeight: "85dvh",
               boxShadow: "0 -4px 24px rgba(0,0,0,0.12)",
+              paddingBottom: "max(16px, env(safe-area-inset-bottom))",
             }}
           >
             <div className="flex justify-center pt-2 pb-1 flex-shrink-0">
@@ -190,7 +191,7 @@ export default function HistoryList() {
                 </div>
                 <button
                   onClick={() => setDetailedJob(null)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                  className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
                   style={{ background: "#f1f5f9", color: "#64748b", fontSize: 15 }}
                 >
                   ✕
