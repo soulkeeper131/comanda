@@ -39,6 +39,18 @@ const ROLE_BADGE: Record<string, { label: string; color: string }> = {
 
 export default function DashboardPage() {
   const [tab, setTab] = useState("map");
+
+  // Close all sheets/modals when switching tabs
+  const switchTab = (id: string) => {
+    setSelectedProperty(null);
+    setShowAddForm(false);
+    setActiveChecklist(null);
+    setShowFindings(false);
+    setSelectedFinding(null);
+    setOfferFindingId(null);
+    setEditingUserId(null);
+    setTab(id);
+  };
   const [selectedProperty, setSelectedProperty] = useState<any>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [properties, setProperties] = useState<any[]>([]);
@@ -95,7 +107,7 @@ export default function DashboardPage() {
     if (roleLoading) return;
     const allowed = TABS.find((t) => t.id === tab);
     if (!allowed && TABS.length > 0) {
-      setTab(TABS[0].id);
+      switchTab(TABS[0].id);
     }
   }, [roleLoading, TABS, tab]);
 
@@ -311,7 +323,7 @@ export default function DashboardPage() {
       <div className="flex gap-0 border-b flex-shrink-0 overflow-x-auto px-2"
         style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(14px)", borderColor: "#e4e9f0" }}>
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => { setTab(t.id); setSelectedFinding(null); }}
+          <button key={t.id} onClick={() => switchTab(t.id)}
             className="px-4 min-h-[44px] py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition leading-[44px]"
             style={{ fontSize: 14, color: tab === t.id ? "#1b98e0" : "#247ba0", borderColor: tab === t.id ? "#1b98e0" : "transparent" }}>
             {t.label}

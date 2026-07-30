@@ -87,7 +87,7 @@ export default function Topbar() {
               )}
               <div className="border-t my-1" style={{ borderColor: "#e4e9f0" }} />
               <button
-                onClick={handleSignOut}
+                onClick={() => { setMenuOpen(false); handleSignOut(); }}
                 className="w-full text-left px-4 min-h-[44px] py-3 text-sm hover:bg-gray-50 transition"
                 style={{ color: "#006494" }}
               >
