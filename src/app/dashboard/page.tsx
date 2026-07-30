@@ -847,15 +847,21 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* FAB - only Admin */}
-        {showFAB && (
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="absolute bottom-6 right-6 w-14 h-14 rounded-2xl text-white text-2xl flex items-center justify-center shadow-lg transition hover:scale-105 z-30"
-            style={{ background: "linear-gradient(140deg, #1b98e0, #006494)", boxShadow: "0 6px 20px rgba(0,100,148,0.4)" }}>
-            ＋
-          </button>
-        )}
+        {/* FAB — context-aware per tab */
+          (() => {
+            if (userRole !== "admin") return null;
+            const isMap = tab === "map" || tab === "props";
+            const isFindings = tab === "findings";
+            if (!isMap && !isFindings) return null;
+            return (
+              <button
+                onClick={() => isFindings ? handleReportProblem() : setShowAddForm(true)}
+                className="absolute bottom-6 right-6 w-14 h-14 rounded-2xl text-white text-2xl flex items-center justify-center shadow-lg transition hover:scale-105 z-30"
+                style={{ background: "linear-gradient(140deg, #1b98e0, #006494)", boxShadow: "0 6px 20px rgba(0,100,148,0.4)" }}>
+                {isFindings ? "⚠️" : "＋"}
+              </button>
+            );
+          })()}
       </main>
 
       {selectedProperty && <PropertySheet property={selectedProperty} onClose={() => setSelectedProperty(null)} />}
