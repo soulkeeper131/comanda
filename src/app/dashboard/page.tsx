@@ -18,19 +18,10 @@ type TabDef = { id: string; label: string; roles: UserRole[] };
 
 const ALL_TABS: TabDef[] = [
   { id: "map", label: "🗺️ Карта", roles: ["admin", "owner", "worker", "inspector"] },
-  { id: "calendar", label: "📅 Календар", roles: ["admin", "owner", "inspector"] },
-  { id: "tasks", label: "📋 Задачи", roles: ["admin", "worker"] },
-  { id: "fixes", label: "🔧 Ремонти", roles: ["admin"] },
-  { id: "findings", label: "⚠️ Констатации", roles: ["admin"] },
-  { id: "props", label: "🏠 Обекти", roles: ["admin", "owner", "inspector"] },
-  { id: "history", label: "📊 История", roles: ["admin", "owner", "inspector"] },
-  { id: "team", label: "👥 Екип", roles: ["admin"] },
-  { id: "templates", label: "📋 Шаблони", roles: ["admin"] },
-];
-
-const TASKS = [
-  { id: "t1", icon: "❄️", name: "Зимен обход (стандартен)", mins: 40, items: 12 },
-  { id: "t2", icon: "☀️", name: "Летен обход (стандартен)", mins: 55, items: 15 },
+  { id: "tours", label: "📋 Обходи", roles: ["admin", "owner", "worker", "inspector"] },
+  { id: "issues", label: "⚠️ Проблеми", roles: ["admin"] },
+  { id: "props", label: "🏠 Имоти", roles: ["admin", "owner", "inspector"] },
+  { id: "settings", label: "⚙️ Настройки", roles: ["admin"] },
 ];
 
 const ROLE_BADGE: Record<string, { label: string; color: string }> = {
@@ -42,6 +33,7 @@ const ROLE_BADGE: Record<string, { label: string; color: string }> = {
 
 export default function DashboardPage() {
   const [tab, setTab] = useState("map");
+  const [subTab, setSubTab] = useState("calendar"); // sub-tab for tours/issues/settings
 
   // Close all sheets/modals when switching tabs
   const switchTab = (id: string) => {
@@ -53,6 +45,10 @@ export default function DashboardPage() {
     setOfferFindingId(null);
     setEditingUserId(null);
     setTab(id);
+    // Reset sub-tab based on main tab
+    if (id === "tours") setSubTab("calendar");
+    else if (id === "issues") setSubTab("findings");
+    else if (id === "settings") setSubTab("team");
   };
   const [selectedProperty, setSelectedProperty] = useState<any>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -173,7 +169,7 @@ export default function DashboardPage() {
   }, [loadProperties]);
 
   useEffect(() => {
-    if (tab === "findings" || tab === "fixes") {
+    if (tab === "issues" && subTab === "findings" || tab === "issues" && subTab === "fixes") {
       loadFindings();
     }
   }, [tab, loadFindings]);
@@ -217,7 +213,7 @@ export default function DashboardPage() {
     if (!pollTabs.includes(tab)) return;
     const interval = setInterval(() => {
       loadProperties();
-      if (tab === "calendar") {
+      if (tab === "tours" && subTab === "calendar") {
         fetch("/api/jobs")
           .then((r) => r.ok ? r.json() : [])
           .then((d) => setCalendarJobs(Array.isArray(d) ? d : []))
@@ -306,7 +302,7 @@ export default function DashboardPage() {
       });
       if (res.ok) {
         showToast("✅ Задачата е възложена");
-        setTab("calendar"); // Switch to calendar to show it
+        setTab("tours"); setSubTab("calendar");
       } else {
         const err = await res.json().catch(() => ({}));
         showToast("❌ " + (err.error || "Грешка"));
@@ -391,6 +387,58 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {/* Sub-tabs for tours / issues / settings */}
+      {(tab === "tours" || tab === "issues" || tab === "settings") && (
+        <div className="flex gap-1 border-b flex-shrink-0 overflow-x-auto px-2 py-1"
+          style={{ background: "rgba(255,255,255,0.6)", borderColor: "#e4e9f0" }}>
+          {tab === "tours" && (
+            <>
+              {["calendar", "tasks", "history"].map(st => (
+                <button key={st} onClick={() => setSubTab(st)}
+                  className="px-3 min-h-[36px] py-1.5 text-xs font-semibold rounded-full transition"
+                  style={{
+                    fontSize: 13,
+                    background: subTab === st ? "#1b98e0" : "transparent",
+                    color: subTab === st ? "#fff" : "#247ba0",
+                  }}>
+                  {st === "calendar" ? "📅 Календар" : st === "tasks" ? "📋 Задачи" : "📊 История"}
+                </button>
+              ))}
+            </>
+          )}
+          {tab === "issues" && (
+            <>
+              {["findings", "fixes"].map(st => (
+                <button key={st} onClick={() => setSubTab(st)}
+                  className="px-3 min-h-[36px] py-1.5 text-xs font-semibold rounded-full transition"
+                  style={{
+                    fontSize: 13,
+                    background: subTab === st ? "#1b98e0" : "transparent",
+                    color: subTab === st ? "#fff" : "#247ba0",
+                  }}>
+                  {st === "findings" ? "⚠️ Констатации" : "🔧 Ремонти"}
+                </button>
+              ))}
+            </>
+          )}
+          {tab === "settings" && (
+            <>
+              {["team", "templates"].map(st => (
+                <button key={st} onClick={() => setSubTab(st)}
+                  className="px-3 min-h-[36px] py-1.5 text-xs font-semibold rounded-full transition"
+                  style={{
+                    fontSize: 13,
+                    background: subTab === st ? "#1b98e0" : "transparent",
+                    color: subTab === st ? "#fff" : "#247ba0",
+                  }}>
+                  {st === "team" ? "👥 Екип" : "📋 Шаблони"}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
       <main className="flex-1 flex flex-col overflow-hidden relative">
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center" style={{ background: "#e8f1f2" }}>
@@ -448,7 +496,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {tab === "tasks" && (
+        {tab === "tours" && subTab === "tasks" && (
           <div className="flex-1 overflow-y-auto px-4 py-4">
             <button
               onClick={() => setShowTaskForm(true)}
@@ -496,7 +544,7 @@ export default function DashboardPage() {
                       ⚠️ Докладвай проблем
                     </button>
                     <button
-                      onClick={() => switchTab("templates")}
+                      onClick={() => { setTab("settings"); setSubTab("templates"); }}
                       className="w-full min-h-[44px] py-2.5 rounded-lg text-xs font-semibold border mt-1"
                       style={{ borderColor: "#a663cc", color: "#a663cc", background: "#faf5ff" }}>
                       📋 Редактирай шаблон
@@ -510,7 +558,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {tab === "fixes" && (
+        {tab === "issues" && subTab === "fixes" && (
           findingsWithOffers.length > 0 ? (
             <OffersPanel
               findings={findingsWithOffers}
@@ -528,7 +576,7 @@ export default function DashboardPage() {
           )
         )}
 
-        {tab === "findings" && (
+        {tab === "issues" && subTab === "findings" && (
           <div className="flex-1 overflow-y-auto px-4 py-4">
             {findingsLoading ? (
               <div className="text-center py-12" style={{ color: "#247ba0" }}>Зареждане...</div>
@@ -694,9 +742,9 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {tab === "history" && <HistoryList />}
+        {tab === "tours" && subTab === "history" && <HistoryList />}
 
-        {tab === "calendar" && (
+        {tab === "tours" && subTab === "calendar" && (
           <div className="flex-1 overflow-y-auto px-4 py-4">
             {calendarLoading ? (
               <div className="text-center py-12" style={{ color: "#247ba0" }}>Зареждане...</div>
@@ -804,7 +852,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {tab === "team" && (
+        {tab === "settings" && subTab === "team" && (
           <div className="flex-1 overflow-y-auto px-4 py-4">
             {teamLoading ? (
               <div className="text-center py-12" style={{ color: "#247ba0" }}>Зареждане...</div>
@@ -938,13 +986,13 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {tab === "templates" && <TemplateManager />}
+        {tab === "settings" && subTab === "templates" && <TemplateManager />}
 
         {/* FAB — context-aware per tab */}
         {(() => {
             if (userRole !== "admin") return null;
             const isMap = tab === "map" || tab === "props";
-            const isFindings = tab === "findings";
+            const isFindings = tab === "issues" && subTab === "findings";
             if (!isMap && !isFindings) return null;
             return (
               <button
