@@ -5,6 +5,25 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+// Fire-and-forget push notification
+async function pushNotify(title: string, propertyId: string) {
+  try {
+    const prop = db.select().from(properties).where(eq(properties.id, propertyId)).get();
+    const propName = prop?.name || "Имот";
+    await fetch(`${process.env.NEXT_PUBLIC_APP_URL || "https://comanda.blv.bg"}/api/push/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "📋 Нова задача",
+        body: `${title} — ${propName}`,
+        url: "/dashboard",
+      }),
+    });
+  } catch (e) {
+    // Silently fail — push is best-effort
+  }
+}
+
 export async function GET() {
   try {
     const rows = db
@@ -96,6 +115,11 @@ export async function POST(request: Request) {
 
     // SQLite no RETURNING — fetch the last inserted job
     const [job] = db.select().from(jobs).orderBy(desc(jobs.created_at)).limit(1).all();
+
+    // Fire push notification (non-blocking)
+    pushNotify(jobTitle, property_id).catch((e) =>
+      console.error("Push notify error:", e)
+    );
 
     return NextResponse.json(job, { status: 201 });
   } catch (error) {
