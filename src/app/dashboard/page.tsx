@@ -10,6 +10,7 @@ import FindingsSheet from "@/components/FindingsSheet";
 import OffersPanel from "@/components/OffersPanel";
 import HistoryList from "@/components/HistoryList";
 import TaskForm from "@/components/TaskForm";
+import TemplateManager from "@/components/TemplateManager";
 
 type UserRole = "admin" | "owner" | "worker" | "inspector";
 
@@ -24,6 +25,7 @@ const ALL_TABS: TabDef[] = [
   { id: "props", label: "🏠 Обекти", roles: ["admin", "owner", "inspector"] },
   { id: "history", label: "📊 История", roles: ["admin", "owner", "inspector"] },
   { id: "team", label: "👥 Екип", roles: ["admin"] },
+  { id: "templates", label: "📋 Шаблони", roles: ["admin"] },
 ];
 
 const TASKS = [
@@ -451,6 +453,12 @@ export default function DashboardPage() {
                       className="px-4 min-h-[44px] py-2.5 rounded-lg text-xs font-semibold border"
                       style={{ borderColor: "#fed7aa", color: "#c2410c", background: "#fff7ed" }}>
                       ⚠️ Докладвай проблем
+                    </button>
+                    <button
+                      onClick={() => switchTab("templates")}
+                      className="w-full min-h-[44px] py-2.5 rounded-lg text-xs font-semibold border mt-1"
+                      style={{ borderColor: "#a663cc", color: "#a663cc", background: "#faf5ff" }}>
+                      📋 Редактирай шаблон
                     </button>
                   </div>
                 </div>
@@ -880,8 +888,10 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* FAB — context-aware per tab */
-          (() => {
+        {tab === "templates" && <TemplateManager />}
+
+        {/* FAB — context-aware per tab */}
+        {(() => {
             if (userRole !== "admin") return null;
             const isMap = tab === "map" || tab === "props";
             const isFindings = tab === "findings";
