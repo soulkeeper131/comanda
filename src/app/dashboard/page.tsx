@@ -176,7 +176,7 @@ export default function DashboardPage() {
 
   // Fetch calendar jobs
   useEffect(() => {
-    if (tab !== "calendar") return;
+    if (!(tab === "tours" && subTab === "calendar")) return;
     setCalendarLoading(true);
     fetch("/api/jobs")
       .then((res) => (res.ok ? res.json() : []))
@@ -187,7 +187,7 @@ export default function DashboardPage() {
 
   // Fetch team users
   useEffect(() => {
-    if (tab !== "team") return;
+    if (!(tab === "settings" && subTab === "team")) return;
     setTeamLoading(true);
     fetch("/api/users")
       .then((res) => (res.ok ? res.json() : []))
@@ -198,7 +198,7 @@ export default function DashboardPage() {
 
   // Fetch task templates
   useEffect(() => {
-    if (tab !== "tasks") return;
+    if (!(tab === "tours" && subTab === "tasks")) return;
     setTaskTemplatesLoading(true);
     fetch("/api/templates")
       .then((res) => (res.ok ? res.json() : []))
