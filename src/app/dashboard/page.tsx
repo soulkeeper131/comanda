@@ -211,6 +211,22 @@ export default function DashboardPage() {
       .finally(() => setTaskTemplatesLoading(false));
   }, [tab]);
 
+  // Polling: refresh jobs & properties every 30s on active tabs
+  useEffect(() => {
+    const pollTabs = ["map", "calendar", "props", "history"];
+    if (!pollTabs.includes(tab)) return;
+    const interval = setInterval(() => {
+      loadProperties();
+      if (tab === "calendar") {
+        fetch("/api/jobs")
+          .then((r) => r.ok ? r.json() : [])
+          .then((d) => setCalendarJobs(Array.isArray(d) ? d : []))
+          .catch(() => {});
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [tab, loadProperties]);
+
   const handleEditStart = (user: any) => {
     setEditingUserId(user.id);
     setEditName(user.name || "");
