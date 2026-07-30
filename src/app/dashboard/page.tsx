@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Topbar from "@/components/Topbar";
 import MapView from "@/components/MapView";
 import PropertySheet from "@/components/PropertySheet";
@@ -44,6 +44,7 @@ export default function DashboardPage() {
   const [properties, setProperties] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeChecklist, setActiveChecklist] = useState<{ name: string; addr: string } | null>(null);
   const [showFindings, setShowFindings] = useState(false);
@@ -52,6 +53,12 @@ export default function DashboardPage() {
   const [selectedFinding, setSelectedFinding] = useState<any>(null);
   const [userRole, setUserRole] = useState<UserRole>("admin");
   const [roleLoading, setRoleLoading] = useState(true);
+
+  // Offer inline creation state
+  const [offerFindingId, setOfferFindingId] = useState<string | null>(null);
+  const [offerPrice, setOfferPrice] = useState("");
+  const [offerDays, setOfferDays] = useState("");
+  const [offerScope, setOfferScope] = useState("");
 
   // Календар state
   const [calendarJobs, setCalendarJobs] = useState<any[]>([]);
@@ -93,8 +100,9 @@ export default function DashboardPage() {
   }, [roleLoading, TABS, tab]);
 
   const showToast = (msg: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(msg);
-    setTimeout(() => setToast(""), 2600);
+    toastTimerRef.current = setTimeout(() => setToast(""), 2600);
   };
 
   const loadProperties = useCallback(async () => {
@@ -460,6 +468,7 @@ export default function DashboardPage() {
                       "Друго": "#64748b",
                     };
                     return (
+                      <>
                       <button
                         key={f.id}
                         onClick={() => f.offer ? setSelectedFinding(f) : null}
@@ -491,10 +500,96 @@ export default function DashboardPage() {
                               </span>
                             )
                           ) : (
-                            <span className="text-xs px-2 py-1 rounded-md" style={{ background: "#f1f5f9", color: "#64748b" }}>Няма оферта</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setOfferFindingId(f.id); setOfferPrice(""); setOfferDays(""); setOfferScope(""); }}
+                              className="text-xs font-bold px-2 py-1 rounded-md transition hover:opacity-80"
+                              style={{ background: "#dbeafe", color: "#1b98e0" }}
+                            >
+                              ➕ Оферта
+                            </button>
                           )}
                         </div>
                       </button>
+                      {offerFindingId === f.id && (
+                        <div
+                          className="p-4 rounded-xl border bg-white"
+                          style={{ borderColor: "#e4e9f0" }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="text-sm font-bold mb-3" style={{ color: "#006494" }}>Нова оферта за {f.title}</div>
+                          <div className="space-y-2">
+                            <div>
+                              <label className="text-xs font-semibold block mb-1" style={{ color: "#247ba0" }}>Цена (лв)</label>
+                              <input
+                                type="number"
+                                value={offerPrice}
+                                onChange={(e) => setOfferPrice(e.target.value)}
+                                placeholder="Напр. 150"
+                                className="w-full px-3 py-2 rounded-lg border text-sm"
+                                style={{ fontSize: 16, borderColor: "#e4e9f0", color: "#006494" }}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold block mb-1" style={{ color: "#247ba0" }}>Срок (дни)</label>
+                              <input
+                                type="number"
+                                value={offerDays}
+                                onChange={(e) => setOfferDays(e.target.value)}
+                                placeholder="Напр. 5"
+                                className="w-full px-3 py-2 rounded-lg border text-sm"
+                                style={{ fontSize: 16, borderColor: "#e4e9f0", color: "#006494" }}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold block mb-1" style={{ color: "#247ba0" }}>Обхват</label>
+                              <textarea
+                                value={offerScope}
+                                onChange={(e) => setOfferScope(e.target.value)}
+                                placeholder="Описание на работата..."
+                                rows={3}
+                                className="w-full px-3 py-2 rounded-lg border text-sm resize-none"
+                                style={{ fontSize: 16, borderColor: "#e4e9f0", color: "#006494" }}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => {
+                                const price = parseFloat(offerPrice);
+                                const days = parseInt(offerDays, 10);
+                                if (!price || !days || !offerScope.trim()) {
+                                  showToast("❌ Попълнете цена, срок и обхват");
+                                  return;
+                                }
+                                setFindings((prev) =>
+                                  prev.map((item) =>
+                                    item.id === f.id
+                                      ? { ...item, offer: { price, days, scope: offerScope.trim(), decision: "pending" } }
+                                      : item
+                                  )
+                                );
+                                showToast("✅ Офертата е създадена");
+                                setOfferFindingId(null);
+                                setOfferPrice("");
+                                setOfferDays("");
+                                setOfferScope("");
+                              }}
+                              className="flex-1 min-h-[44px] py-2 rounded-lg text-xs font-semibold text-white"
+                              style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}
+                            >
+                              💾 Запази оферта
+                            </button>
+                            <button
+                              onClick={() => { setOfferFindingId(null); setOfferPrice(""); setOfferDays(""); setOfferScope(""); }}
+                              className="flex-1 min-h-[44px] py-2 rounded-lg text-xs font-semibold border"
+                              style={{ borderColor: "#e4e9f0", color: "#247ba0" }}
+                            >
+                              Отказ
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      </>
                     );
                   })}
                 </div>
@@ -519,15 +614,15 @@ export default function DashboardPage() {
               </div>
             ) : (() => {
               const STATUS_BADGE: Record<string, { label: string; bg: string; color: string }> = {
-                planned: { label: "Планиран", bg: "#dbeafe", color: "#1b98e0" },
-                completed: { label: "Завършен", bg: "#dcfce7", color: "#16a34a" },
-                missed: { label: "Пропуснат", bg: "#fee2e2", color: "#dc2626" },
+                ok: { label: "Изпълнен", bg: "#dcfce7", color: "#16a34a" },
+                warn: { label: "Предстои", bg: "#fef3c7", color: "#d97706" },
+                bad: { label: "Проблем", bg: "#fee2e2", color: "#dc2626" },
               };
 
               // Group by date
               const grouped: Record<string, any[]> = {};
               for (const job of calendarJobs) {
-                const date = job.planned_at ? job.planned_at.slice(0, 10) : "Без дата";
+                const date = job.date ? job.date.slice(0, 10) : "Без дата";
                 if (!grouped[date]) grouped[date] = [];
                 grouped[date].push(job);
               }
@@ -556,9 +651,9 @@ export default function DashboardPage() {
                         </div>
                         <div className="space-y-2">
                           {grouped[date].map((job) => {
-                            const status = STATUS_BADGE[job.status] || STATUS_BADGE.planned;
-                            const time = job.planned_at
-                              ? new Date(job.planned_at).toLocaleTimeString("bg-BG", { hour: "2-digit", minute: "2-digit" })
+                            const status = STATUS_BADGE[job.status] || STATUS_BADGE.warn;
+                            const time = job.date
+                              ? new Date(job.date).toLocaleTimeString("bg-BG", { hour: "2-digit", minute: "2-digit" })
                               : "--:--";
                             return (
                               <div
@@ -577,13 +672,13 @@ export default function DashboardPage() {
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
                                     <span className="text-sm font-semibold" style={{ color: "#006494" }}>
-                                      {job.property_name || "Имот"}
+                                      {job.propertyName || "Имот"}
                                     </span>
                                     <span className="text-xs" style={{ color: "#247ba0" }}>{time}</span>
                                   </div>
-                                  {job.worker_name && (
+                                  {job.worker && (
                                     <div className="text-xs mt-0.5" style={{ color: "#247ba0" }}>
-                                      👤 {job.worker_name}
+                                      👤 {job.worker}
                                     </div>
                                   )}
                                 </div>
@@ -814,9 +909,16 @@ export default function DashboardPage() {
       )}
 
       {toast && (
-        <div className="fixed bottom-[max(96px,calc(96px+env(safe-area-inset-bottom)))] left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full text-white text-sm font-semibold shadow-lg"
+        <div className="fixed bottom-[max(96px,calc(96px+env(safe-area-inset-bottom)))] left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full text-white text-sm font-semibold shadow-lg flex items-center gap-3"
           style={{ background: "#006494" }}>
-          {toast}
+          <span>{toast}</span>
+          <button
+            onClick={() => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); setToast(""); }}
+            className="w-5 h-5 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition text-xs font-bold"
+            style={{ lineHeight: 1 }}
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>
