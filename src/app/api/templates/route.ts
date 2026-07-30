@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { serviceTemplates } from "@/db/schema";
+import { serviceTemplates, templateItems } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -7,8 +7,27 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const templates = db.select().from(serviceTemplates).all();
-    return NextResponse.json(templates);
+    const rows = db
+      .select()
+      .from(serviceTemplates)
+      .leftJoin(templateItems, eq(serviceTemplates.id, templateItems.template_id))
+      .orderBy(serviceTemplates.created_at)
+      .all();
+
+    // Group items by template
+    const templateMap = new Map<string, any>();
+    for (const row of rows) {
+      const t = row.service_templates;
+      const item = row.template_items;
+      if (!templateMap.has(t.id)) {
+        templateMap.set(t.id, { ...t, items: [] });
+      }
+      if (item && item.id) {
+        templateMap.get(t.id).items.push(item);
+      }
+    }
+
+    return NextResponse.json(Array.from(templateMap.values()));
   } catch (error) {
     console.error("GET /api/templates error:", error);
     return NextResponse.json({ error: "Грешка при зареждане на шаблони" }, { status: 500 });
