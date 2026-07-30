@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       jobTitle = "Задача";
     }
 
-    const [job] = db
+    db
       .insert(jobs)
       .values({
         org_id: "org1",
@@ -92,7 +92,10 @@ export async function POST(request: Request) {
         planned_at,
         status: "planned",
       })
-      .returning();
+      .run();
+
+    // SQLite no RETURNING — fetch the last inserted job
+    const [job] = db.select().from(jobs).orderBy(desc(jobs.created_at)).limit(1).all();
 
     return NextResponse.json(job, { status: 201 });
   } catch (error) {
