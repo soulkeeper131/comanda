@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const [template] = db
+    db
       .insert(serviceTemplates)
       .values({
         org_id: "org1",
@@ -38,7 +38,10 @@ export async function POST(request: Request) {
         duration_min: duration_min ?? 60,
         price: price ?? 0,
       })
-      .returning();
+      .run();
+
+    // SQLite doesn't support RETURNING — fetch by name
+    const [template] = db.select().from(serviceTemplates).where(eq(serviceTemplates.name, name)).limit(1).all();
 
     return NextResponse.json(template, { status: 201 });
   } catch (error) {
