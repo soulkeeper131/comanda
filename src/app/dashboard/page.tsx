@@ -84,6 +84,10 @@ export default function DashboardPage() {
   const [teamUsers, setTeamUsers] = useState<any[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
 
+  // Templates for tasks tab
+  const [taskTemplates, setTaskTemplates] = useState<any[]>([]);
+  const [taskTemplatesLoading, setTaskTemplatesLoading] = useState(false);
+
   // Inline edit state for Team tab
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -194,6 +198,17 @@ export default function DashboardPage() {
       .then((data) => setTeamUsers((data.users || (Array.isArray(data) ? data : []))))
       .catch(() => setTeamUsers([]))
       .finally(() => setTeamLoading(false));
+  }, [tab]);
+
+  // Fetch task templates
+  useEffect(() => {
+    if (tab !== "tasks") return;
+    setTaskTemplatesLoading(true);
+    fetch("/api/templates")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setTaskTemplates(Array.isArray(data) ? data : []))
+      .catch(() => setTaskTemplates([]))
+      .finally(() => setTaskTemplatesLoading(false));
   }, [tab]);
 
   const handleEditStart = (user: any) => {
@@ -426,17 +441,27 @@ export default function DashboardPage() {
               ➕ Нова задача
             </button>
             <div className="space-y-2">
-              {TASKS.map((tpl) => (
+              {taskTemplatesLoading ? (
+                <div className="text-center py-12" style={{ color: "#247ba0" }}>Зареждане...</div>
+              ) : taskTemplates.length === 0 ? (
+                <div className="text-center py-12" style={{ color: "#247ba0" }}>
+                  <div className="text-4xl mb-3">📋</div>
+                  <div className="text-sm">Няма създадени шаблони</div>
+                </div>
+              ) : (
+                taskTemplates.map((tpl) => {
+                  const itemCount = tpl.items?.length || 0;
+                  return (
                 <div key={tpl.id} className="p-4 rounded-xl bg-white border" style={{ borderColor: "#e4e9f0" }}>
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xl">{tpl.icon}</span>
+                    <span className="text-xl">{tpl.icon || "📋"}</span>
                     <span className="text-sm font-bold" style={{ color: "#006494" }}>{tpl.name}</span>
                     <span className="ml-auto text-xs px-2 py-0.5 rounded-full" style={{ background: "#e8f1f2", color: "#247ba0" }}>
-                      {tpl.mins} мин
+                      {tpl.duration_min} мин
                     </span>
                   </div>
                   <div className="text-xs mb-3" style={{ color: "#247ba0" }}>
-                    {tpl.items} точки в чек-листа
+                    {itemCount} точки в чек-листа
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <button
@@ -462,7 +487,9 @@ export default function DashboardPage() {
                     </button>
                   </div>
                 </div>
-              ))}
+                  );
+                })
+              )}
             </div>
           </div>
         )}
@@ -710,7 +737,7 @@ export default function DashboardPage() {
                         </div>
                         <div className="space-y-2">
                           {grouped[date].map((job) => {
-                            const status = STATUS_BADGE[job.status] || STATUS_BADGE.warn;
+                            const status = STATUS_BADGE[job.status] || fallback;
                             const dateField = job.planned_at || job.date;
                             const time = dateField
                               ? new Date(dateField).toLocaleTimeString("bg-BG", { hour: "2-digit", minute: "2-digit" })

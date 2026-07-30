@@ -19,6 +19,7 @@ type Template = {
   description: string | null;
   icon: string;
   duration_min: number;
+  items?: TemplateItem[];
 };
 
 const PROOF_LABELS: Record<string, string> = {
@@ -58,6 +59,14 @@ export default function TemplateManager() {
       if (res.ok) {
         const data = await res.json();
         setTemplates(data);
+        // Seed itemsMap from embedded items
+        const seed: Record<string, TemplateItem[]> = {};
+        for (const tpl of data) {
+          if (tpl.items?.length) {
+            seed[tpl.id] = tpl.items;
+          }
+        }
+        setItemsMap((prev) => ({ ...seed, ...prev }));
       }
     } catch (e) {
       console.error("Load templates error:", e);

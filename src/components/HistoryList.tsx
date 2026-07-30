@@ -5,22 +5,32 @@ import { useState, useEffect, useMemo } from "react";
 type JobRecord = {
   id: string;
   propertyName: string;
+  property_name?: string;
   propertyId: string;
   date: string;
+  planned_at?: string;
   worker: string;
+  assignee_name?: string;
   workerId: string;
   itemsChecked: number;
   itemsTotal: number;
   photoCount: number;
-  status: "ok" | "warn" | "bad";
+  status: string;
   notes: string;
+  title?: string;
 };
 
-const STATUS_MAP = {
+const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
+  planned: { label: "📅 Предстои", color: "#6b7280", bg: "#f9fafb" },
+  in_progress: { label: "🔄 В процес", color: "#2563eb", bg: "#eff6ff" },
+  completed: { label: "✅ Завършен", color: "#16a34a", bg: "#f0fdf4" },
+  cancelled: { label: "❌ Отказан", color: "#dc2626", bg: "#fef2f2" },
   ok: { label: "✅ OK", color: "#16a34a", bg: "#f0fdf4" },
   warn: { label: "⚠️ Внимание", color: "#d97706", bg: "#fffbeb" },
   bad: { label: "🔴 Проблем", color: "#dc2626", bg: "#fef2f2" },
 };
+
+const FALLBACK_STATUS = { label: "📋 Неизвестен", color: "#6b7280", bg: "#f3f4f6" };
 
 export default function HistoryList() {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
@@ -119,7 +129,7 @@ export default function HistoryList() {
           </div>
         )}
         {filtered.map((job) => {
-          const st = STATUS_MAP[job.status];
+          const st = STATUS_MAP[job.status] || FALLBACK_STATUS;
           return (
             <button
               key={job.id}
@@ -146,7 +156,7 @@ export default function HistoryList() {
                   📅 {formatDate(job.planned_at || job.date)} · 👷 {job.assignee_name || job.worker}
                 </div>
                 <div>
-                  ✅ {job.itemsChecked}/{job.itemsTotal} точки · 📷 {job.photoCount}{" "}
+                  ✅ {job.itemsChecked || 0}/{job.itemsTotal || 0} точки · 📷 {job.photoCount || 0}{" "}
                   снимки
                 </div>
               </div>
@@ -202,17 +212,19 @@ export default function HistoryList() {
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
               {/* Status */}
               <div className="flex items-center gap-3">
+                {(() => { const dst = STATUS_MAP[detailedJob.status] || FALLBACK_STATUS; return (
                 <span
                   className="px-3 py-1 rounded-full text-sm font-bold"
                   style={{
-                    background: STATUS_MAP[detailedJob.status].bg,
-                    color: STATUS_MAP[detailedJob.status].color,
+                    background: dst.bg,
+                    color: dst.color,
                   }}
                 >
-                  {STATUS_MAP[detailedJob.status].label}
+                  {dst.label}
                 </span>
+                ); })()}
                 <span className="text-sm" style={{ color: "#247ba0" }}>
-                  👷 {detailedJob.worker}
+                  👷 {detailedJob.assignee_name || detailedJob.worker}
                 </span>
               </div>
 
@@ -220,7 +232,7 @@ export default function HistoryList() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="p-3 rounded-xl text-center" style={{ background: "#e8f1f2" }}>
                   <div className="text-2xl font-bold" style={{ color: "#1b98e0" }}>
-                    {detailedJob.itemsChecked}/{detailedJob.itemsTotal}
+                    {detailedJob.itemsChecked || 0}/{detailedJob.itemsTotal || 0}
                   </div>
                   <div className="text-xs mt-1" style={{ color: "#247ba0" }}>
                     Точки
@@ -228,7 +240,7 @@ export default function HistoryList() {
                 </div>
                 <div className="p-3 rounded-xl text-center" style={{ background: "#e8f1f2" }}>
                   <div className="text-2xl font-bold" style={{ color: "#a663cc" }}>
-                    {detailedJob.photoCount}
+                    {detailedJob.photoCount || 0}
                   </div>
                   <div className="text-xs mt-1" style={{ color: "#247ba0" }}>
                     Снимки
@@ -236,7 +248,7 @@ export default function HistoryList() {
                 </div>
                 <div className="p-3 rounded-xl text-center" style={{ background: "#e8f1f2" }}>
                   <div className="text-2xl font-bold" style={{ color: "#006494" }}>
-                    {Math.round((detailedJob.itemsChecked / detailedJob.itemsTotal) * 100)}%
+                    {detailedJob.itemsTotal ? Math.round(((detailedJob.itemsChecked || 0) / detailedJob.itemsTotal) * 100) : 0}%
                   </div>
                   <div className="text-xs mt-1" style={{ color: "#247ba0" }}>
                     Покритие
