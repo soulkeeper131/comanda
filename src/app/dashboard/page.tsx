@@ -191,7 +191,7 @@ export default function DashboardPage() {
     setTeamLoading(true);
     fetch("/api/users")
       .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setTeamUsers(Array.isArray(data) ? data : []))
+      .then((data) => setTeamUsers((data.users || (Array.isArray(data) ? data : []))))
       .catch(() => setTeamUsers([]))
       .finally(() => setTeamLoading(false));
   }, [tab]);
@@ -668,14 +668,16 @@ export default function DashboardPage() {
             ) : (() => {
               const STATUS_BADGE: Record<string, { label: string; bg: string; color: string }> = {
                 ok: { label: "Изпълнен", bg: "#dcfce7", color: "#16a34a" },
-                warn: { label: "Предстои", bg: "#fef3c7", color: "#d97706" },
+                planned: { label: "Предстои", bg: "#fef3c7", color: "#d97706" },
                 bad: { label: "Проблем", bg: "#fee2e2", color: "#dc2626" },
               };
+              const fallback = STATUS_BADGE.planned;
 
               // Group by date
               const grouped: Record<string, any[]> = {};
               for (const job of calendarJobs) {
-                const date = job.date ? job.date.slice(0, 10) : "Без дата";
+                const dateField = job.planned_at || job.date;
+                const date = dateField ? dateField.slice(0, 10) : "Без дата";
                 if (!grouped[date]) grouped[date] = [];
                 grouped[date].push(job);
               }
@@ -687,8 +689,12 @@ export default function DashboardPage() {
               return (
                 <div className="space-y-4">
                   {sortedDates.map((date) => {
-                    const badge = date === new Date().toISOString().slice(0, 10) ? "ДНЕС" : null;
-                    const formatted = date === "Без дата" ? "Без дата" : new Date(date).toLocaleDateString("bg-BG", { weekday: "long", day: "numeric", month: "long" });
+                    const today = new Date().toISOString().slice(0, 10);
+                    const badge = date === today ? "ДНЕС" : null;
+                    const formatted = date === "Без дата" ? "Без дата" : (() => {
+                      try { return new Date(date).toLocaleDateString("bg-BG", { weekday: "long", day: "numeric", month: "long" }); }
+                      catch { return date; }
+                    })();
 
                     return (
                       <div key={date}>
@@ -705,8 +711,9 @@ export default function DashboardPage() {
                         <div className="space-y-2">
                           {grouped[date].map((job) => {
                             const status = STATUS_BADGE[job.status] || STATUS_BADGE.warn;
-                            const time = job.date
-                              ? new Date(job.date).toLocaleTimeString("bg-BG", { hour: "2-digit", minute: "2-digit" })
+                            const dateField = job.planned_at || job.date;
+                            const time = dateField
+                              ? new Date(dateField).toLocaleTimeString("bg-BG", { hour: "2-digit", minute: "2-digit" })
                               : "--:--";
                             return (
                               <div
@@ -725,13 +732,13 @@ export default function DashboardPage() {
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
                                     <span className="text-sm font-semibold" style={{ color: "#006494" }}>
-                                      {job.propertyName || "Имот"}
+                                      {job.property_name || job.propertyName || "Имот"}
                                     </span>
                                     <span className="text-xs" style={{ color: "#247ba0" }}>{time}</span>
                                   </div>
-                                  {job.worker && (
+                                  {(job.assignee_name || job.worker) && (
                                     <div className="text-xs mt-0.5" style={{ color: "#247ba0" }}>
-                                      👤 {job.worker}
+                                      👤 {job.assignee_name || job.worker}
                                     </div>
                                   )}
                                 </div>

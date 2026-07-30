@@ -39,12 +39,12 @@ export default function HistoryList() {
   }, []);
 
   const propertyNames = useMemo(
-    () => [...new Set(jobs.map((j) => j.propertyName))],
+    () => [...new Set(jobs.map((j) => j.property_name || j.propertyName))],
     [jobs]
   );
 
   const filtered = selectedProperty
-    ? jobs.filter((j) => j.propertyName === selectedProperty)
+    ? jobs.filter((j) => (j.property_name || j.propertyName) === selectedProperty)
     : jobs;
 
   const formatDate = (iso: string) => {
@@ -138,12 +138,12 @@ export default function HistoryList() {
                   className="text-sm font-semibold truncate flex-1"
                   style={{ color: "#006494" }}
                 >
-                  {job.propertyName}
+                  {job.property_name || job.propertyName}
                 </span>
               </div>
               <div className="text-xs space-y-0.5" style={{ color: "#247ba0" }}>
                 <div>
-                  📅 {formatDate(job.date)} · 👷 {job.worker}
+                  📅 {formatDate(job.planned_at || job.date)} · 👷 {job.assignee_name || job.worker}
                 </div>
                 <div>
                   ✅ {job.itemsChecked}/{job.itemsTotal} точки · 📷 {job.photoCount}{" "}
