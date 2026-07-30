@@ -9,6 +9,7 @@ import ChecklistSheet from "@/components/ChecklistSheet";
 import FindingsSheet from "@/components/FindingsSheet";
 import OffersPanel from "@/components/OffersPanel";
 import HistoryList from "@/components/HistoryList";
+import TaskForm from "@/components/TaskForm";
 
 type UserRole = "admin" | "owner" | "worker" | "inspector";
 
@@ -53,6 +54,7 @@ export default function DashboardPage() {
   };
   const [selectedProperty, setSelectedProperty] = useState<any>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showTaskForm, setShowTaskForm] = useState(false);
   const [properties, setProperties] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
@@ -256,6 +258,31 @@ export default function DashboardPage() {
     setShowFindings(true);
   };
 
+  const handleTaskSave = async (data: { propertyId: string; templateId: string; assigneeId: string; title: string; plannedAt: string }) => {
+    try {
+      const res = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property_id: data.propertyId,
+          template_id: data.templateId,
+          assignee_id: data.assigneeId || undefined,
+          title: data.title,
+          planned_at: data.plannedAt,
+        }),
+      });
+      if (res.ok) {
+        showToast("✅ Задачата е възложена");
+        setTab("calendar"); // Switch to calendar to show it
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast("❌ " + (err.error || "Грешка"));
+      }
+    } catch {
+      showToast("❌ Грешка при възлагане");
+    }
+  };
+
   const handleSaveFinding = async (data: { type: string; title: string; body: string }) => {
     try {
       const res = await fetch("/api/findings", {
@@ -390,6 +417,12 @@ export default function DashboardPage() {
 
         {tab === "tasks" && (
           <div className="flex-1 overflow-y-auto px-4 py-4">
+            <button
+              onClick={() => setShowTaskForm(true)}
+              className="w-full mb-3 min-h-[44px] py-3 rounded-xl text-sm font-semibold text-white"
+              style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>
+              ➕ Нова задача
+            </button>
             <div className="space-y-2">
               {TASKS.map((tpl) => (
                 <div key={tpl.id} className="p-4 rounded-xl bg-white border" style={{ borderColor: "#e4e9f0" }}>
@@ -895,6 +928,12 @@ export default function DashboardPage() {
             }
           }}
           onClose={() => setShowAddForm(false)}
+        />
+      )}
+      {showTaskForm && (
+        <TaskForm
+          onSave={handleTaskSave}
+          onClose={() => setShowTaskForm(false)}
         />
       )}
 
