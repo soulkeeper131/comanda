@@ -159,6 +159,7 @@ export const findings = sqliteTable("findings", {
   org_id: text("org_id").references(() => organizations.id).notNull(),
   property_id: text("property_id").references(() => properties.id).notNull(),
   job_id: text("job_id").references(() => jobs.id),
+  job_item_id: text("job_item_id").references(() => jobItems.id),
   reported_by: text("reported_by").references(() => users.id),
   title: text("title").notNull(),
   body: text("body"),

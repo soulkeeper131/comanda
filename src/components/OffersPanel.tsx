@@ -1,30 +1,28 @@
 "use client";
 
-type Finding = {
+import { useState, useEffect, useCallback } from "react";
+
+type OfferFromApi = {
   id: string;
-  propertyId: string;
-  propertyName: string;
-  type: string;
-  title: string;
-  body: string;
-  status: string;
-  createdAt: string;
-  photos: string[];
-  offer: {
+  finding_id: string;
+  price: number | null;
+  days: number | null;
+  scope: string | null;
+  sent_at: string;
+  decision: string;
+  finding: {
     id: string;
-    findingId: string;
-    price: number;
-    days: number;
-    scope: string;
-    sentAt: string;
-    decision: string;
+    title: string;
+    body: string | null;
+    type: string;
+    property_id: string;
+    property_name: string;
+    created_at: string;
   } | null;
 };
 
 type Props = {
-  findings: Finding[];
-  onAccept: (findingId: string) => void;
-  onDecline: (findingId: string) => void;
+  findingId?: string;
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -35,19 +33,83 @@ const TYPE_COLORS: Record<string, string> = {
   "Друго": "#64748b",
 };
 
-export default function OffersPanel({ findings, onAccept, onDecline }: Props) {
-  const withOffers = findings.filter((f) => f.offer && f.offer.decision === "pending");
-  const accepted = findings.filter((f) => f.offer && f.offer.decision === "accepted");
-  const declined = findings.filter((f) => f.offer && f.offer.decision === "declined");
+export default function OffersPanel({ findingId }: Props) {
+  const [offers, setOffers] = useState<OfferFromApi[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const renderOfferCard = (finding: Finding) => {
-    const offer = finding.offer!;
+  const loadOffers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const url = findingId
+        ? `/api/offers?finding_id=${findingId}`
+        : "/api/offers";
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setOffers(data);
+      }
+    } catch (e) {
+      console.error("Offers load error:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [findingId]);
+
+  useEffect(() => {
+    loadOffers();
+  }, [loadOffers]);
+
+  const handleAccept = async (offerId: string) => {
+    try {
+      const res = await fetch(`/api/offers/${offerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "accepted" }),
+      });
+      if (res.ok) {
+        setOffers((prev) =>
+          prev.map((o) =>
+            o.id === offerId ? { ...o, decision: "accepted" } : o
+          )
+        );
+      }
+    } catch (e) {
+      console.error("Accept offer error:", e);
+    }
+  };
+
+  const handleDecline = async (offerId: string) => {
+    try {
+      const res = await fetch(`/api/offers/${offerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "declined" }),
+      });
+      if (res.ok) {
+        setOffers((prev) =>
+          prev.map((o) =>
+            o.id === offerId ? { ...o, decision: "declined" } : o
+          )
+        );
+      }
+    } catch (e) {
+      console.error("Decline offer error:", e);
+    }
+  };
+
+  const pending = offers.filter((o) => o.decision === "pending");
+  const accepted = offers.filter((o) => o.decision === "accepted");
+  const declined = offers.filter((o) => o.decision === "declined");
+
+  const renderOfferCard = (offer: OfferFromApi) => {
+    const f = offer.finding;
     const isAccepted = offer.decision === "accepted";
     const isDeclined = offer.decision === "declined";
+    const type = f?.type || "Друго";
 
     return (
       <div
-        key={finding.id}
+        key={offer.id}
         className="p-4 rounded-xl border bg-white mb-3"
         style={{
           borderColor: isAccepted ? "#bbf7d0" : isDeclined ? "#fecaca" : "#e4e9f0",
@@ -58,17 +120,17 @@ export default function OffersPanel({ findings, onAccept, onDecline }: Props) {
           <span
             className="text-xs font-bold px-2 py-0.5 rounded-md"
             style={{
-              background: `${TYPE_COLORS[finding.type] || "#64748b"}18`,
-              color: TYPE_COLORS[finding.type] || "#64748b",
+              background: `${TYPE_COLORS[type] || "#64748b"}18`,
+              color: TYPE_COLORS[type] || "#64748b",
             }}
           >
-            {finding.type}
+            {type}
           </span>
           <span
             className="text-xs"
             style={{ color: "#247ba0" }}
           >
-            {finding.propertyName}
+            {f?.property_name || "Имот"}
           </span>
           {isAccepted && (
             <span
@@ -93,13 +155,13 @@ export default function OffersPanel({ findings, onAccept, onDecline }: Props) {
           className="text-sm font-bold mb-1"
           style={{ color: "#006494" }}
         >
-          {finding.title}
+          {f?.title || "Без заглавие"}
         </h4>
         <p
           className="text-xs mb-3 leading-relaxed"
           style={{ color: "#64748b" }}
         >
-          {finding.body}
+          {f?.body || ""}
         </p>
 
         {/* Offer details */}
@@ -117,20 +179,20 @@ export default function OffersPanel({ findings, onAccept, onDecline }: Props) {
             className="text-xs mb-2 leading-relaxed"
             style={{ color: "#475569" }}
           >
-            {offer.scope}
+            {offer.scope || ""}
           </p>
           <div className="flex items-center gap-4">
             <span
               className="text-sm font-bold"
               style={{ color: "#006494" }}
             >
-              {offer.price.toFixed(0)} лв
+              {offer.price ? offer.price.toFixed(0) : "0"} лв
             </span>
             <span
               className="text-xs"
               style={{ color: "#64748b" }}
             >
-              ⏱ {offer.days} {offer.days === 1 ? "ден" : "дни"}
+              ⏱ {offer.days || 0} {offer.days === 1 ? "ден" : "дни"}
             </span>
           </div>
         </div>
@@ -139,7 +201,7 @@ export default function OffersPanel({ findings, onAccept, onDecline }: Props) {
         {offer.decision === "pending" && (
           <div className="flex gap-2">
             <button
-              onClick={() => onAccept(finding.id)}
+              onClick={() => handleAccept(offer.id)}
               className="flex-1 min-h-[44px] py-2.5 rounded-lg text-xs font-semibold text-white"
               style={{
                 background: "linear-gradient(140deg, #16a34a, #15803d)",
@@ -148,7 +210,7 @@ export default function OffersPanel({ findings, onAccept, onDecline }: Props) {
               ✅ Приеми
             </button>
             <button
-              onClick={() => onDecline(finding.id)}
+              onClick={() => handleDecline(offer.id)}
               className="flex-1 min-h-[44px] py-2.5 rounded-lg text-xs font-semibold border"
               style={{
                 borderColor: "#fecaca",
@@ -162,6 +224,14 @@ export default function OffersPanel({ findings, onAccept, onDecline }: Props) {
       </div>
     );
   };
+
+  if (loading) {
+    return (
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex items-center justify-center">
+        <div className="text-lg" style={{ color: "#247ba0" }}>Зареждане...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -179,15 +249,15 @@ export default function OffersPanel({ findings, onAccept, onDecline }: Props) {
       )}
 
       {/* Pending offers */}
-      {withOffers.length > 0 && (
+      {pending.length > 0 && (
         <div className="mb-4">
           <div
             className="text-xs font-bold uppercase tracking-wide mb-2"
             style={{ color: "#d97706" }}
           >
-            ⏳ За решение ({withOffers.length})
+            ⏳ За решение ({pending.length})
           </div>
-          {withOffers.map(renderOfferCard)}
+          {pending.map(renderOfferCard)}
         </div>
       )}
 
@@ -205,7 +275,7 @@ export default function OffersPanel({ findings, onAccept, onDecline }: Props) {
       )}
 
       {/* Empty state */}
-      {withOffers.length === 0 && accepted.length === 0 && declined.length === 0 && (
+      {offers.length === 0 && (
         <div className="flex flex-col items-center justify-center text-center py-16">
           <div className="text-5xl mb-4">📋</div>
           <h3

@@ -336,31 +336,43 @@ export default function DashboardPage() {
     }
   };
 
-  const handleAcceptOffer = (findingId: string) => {
-    setFindings((prev) =>
-      prev.map((f) =>
-        f.id === findingId && f.offer
-          ? { ...f, offer: { ...f.offer, decision: "accepted" } }
-          : f
-      )
-    );
-    showToast("✅ Офертата е приета");
+  const handleAcceptOffer = async (offerId: string) => {
+    try {
+      const res = await fetch(`/api/offers/${offerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "accepted" }),
+      });
+      if (res.ok) {
+        showToast("✅ Офертата е приета");
+        loadFindings();
+      } else {
+        showToast("❌ Грешка при приемане");
+      }
+    } catch {
+      showToast("❌ Грешка при приемане");
+    }
     setSelectedFinding(null);
   };
 
-  const handleDeclineOffer = (findingId: string) => {
-    setFindings((prev) =>
-      prev.map((f) =>
-        f.id === findingId && f.offer
-          ? { ...f, offer: { ...f.offer, decision: "declined" } }
-          : f
-      )
-    );
-    showToast("❌ Офертата е отказана");
+  const handleDeclineOffer = async (offerId: string) => {
+    try {
+      const res = await fetch(`/api/offers/${offerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "declined" }),
+      });
+      if (res.ok) {
+        showToast("❌ Офертата е отказана");
+        loadFindings();
+      } else {
+        showToast("❌ Грешка при отказване");
+      }
+    } catch {
+      showToast("❌ Грешка при отказване");
+    }
     setSelectedFinding(null);
   };
-
-  const findingsWithOffers = findings.filter((f) => f.offer);
 
   const showFAB = userRole === "admin";
 
@@ -559,21 +571,7 @@ export default function DashboardPage() {
         )}
 
         {tab === "issues" && subTab === "fixes" && (
-          findingsWithOffers.length > 0 ? (
-            <OffersPanel
-              findings={findingsWithOffers}
-              onAccept={handleAcceptOffer}
-              onDecline={handleDeclineOffer}
-            />
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-center p-8">
-              <div>
-                <div className="text-4xl mb-4">🔧</div>
-                <h3 className="text-lg font-bold mb-2" style={{ color: "#006494" }}>Ремонти</h3>
-                <p className="text-sm" style={{ color: "#247ba0" }}>Проследяване на ремонти — от констатация до приключване.</p>
-              </div>
-            </div>
-          )
+          <OffersPanel />
         )}
 
         {tab === "issues" && subTab === "findings" && (
@@ -698,21 +696,34 @@ export default function DashboardPage() {
                           </div>
                           <div className="flex gap-2 mt-3">
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 const price = parseFloat(offerPrice);
                                 const days = parseInt(offerDays, 10);
                                 if (!price || !days || !offerScope.trim()) {
                                   showToast("❌ Попълнете цена, срок и обхват");
                                   return;
                                 }
-                                setFindings((prev) =>
-                                  prev.map((item) =>
-                                    item.id === f.id
-                                      ? { ...item, offer: { price, days, scope: offerScope.trim(), decision: "pending" } }
-                                      : item
-                                  )
-                                );
-                                showToast("✅ Офертата е създадена");
+                                try {
+                                  const res = await fetch("/api/offers", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      finding_id: f.id,
+                                      price,
+                                      days,
+                                      scope: offerScope.trim(),
+                                    }),
+                                  });
+                                  if (res.ok) {
+                                    showToast("✅ Офертата е създадена");
+                                    loadFindings();
+                                  } else {
+                                    const err = await res.json().catch(() => ({}));
+                                    showToast("❌ " + (err.error || "Грешка при създаване"));
+                                  }
+                                } catch {
+                                  showToast("❌ Грешка при създаване");
+                                }
                                 setOfferFindingId(null);
                                 setOfferPrice("");
                                 setOfferDays("");
@@ -1066,11 +1077,33 @@ export default function DashboardPage() {
       )}
 
       {selectedFinding && (
-        <OffersPanel
-          findings={[selectedFinding]}
-          onAccept={handleAcceptOffer}
-          onDecline={handleDeclineOffer}
-        />
+        <div
+          className="fixed inset-0 z-50 flex flex-col"
+          style={{ background: "#fff" }}
+        >
+          {/* Header */}
+          <div
+            className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0"
+            style={{ borderColor: "#e4e9f0" }}
+          >
+            <div className="flex-1 min-w-0">
+              <h3
+                className="text-lg font-bold"
+                style={{ color: "#006494" }}
+              >
+                Детайли за оферта
+              </h3>
+            </div>
+            <button
+              onClick={() => setSelectedFinding(null)}
+              className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center"
+              style={{ background: "#f1f5f9", color: "#64748b", fontSize: 15 }}
+            >
+              ✕
+            </button>
+          </div>
+          <OffersPanel findingId={selectedFinding.id} />
+        </div>
       )}
 
       {toast && (

@@ -19,8 +19,11 @@ type Zone = {
 type Props = {
   propertyName: string;
   propertyAddr: string;
+  propertyId?: string;
+  jobId?: string;
   onClose: () => void;
   onComplete: (data: { items: ChecklistItem[]; gps: { lat: number; lng: number } | null }) => void;
+  onReportProblem?: (data: { jobItemId: string; itemLabel: string; zone: string }) => void;
 };
 
 const ZONES: Record<string, Zone> = {
@@ -59,7 +62,7 @@ const DEFAULT_ITEMS: ChecklistItem[] = [
   { id: "t2", label: "Проверка на улуците", zone: "terrace", required: false, proofType: "photo", done: false },
 ];
 
-export default function ChecklistSheet({ propertyName, propertyAddr, onClose, onComplete }: Props) {
+export default function ChecklistSheet({ propertyName, propertyAddr, propertyId, jobId, onClose, onComplete, onReportProblem }: Props) {
   const [items, setItems] = useState<ChecklistItem[]>(DEFAULT_ITEMS.map(i => ({ ...i })));
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -275,6 +278,16 @@ export default function ChecklistSheet({ propertyName, propertyAddr, onClose, on
                           )}
                         </div>
                       )}
+
+                      {/* Report problem button */}
+                      <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => onReportProblem?.({ jobItemId: item.id, itemLabel: item.label, zone: item.zone })}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[36px] rounded-lg text-xs font-semibold border transition hover:opacity-80"
+                          style={{ borderColor: "#fed7aa", color: "#c2410c", background: "#fff7ed" }}>
+                          ⚠️ Докладвай проблем
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}

@@ -5,6 +5,9 @@ import { useState } from "react";
 type Props = {
   propertyName?: string;
   propertyAddr?: string;
+  propertyId?: string;
+  jobId?: string;
+  jobItemId?: string;
   onClose: () => void;
   onSave: (data: {
     type: string;
@@ -12,6 +15,7 @@ type Props = {
     body: string;
     propertyId?: string;
     jobId?: string;
+    jobItemId?: string;
   }) => void;
 };
 
@@ -20,6 +24,9 @@ const PROBLEM_TYPES = ["Теч", "Мухъл/влага", "Повреда", "Л�
 export default function FindingsSheet({
   propertyName,
   propertyAddr,
+  propertyId,
+  jobId,
+  jobItemId,
   onClose,
   onSave,
 }: Props) {
@@ -59,7 +66,7 @@ export default function FindingsSheet({
   const handleSave = async () => {
     if (!canSave || saving) return;
     setSaving(true);
-    await onSave({ type, title, body });
+    await onSave({ type, title, body, propertyId, jobId, jobItemId });
     setSaving(false);
   };
 
