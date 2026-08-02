@@ -21,7 +21,7 @@ export async function GET() {
         .where(
           and(
             eq(jobs.property_id, p.id),
-            eq(jobs.status, "active")
+            eq(jobs.status, "in_progress")
           )
         )
         .get();
