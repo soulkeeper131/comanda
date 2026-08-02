@@ -111,6 +111,13 @@ export default function PropertySheet({ property, onClose }: { property: MockPro
             <button className="flex-1 min-h-[44px] py-3 rounded-xl text-sm font-semibold border" style={{ borderColor: "#d0e5ff", color: "#006494" }}>
               🔧 Докладвай проблем
             </button>
+            <button
+              onClick={() => window.open(`/api/reports/property/${property.id}`, "_blank")}
+              className="flex-1 min-h-[44px] py-3 rounded-xl text-sm font-semibold border"
+              style={{ borderColor: "#d0e5ff", color: "#1b98e0", background: "#eff6ff" }}
+            >
+              📄 Отчет за имот
+            </button>
           </div>
         </div>
       </div>

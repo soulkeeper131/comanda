@@ -3,9 +3,11 @@
   "short_name": "Ко Манда",
   "start_url": "/dashboard",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#e8f1f2",
   "theme_color": "#006494",
   "icons": [
+    { "src": "/logo.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/logo.png", "sizes": "512x512", "type": "image/png" }
   ]
 }

@@ -1,14 +1,28 @@
 import { db } from "@/db";
 import { findings, findingPhotos, properties, users, jobItems } from "@/db/schema";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, desc, inArray, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
+import { notifyOwner } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+// GET /api/findings?status=open&property_id=X
+export async function GET(request: Request) {
   try {
-    const rows = db
+    const { searchParams } = new URL(request.url);
+    const statusFilter = searchParams.get("status");
+    const propertyIdFilter = searchParams.get("property_id");
+
+    const conditions: any[] = [];
+    if (statusFilter) {
+      conditions.push(eq(findings.status, statusFilter));
+    }
+    if (propertyIdFilter) {
+      conditions.push(eq(findings.property_id, propertyIdFilter));
+    }
+
+    let query = db
       .select({
         id: findings.id,
         org_id: findings.org_id,
@@ -25,9 +39,13 @@ export async function GET() {
       })
       .from(findings)
       .leftJoin(properties, eq(findings.property_id, properties.id))
-      .leftJoin(users, eq(findings.reported_by, users.id))
-      .orderBy(desc(findings.created_at))
-      .all();
+      .leftJoin(users, eq(findings.reported_by, users.id));
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const rows = query.orderBy(desc(findings.created_at)).all();
 
     if (rows.length === 0) {
       return NextResponse.json([]);

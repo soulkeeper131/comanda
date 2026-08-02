@@ -12,6 +12,7 @@ import HistoryList from "@/components/HistoryList";
 import TaskForm from "@/components/TaskForm";
 import TemplateManager from "@/components/TemplateManager";
 import SmtpSettings from "@/components/SmtpSettings";
+import OnboardingPage from "./onboarding/page";
 
 type UserRole = "admin" | "owner" | "worker" | "inspector";
 
@@ -37,6 +38,20 @@ export default function DashboardPage() {
   const [tab, setTab] = useState("overview");
   const [subTab, setSubTab] = useState("calendar"); // sub-tab for tours/issues/settings
 
+  // Onboarding check
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const done = localStorage.getItem("onboarding_done");
+      if (!done) {
+        setShowOnboarding(true);
+      }
+    }
+    setOnboardingChecked(true);
+  }, []);
+
   // Stats overview
   const [stats, setStats] = useState({ activeJobs: 0, plannedJobs: 0, completedJobs: 0, openFindings: 0, pendingOffers: 0, totalProperties: 0 });
   const [statsLoading, setStatsLoading] = useState(false);
@@ -53,6 +68,8 @@ export default function DashboardPage() {
     setSelectedFinding(null);
     setOfferFindingId(null);
     setEditingUserId(null);
+    setBulkSelected(new Set());
+    setShowBulkForm(false);
     setTab(id);
     // Reset sub-tab based on main tab
     if (id === "tours") setSubTab("calendar");
@@ -97,6 +114,23 @@ export default function DashboardPage() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState<UserRole>("worker");
+
+  // Filter states for sub-tabs
+  const [findingsStatusFilter, setFindingsStatusFilter] = useState("all");
+  const [fixesDecisionFilter, setFixesDecisionFilter] = useState("all");
+
+  // Bulk assign state
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+  const [showBulkForm, setShowBulkForm] = useState(false);
+  const [bulkTemplateId, setBulkTemplateId] = useState("");
+  const [bulkAssigneeId, setBulkAssigneeId] = useState("");
+  const [bulkPlannedAt, setBulkPlannedAt] = useState(() => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+  });
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkUsers, setBulkUsers] = useState<any[]>([]);
 
   // Fetch user role
   useEffect(() => {
@@ -174,7 +208,10 @@ export default function DashboardPage() {
   const loadFindings = useCallback(async () => {
     setFindingsLoading(true);
     try {
-      const res = await fetch("/api/findings");
+      const params = new URLSearchParams();
+      if (findingsStatusFilter !== "all") params.set("status", findingsStatusFilter);
+      const qs = params.toString();
+      const res = await fetch("/api/findings" + (qs ? "?" + qs : ""));
       if (res.ok) {
         const data = await res.json();
         setFindings(data);
@@ -184,7 +221,7 @@ export default function DashboardPage() {
     } finally {
       setFindingsLoading(false);
     }
-  }, []);
+  }, [findingsStatusFilter]);
 
   useEffect(() => {
     loadProperties();
@@ -419,6 +456,49 @@ export default function DashboardPage() {
     }
   };
 
+  const handleBulkAssign = async () => {
+    if (bulkSelected.size === 0) {
+      showToast("❌ Избери поне един имот");
+      return;
+    }
+    if (!bulkTemplateId) {
+      showToast("❌ Избери шаблон");
+      return;
+    }
+    if (!bulkPlannedAt) {
+      showToast("❌ Посочи планирана дата");
+      return;
+    }
+    setBulkSubmitting(true);
+    try {
+      const res = await fetch("/api/jobs/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property_ids: Array.from(bulkSelected),
+          template_id: bulkTemplateId,
+          assignee_id: bulkAssigneeId || undefined,
+          planned_at: new Date(bulkPlannedAt).toISOString(),
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast(`✅ Създадени ${data.created} задачи`);
+        setBulkSelected(new Set());
+        setShowBulkForm(false);
+        setBulkTemplateId("");
+        setBulkAssigneeId("");
+        setTab("tours"); setSubTab("calendar");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast("❌ " + (err.error || "Грешка при възлагане"));
+      }
+    } catch {
+      showToast("❌ Грешка при възлагане");
+    }
+    setBulkSubmitting(false);
+  };
+
   const showFAB = userRole === "admin";
 
   if (roleLoading) {
@@ -427,6 +507,11 @@ export default function DashboardPage() {
         <div className="text-lg" style={{ color: "#247ba0" }}>Зареждане...</div>
       </div>
     );
+  }
+
+  // Show onboarding if not done yet
+  if (showOnboarding && !roleLoading && onboardingChecked) {
+    return <OnboardingPage />;
   }
 
   return (
@@ -609,13 +694,130 @@ export default function DashboardPage() {
               style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>
               ➕ Нова задача
             </button>
+
+            {/* Bulk Assign Section */}
+            {properties.length > 0 && taskTemplates.length > 0 && (
+              <div className="mb-4 p-4 rounded-xl border bg-white" style={{ borderColor: "#e4e9f0" }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold" style={{ color: "#006494" }}>
+                    📦 Групово възлагане
+                  </span>
+                  {bulkSelected.size > 0 && (
+                    <span className="text-xs font-semibold" style={{ color: "#1b98e0" }}>
+                      {bulkSelected.size} избрани
+                    </span>
+                  )}
+                </div>
+                {!showBulkForm ? (
+                  <>
+                    <div className="max-h-40 overflow-y-auto space-y-1 mb-3">
+                      {properties.map((p: any) => (
+                        <label
+                          key={p.id}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition hover:bg-gray-50"
+                          style={{ fontSize: 14 }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={bulkSelected.has(p.id)}
+                            onChange={() => {
+                              setBulkSelected(prev => {
+                                const next = new Set(prev);
+                                if (next.has(p.id)) next.delete(p.id);
+                                else next.add(p.id);
+                                return next;
+                              });
+                            }}
+                            className="w-4 h-4 accent-[#1b98e0]"
+                          />
+                          <span className="truncate" style={{ color: "#006494" }}>{p.name}</span>
+                          <span className="text-xs ml-auto flex-shrink-0" style={{ color: "#247ba0" }}>
+                            {p.addr?.split(",")[0] || ""}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (bulkSelected.size === 0) {
+                          showToast("❌ Избери поне един имот");
+                          return;
+                        }
+                        setShowBulkForm(true);
+                        // Load users for the bulk form
+                        fetch("/api/users")
+                          .then(r => r.json())
+                          .then(d => setBulkUsers((d.users || []).filter((x: any) => x.active)))
+                          .catch(() => {});
+                      }}
+                      disabled={bulkSelected.size === 0}
+                      className="w-full min-h-[44px] py-2.5 rounded-lg text-xs font-semibold text-white disabled:opacity-40 transition"
+                      style={{ background: "linear-gradient(140deg, #a663cc, #7c3aed)" }}>
+                      ⚡ Възложи на избраните ({bulkSelected.size})
+                    </button>
+                  </>
+                ) : (
+                  <div className="space-y-3" onClick={e => e.stopPropagation()}>
+                    <select
+                      value={bulkTemplateId}
+                      onChange={e => setBulkTemplateId(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border text-base"
+                      style={{ borderColor: "#e4e9f0", fontSize: 16, color: "#006494" }}>
+                      <option value="">📋 Избери шаблон</option>
+                      {taskTemplates.map((t: any) => (
+                        <option key={t.id} value={t.id}>{t.icon || "📋"} {t.name} ({t.duration_min} мин)</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={bulkAssigneeId}
+                      onChange={e => setBulkAssigneeId(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border text-base"
+                      style={{ borderColor: "#e4e9f0", fontSize: 16, color: "#006494" }}>
+                      <option value="">👷 Избери работник (по избор)</option>
+                      {bulkUsers.map((u: any) => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                      ))}
+                    </select>
+
+                    <input
+                      type="datetime-local"
+                      value={bulkPlannedAt}
+                      onChange={e => setBulkPlannedAt(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border text-base"
+                      style={{ borderColor: "#e4e9f0", fontSize: 16, color: "#006494" }}
+                    />
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowBulkForm(false)}
+                        className="flex-1 min-h-[44px] py-3 rounded-xl text-sm font-semibold border"
+                        style={{ borderColor: "#d0e5ff", color: "#247ba0" }}>
+                        Отказ
+                      </button>
+                      <button
+                        onClick={handleBulkAssign}
+                        disabled={bulkSubmitting}
+                        className="flex-1 min-h-[44px] py-3 rounded-xl text-sm font-semibold text-white transition"
+                        style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>
+                        {bulkSubmitting ? "⏳ Изпращане..." : `📤 Възложи на ${bulkSelected.size} имота`}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               {taskTemplatesLoading ? (
                 <div className="text-center py-12" style={{ color: "#247ba0" }}>Зареждане...</div>
               ) : taskTemplates.length === 0 ? (
-                <div className="text-center py-12" style={{ color: "#247ba0" }}>
-                  <div className="text-4xl mb-3">📋</div>
-                  <div className="text-sm">Няма създадени шаблони</div>
+                <div className="flex flex-col items-center justify-center text-center py-16">
+                  <div className="text-5xl mb-4">📋</div>
+                  <h3 className="text-lg font-bold mb-2" style={{ color: "#006494" }}>Няма създадени шаблони</h3>
+                  <p className="text-sm max-w-xs" style={{ color: "#247ba0" }}>
+                    Създай шаблони за обходи в секция Настройки → Шаблони.
+                  </p>
                 </div>
               ) : (
                 taskTemplates.map((tpl) => {
@@ -664,7 +866,32 @@ export default function DashboardPage() {
         )}
 
         {tab === "issues" && subTab === "fixes" && (
-          <OffersPanel />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Decision filter buttons */}
+            <div className="flex gap-1 px-4 py-2 overflow-x-auto flex-shrink-0 border-b" style={{ borderColor: "#e4e9f0" }}>
+              {[
+                { key: "all", label: "Всички" },
+                { key: "pending", label: "⏳ Чакащи" },
+                { key: "accepted", label: "✅ Приети" },
+                { key: "declined", label: "❌ Отказани" },
+              ].map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setFixesDecisionFilter(f.key)}
+                  className="px-3 min-h-[36px] py-1.5 text-xs font-semibold rounded-full transition whitespace-nowrap"
+                  style={{
+                    fontSize: 13,
+                    background: fixesDecisionFilter === f.key ? "#1b98e0" : "transparent",
+                    color: fixesDecisionFilter === f.key ? "#fff" : "#247ba0",
+                    border: fixesDecisionFilter === f.key ? "none" : "1px solid #e4e9f0",
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <OffersPanel decisionFilter={fixesDecisionFilter} />
+          </div>
         )}
 
         {tab === "issues" && subTab === "findings" && (
@@ -691,6 +918,30 @@ export default function DashboardPage() {
                     style={{ borderColor: "#fed7aa", color: "#c2410c", background: "#fff7ed" }}>
                     ⚠️ Докладвай проблем
                   </button>
+                </div>
+
+                {/* Filter buttons for findings */}
+                <div className="flex gap-1 mb-3 overflow-x-auto pb-1">
+                  {[
+                    { key: "all", label: "Всички" },
+                    { key: "open", label: "🔴 Отворени" },
+                    { key: "in_progress", label: "🟡 В процес" },
+                    { key: "resolved", label: "🟢 Решени" },
+                  ].map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => setFindingsStatusFilter(f.key)}
+                      className="px-3 min-h-[36px] py-1.5 text-xs font-semibold rounded-full transition whitespace-nowrap"
+                      style={{
+                        fontSize: 13,
+                        background: findingsStatusFilter === f.key ? "#1b98e0" : "transparent",
+                        color: findingsStatusFilter === f.key ? "#fff" : "#247ba0",
+                        border: findingsStatusFilter === f.key ? "none" : "1px solid #e4e9f0",
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
                 </div>
 
                 <div className="space-y-2">

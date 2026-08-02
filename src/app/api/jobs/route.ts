@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { jobs, properties, users, serviceTemplates, jobItems, evidence } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { createNotification, notifyOwner } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +25,14 @@ async function pushNotify(title: string, propertyId: string) {
   }
 }
 
-export async function GET() {
+// GET /api/jobs?assignee_id=X&status=Y
+export async function GET(request: Request) {
   try {
-    const rows = db
+    const { searchParams } = new URL(request.url);
+    const assigneeIdFilter = searchParams.get("assignee_id");
+    const statusFilter = searchParams.get("status");
+
+    let query = db
       .select({
         id: jobs.id,
         title: jobs.title,
@@ -47,9 +53,16 @@ export async function GET() {
       })
       .from(jobs)
       .leftJoin(properties, eq(jobs.property_id, properties.id))
-      .leftJoin(users, eq(jobs.assignee_id, users.id))
-      .orderBy(desc(jobs.created_at))
-      .all();
+      .leftJoin(users, eq(jobs.assignee_id, users.id));
+
+    if (assigneeIdFilter) {
+      query = query.where(eq(jobs.assignee_id, assigneeIdFilter));
+    }
+    if (statusFilter) {
+      query = query.where(eq(jobs.status, statusFilter));
+    }
+
+    const rows = query.orderBy(desc(jobs.created_at)).all();
 
     // Compute itemsChecked / itemsTotal per job
     // Fetch all items for jobs in this result set
@@ -170,6 +183,18 @@ export async function POST(request: Request) {
     pushNotify(jobTitle, property_id).catch((e) =>
       console.error("Push notify error:", e)
     );
+
+    // Notify assignee (worker) about new job
+    if (assignee_id) {
+      const prop = db.select({ name: properties.name }).from(properties).where(eq(properties.id, property_id)).get();
+      createNotification(
+        assignee_id,
+        "job_started",
+        "📋 Възложен нов обход",
+        `${jobTitle} — ${prop?.name || "Имот"}`,
+        "/dashboard",
+      );
+    }
 
     return NextResponse.json(job, { status: 201 });
   } catch (error) {

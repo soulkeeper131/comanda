@@ -23,6 +23,7 @@ type OfferFromApi = {
 
 type Props = {
   findingId?: string;
+  decisionFilter?: string;
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -33,16 +34,18 @@ const TYPE_COLORS: Record<string, string> = {
   "Друго": "#64748b",
 };
 
-export default function OffersPanel({ findingId }: Props) {
+export default function OffersPanel({ findingId, decisionFilter }: Props) {
   const [offers, setOffers] = useState<OfferFromApi[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadOffers = useCallback(async () => {
     setLoading(true);
     try {
-      const url = findingId
-        ? `/api/offers?finding_id=${findingId}`
-        : "/api/offers";
+      const params = new URLSearchParams();
+      if (findingId) params.set("finding_id", findingId);
+      if (decisionFilter && decisionFilter !== "all") params.set("decision", decisionFilter);
+      const qs = params.toString();
+      const url = qs ? `/api/offers?${qs}` : "/api/offers";
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -53,7 +56,7 @@ export default function OffersPanel({ findingId }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [findingId]);
+  }, [findingId, decisionFilter]);
 
   useEffect(() => {
     loadOffers();
@@ -282,7 +285,7 @@ export default function OffersPanel({ findingId }: Props) {
             className="text-lg font-bold mb-2"
             style={{ color: "#006494" }}
           >
-            Няма оферти
+            Няма данни
           </h3>
           <p className="text-sm max-w-xs" style={{ color: "#247ba0" }}>
             Когато докладваш проблем, тук ще се появят оферти за ремонт от

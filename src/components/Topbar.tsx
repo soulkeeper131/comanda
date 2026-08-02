@@ -2,6 +2,8 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PushBell from "./PushBell";
+import NotificationBell from "./NotificationBell";
+import { getQueueLength, initOfflineSync } from "@/lib/offline-sync";
 
 const ROLE_BADGE: Record<string, { label: string; color: string }> = {
   admin: { label: "Админ", color: "#a663cc" },
@@ -14,12 +16,50 @@ export default function Topbar() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [user, setUser] = useState<{ name: string; role: string } | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     fetch("/api/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => data && setUser({ name: data.name, role: data.role }))
       .catch(() => {});
+
+    // Init offline sync
+    initOfflineSync();
+
+    // Online/offline detection
+    const handleOnline = () => {
+      setIsOnline(true);
+      // Check pending after short delay (allow sync to complete)
+      setTimeout(() => setPendingCount(getQueueLength()), 2000);
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      setPendingCount(getQueueLength());
+    };
+
+    setIsOnline(navigator.onLine);
+    setPendingCount(getQueueLength());
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    // Listen for sync completion
+    const handleSyncComplete = () => {
+      setPendingCount(getQueueLength());
+    };
+    window.addEventListener("offline-sync-complete", handleSyncComplete);
+
+    // Poll pending count every 10s
+    const interval = setInterval(() => setPendingCount(getQueueLength()), 10000);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("offline-sync-complete", handleSyncComplete);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleSignOut = async () => {
@@ -48,6 +88,37 @@ export default function Topbar() {
 
       <div className="flex-1" />
 
+      {/* Offline indicator + pending sync */}
+      <div className="flex items-center gap-1.5">
+        {!isOnline && (
+          <span
+            className="text-xs font-bold px-2 py-1 rounded-full"
+            style={{ background: "#fee2e2", color: "#dc2626" }}
+            title="Няма интернет връзка"
+          >
+            🚫 Офлайн
+          </span>
+        )}
+        {isOnline && pendingCount > 0 && (
+          <span
+            className="text-xs font-bold px-2 py-1 rounded-full"
+            style={{ background: "#fef3c7", color: "#d97706" }}
+            title={`${pendingCount} чакащи действия за синхронизация`}
+          >
+            📶 {pendingCount}
+          </span>
+        )}
+        {isOnline && pendingCount === 0 && (
+          <span
+            className="text-xs px-1"
+            style={{ color: "#16a34a" }}
+            title="Онлайн"
+          >
+            📶
+          </span>
+        )}
+      </div>
+
       {/* User menu */}
       <div className="relative flex items-center gap-2">
         {badge && (
@@ -58,6 +129,7 @@ export default function Topbar() {
             {badge.label}
           </span>
         )}
+        <NotificationBell />
         <PushBell />
         <button
           onClick={() => setMenuOpen(!menuOpen)}

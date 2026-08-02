@@ -1,7 +1,8 @@
 import { db } from "@/db";
-import { jobs, templateItems, jobItems } from "@/db/schema";
+import { jobs, templateItems, jobItems, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { notifyOwner } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -83,6 +84,16 @@ export async function POST(
     // Return updated job with items
     const updatedJob = db.select().from(jobs).where(eq(jobs.id, id)).get();
     const updatedItems = db.select().from(jobItems).where(eq(jobItems.job_id, id)).all();
+
+    // Notify property owner about started job
+    const prop = db.select({ name: properties.name }).from(properties).where(eq(properties.id, job.property_id)).get();
+    notifyOwner(
+      job.property_id,
+      "job_started",
+      "🔧 Започнат обход",
+      `${job.title || "Обход"} — ${prop?.name || "Имот"}`,
+      "/dashboard",
+    );
 
     return NextResponse.json({ ...updatedJob, items: updatedItems });
   } catch (error) {

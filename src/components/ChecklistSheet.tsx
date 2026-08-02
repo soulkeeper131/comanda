@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { queueAction } from "@/lib/offline-sync";
 
 type ChecklistItem = {
   id: string;
@@ -71,6 +72,66 @@ export default function ChecklistSheet({ propertyName, propertyAddr, propertyId,
   const [showPhotoMenu, setShowPhotoMenu] = useState<string | null>(null);
   const [viewerPhoto, setViewerPhoto] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null);
+  const [offlineWarning, setOfflineWarning] = useState(false);
+
+  // Restore items from localStorage (offline persistence)
+  useEffect(() => {
+    const storageKey = `checklist_${jobId || propertyId || "default"}`;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setItems(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // Try to load real job items from API
+    if (jobId) {
+      fetch(`/api/job-items/${jobId}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && Array.isArray(data) && data.length > 0) {
+            const mapped: ChecklistItem[] = data.map((ji: any) => ({
+              id: ji.id,
+              label: ji.label,
+              zone: ji.zone_label || "entrance",
+              required: ji.required,
+              proofType: ji.proof_type || "none",
+              done: ji.done || false,
+            }));
+            // Merge with existing localStorage state (offline-first)
+            const savedRaw = localStorage.getItem(storageKey);
+            if (savedRaw) {
+              try {
+                const savedItems: ChecklistItem[] = JSON.parse(savedRaw);
+                for (const si of savedItems) {
+                  const match = mapped.find((mi) => mi.id === si.id);
+                  if (match && si.done) match.done = true;
+                }
+              } catch { /* ignore */ }
+            }
+            setItems(mapped);
+          }
+        })
+        .catch(() => {
+          // Offline — use cached/localStorage data, already set above
+        });
+    }
+  }, [jobId, propertyId]);
+
+  // Persist items to localStorage on every change
+  useEffect(() => {
+    const storageKey = `checklist_${jobId || propertyId || "default"}`;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(items));
+    } catch {
+      // Storage full
+    }
+  }, [items, jobId, propertyId]);
 
   const done = items.filter(i => i.done).length;
   const total = items.length;
@@ -78,6 +139,18 @@ export default function ChecklistSheet({ propertyName, propertyAddr, propertyId,
 
   const toggleItem = (id: string) => {
     setItems(prev => prev.map(i => i.id === id ? { ...i, done: !i.done } : i));
+    // Queue sync for offline
+    if (jobId && !navigator.onLine) {
+      setOfflineWarning(true);
+      const item = items.find(i => i.id === id);
+      if (item) {
+        queueAction({
+          method: "PATCH",
+          url: `/api/job-items/${id}`,
+          body: { done: !item.done },
+        });
+      }
+    }
   };
 
   const getGPS = () => {
@@ -181,6 +254,13 @@ export default function ChecklistSheet({ propertyName, propertyAddr, propertyId,
         <div className="text-center text-xs py-1 flex-shrink-0" style={{ color: "#247ba0" }}>
           {done}/{total} точки ({pct}%)
         </div>
+
+        {/* Offline warning */}
+        {offlineWarning && (
+          <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-2" style={{ background: "#fef3c7", color: "#d97706" }}>
+            🚫 Работиш офлайн — отметките ще се синхронизират при връзка
+          </div>
+        )}
 
         {/* Body - scrollable */}
         <div className="flex-1 overflow-y-auto px-4 pb-4">

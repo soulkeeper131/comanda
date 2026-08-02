@@ -1,8 +1,9 @@
 import { db } from "@/db";
-import { offers, findings, properties } from "@/db/schema";
+import { offers, findings, properties, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
+import { createNotification } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 

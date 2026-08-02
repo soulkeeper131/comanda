@@ -3,6 +3,7 @@ import { jobs, jobItems, properties } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
+import { notifyOwner } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 

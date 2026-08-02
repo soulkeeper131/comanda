@@ -208,6 +208,20 @@ export const inquiries = sqliteTable("inquiries", {
 });
 
 // ============================================================
+// Нотификации (in-app notification center)
+// ============================================================
+export const notifications = sqliteTable("notifications", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  user_id: text("user_id").references(() => users.id).notNull(),
+  type: text("type").notNull(), // job_started/job_done/finding_new/offer_new/offer_decided
+  title: text("title").notNull(),
+  body: text("body"),
+  read: integer("read", { mode: "boolean" }).default(false),
+  link: text("link"),
+  created_at: text("created_at").default(sql`(datetime('now'))`),
+});
+
+// ============================================================
 // Push абонаменти (Web Push / VAPID)
 // ============================================================
 export const pushSubscriptions = sqliteTable("push_subscriptions", {

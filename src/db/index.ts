@@ -111,6 +111,12 @@ sqlite.exec(`
     status TEXT DEFAULT 'new',
     created_at TEXT DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id),
+    type TEXT NOT NULL, title TEXT NOT NULL, body TEXT,
+    read INTEGER DEFAULT 0, link TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
   CREATE TABLE IF NOT EXISTS push_subscriptions (
     id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id),
     endpoint TEXT NOT NULL,

@@ -36,6 +36,7 @@ export default function HistoryList() {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProperty, setSelectedProperty] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [detailedJob, setDetailedJob] = useState<JobRecord | null>(null);
 
   useEffect(() => {
@@ -53,9 +54,20 @@ export default function HistoryList() {
     [jobs]
   );
 
-  const filtered = selectedProperty
-    ? jobs.filter((j) => (j.property_name || j.propertyName) === selectedProperty)
-    : jobs;
+  const filtered = (() => {
+    let result = jobs;
+    if (selectedProperty) {
+      result = result.filter((j) => (j.property_name || j.propertyName) === selectedProperty);
+    }
+    if (statusFilter !== "all") {
+      result = result.filter((j) => j.status === statusFilter);
+    }
+    return result;
+  })();
+
+  const handleExportPDF = (jobId: string) => {
+    window.open(`/api/reports/job/${jobId}`, "_blank");
+  };
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
@@ -102,7 +114,7 @@ export default function HistoryList() {
         <select
           value={selectedProperty}
           onChange={(e) => setSelectedProperty(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl border text-base appearance-none"
+          className="w-full px-4 py-3 rounded-xl border text-base appearance-none mb-2"
           style={{
             borderColor: "#e4e9f0",
             fontSize: 16,
@@ -118,6 +130,31 @@ export default function HistoryList() {
             </option>
           ))}
         </select>
+
+        {/* Status filter buttons */}
+        <div className="flex gap-1 overflow-x-auto pb-1">
+          {[
+            { key: "all", label: "Всички" },
+            { key: "planned", label: "📅 Планирани" },
+            { key: "in_progress", label: "🔄 В процес" },
+            { key: "completed", label: "✅ Завършени" },
+            { key: "cancelled", label: "❌ Отказани" },
+          ].map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setStatusFilter(f.key)}
+              className="px-3 min-h-[36px] py-1.5 text-xs font-semibold rounded-full transition whitespace-nowrap"
+              style={{
+                fontSize: 13,
+                background: statusFilter === f.key ? "#1b98e0" : "transparent",
+                color: statusFilter === f.key ? "#fff" : "#247ba0",
+                border: statusFilter === f.key ? "none" : "1px solid #e4e9f0",
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* List */}
@@ -125,7 +162,7 @@ export default function HistoryList() {
         {filtered.length === 0 && (
           <div className="text-center py-12" style={{ color: "#247ba0" }}>
             <div className="text-4xl mb-3">🔍</div>
-            <div className="text-sm">Няма обходи за този обект</div>
+            <div className="text-sm">Няма данни</div>
           </div>
         )}
         {filtered.map((job) => {
@@ -155,9 +192,18 @@ export default function HistoryList() {
                 <div>
                   📅 {formatDate(job.planned_at || job.date)} · 👷 {job.assignee_name || job.worker}
                 </div>
-                <div>
-                  ✅ {job.itemsChecked || 0}/{job.itemsTotal || 0} точки · 📷 {job.photoCount || 0}{" "}
-                  снимки
+                <div className="flex items-center gap-2">
+                  <span>
+                    ✅ {job.itemsChecked || 0}/{job.itemsTotal || 0} точки · 📷 {job.photoCount || 0}{" "}
+                    снимки
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleExportPDF(job.id); }}
+                    className="ml-auto px-2.5 py-1 rounded-lg text-xs font-semibold border transition hover:bg-blue-50"
+                    style={{ borderColor: "#d0e5ff", color: "#1b98e0", background: "#eff6ff" }}
+                  >
+                    📄 Експорт PDF
+                  </button>
                 </div>
               </div>
             </button>

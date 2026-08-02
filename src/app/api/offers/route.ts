@@ -3,15 +3,17 @@ import { offers, findings, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
+import { notifyOwner } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/offers — всички оферти (с JOIN към findings и properties)
-// GET /api/offers?finding_id=X — филтрира по finding
+// GET /api/offers?finding_id=X&decision=pending — филтрира по finding и/или решение
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const findingId = searchParams.get("finding_id");
+    const decisionFilter = searchParams.get("decision");
 
     let query = db.select().from(offers);
 
@@ -21,9 +23,15 @@ export async function GET(request: Request) {
 
     const offersList = await query;
 
+    // Client-side filter for decision (since it's not in the where clause above)
+    let filteredOffers = offersList;
+    if (decisionFilter) {
+      filteredOffers = offersList.filter((o) => o.decision === decisionFilter);
+    }
+
     // Enrich with finding + property data
     const enriched = await Promise.all(
-      offersList.map(async (offer) => {
+      filteredOffers.map(async (offer) => {
         const [finding] = await db
           .select()
           .from(findings)
