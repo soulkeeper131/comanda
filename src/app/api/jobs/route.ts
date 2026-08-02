@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { jobs, properties, users, serviceTemplates } from "@/db/schema";
+import { jobs, properties, users, serviceTemplates, jobItems, evidence } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -50,6 +50,56 @@ export async function GET() {
       .leftJoin(users, eq(jobs.assignee_id, users.id))
       .orderBy(desc(jobs.created_at))
       .all();
+
+    // Compute itemsChecked / itemsTotal per job
+    // Fetch all items for jobs in this result set
+    const jobIds = rows.map((j) => j.id);
+    if (jobIds.length > 0) {
+      // Build a map of job_id -> { checked, total }
+      const itemCounts: Record<string, { checked: number; total: number }> = {};
+
+      // SQLite doesn't support array IN with drizzle easily, so we query all items
+      // and filter in JS. For small datasets this is fine.
+      const allItems = db
+        .select({
+          job_id: jobItems.job_id,
+          done: jobItems.done,
+        })
+        .from(jobItems)
+        .all();
+
+      for (const item of allItems) {
+        if (!itemCounts[item.job_id]) {
+          itemCounts[item.job_id] = { checked: 0, total: 0 };
+        }
+        itemCounts[item.job_id].total++;
+        if (item.done) {
+          itemCounts[item.job_id].checked++;
+        }
+      }
+
+      // Also count evidence photos per job
+      const allPhotos = db
+        .select({
+          job_id: evidence.job_id,
+        })
+        .from(evidence)
+        .all();
+
+      const photoCounts: Record<string, number> = {};
+      for (const p of allPhotos) {
+        photoCounts[p.job_id] = (photoCounts[p.job_id] || 0) + 1;
+      }
+
+      for (const row of rows) {
+        const counts = itemCounts[row.id] || { checked: 0, total: 0 };
+        (row as any).itemsChecked = counts.checked;
+        (row as any).itemsTotal = counts.total;
+        (row as any).photoCount = photoCounts[row.id] || 0;
+        (row as any).started_at = row.check_in;
+        (row as any).completed_at = row.check_out;
+      }
+    }
 
     return NextResponse.json(rows);
   } catch (error) {

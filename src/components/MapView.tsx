@@ -8,11 +8,12 @@ interface MapViewProps {
   onPropertyClick: (p: Property) => void;
 }
 
-const STATUS = {
-  ok:   { color: "#22c55e", emoji: "✓", label: "Активен" },
-  warn: { color: "#f59e0b", emoji: "⏳", label: "Предстои" },
-  bad:  { color: "#ef4444", emoji: "⚠", label: "Просрочен" },
-} as const;
+const STATUS: Record<string, { color: string; emoji: string; label: string }> = {
+  ok:          { color: "#22c55e", emoji: "✓", label: "Активен" },
+  in_progress: { color: "#3b82f6", emoji: "🔄", label: "В процес" },
+  warning:     { color: "#f59e0b", emoji: "⚠", label: "Констатация" },
+  overdue:     { color: "#ef4444", emoji: "⏰", label: "Просрочен" },
+};
 
 const KIND_ICON: Record<string, string> = {
   apartment: "🏢", house: "🏠", studio: "🛏️", villa: "🏡",

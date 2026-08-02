@@ -17,6 +17,7 @@ type UserRole = "admin" | "owner" | "worker" | "inspector";
 type TabDef = { id: string; label: string; roles: UserRole[] };
 
 const ALL_TABS: TabDef[] = [
+  { id: "overview", label: "📊 Преглед", roles: ["admin", "owner"] },
   { id: "map", label: "🗺️ Карта", roles: ["admin", "owner", "worker", "inspector"] },
   { id: "tours", label: "📋 Обходи", roles: ["admin", "owner", "worker", "inspector"] },
   { id: "issues", label: "⚠️ Проблеми", roles: ["admin"] },
@@ -32,8 +33,15 @@ const ROLE_BADGE: Record<string, { label: string; color: string }> = {
 };
 
 export default function DashboardPage() {
-  const [tab, setTab] = useState("map");
+  const [tab, setTab] = useState("overview");
   const [subTab, setSubTab] = useState("calendar"); // sub-tab for tours/issues/settings
+
+  // Stats overview
+  const [stats, setStats] = useState({ activeJobs: 0, plannedJobs: 0, completedJobs: 0, openFindings: 0, pendingOffers: 0, totalProperties: 0 });
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  // Calendar filter
+  const [calendarFilter, setCalendarFilter] = useState<string>("all");
 
   // Close all sheets/modals when switching tabs
   const switchTab = (id: string) => {
@@ -100,6 +108,19 @@ export default function DashboardPage() {
       .catch(() => setRoleLoading(false));
   }, []);
 
+  // Fetch stats for overview tab
+  useEffect(() => {
+    if (tab !== "overview") return;
+    setStatsLoading(true);
+    fetch("/api/stats")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setStats(data);
+        setStatsLoading(false);
+      })
+      .catch(() => setStatsLoading(false));
+  }, [tab]);
+
   // Allowed tabs for current role
   const TABS = useMemo(
     () => ALL_TABS.filter((t) => t.roles.includes(userRole)),
@@ -134,7 +155,7 @@ export default function DashboardPage() {
             lat: p.lat,
             lng: p.lng,
             kind: p.kind || "apartment",
-            status: "ok" as string,
+            status: (p.status || "ok") as string,
             zones: ["Антре", "Дневна", "Баня", "Кухня"],
             access: p.access_notes || "",
             lastVisit: p.updated_at || new Date().toISOString(),
@@ -178,12 +199,15 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!(tab === "tours" && subTab === "calendar")) return;
     setCalendarLoading(true);
-    fetch("/api/jobs")
+    const params = new URLSearchParams();
+    if (calendarFilter !== "all") params.set("status", calendarFilter);
+    const qs = params.toString();
+    fetch("/api/jobs" + (qs ? "?" + qs : ""))
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setCalendarJobs(Array.isArray(data) ? data : []))
       .catch(() => setCalendarJobs([]))
       .finally(() => setCalendarLoading(false));
-  }, [tab]);
+  }, [tab, calendarFilter]);
 
   // Fetch team users
   useEffect(() => {
@@ -374,6 +398,26 @@ export default function DashboardPage() {
     setSelectedFinding(null);
   };
 
+  const handleDeleteJob = async (jobId: string) => {
+    if (!confirm("Сигурни ли сте, че искате да изтриете тази задача?")) return;
+    try {
+      const res = await fetch(`/api/jobs/${jobId}`, { method: "DELETE" });
+      if (res.ok) {
+        showToast("✅ Задачата е изтрита");
+        // Refresh calendar jobs
+        fetch("/api/jobs")
+          .then((r) => (r.ok ? r.json() : []))
+          .then((d) => setCalendarJobs(Array.isArray(d) ? d : []))
+          .catch(() => {});
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast("❌ " + (err.error || "Грешка при изтриване"));
+      }
+    } catch {
+      showToast("❌ Грешка при изтриване");
+    }
+  };
+
   const showFAB = userRole === "admin";
 
   if (roleLoading) {
@@ -458,6 +502,54 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {tab === "overview" && (
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            {statsLoading ? (
+              <div className="text-center py-12" style={{ color: "#247ba0" }}>Зареждане...</div>
+            ) : (
+              <div className="space-y-3">
+                <h2 className="text-lg font-bold mb-1" style={{ color: "#006494" }}>Общ преглед</h2>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { key: "activeJobs", icon: "🔄", label: "Активни обходи", color: "#1b98e0", tab: "tours" },
+                    { key: "plannedJobs", icon: "📅", label: "Планирани обходи", color: "#d97706", tab: "tours" },
+                    { key: "completedJobs", icon: "✅", label: "Завършени обходи", color: "#16a34a", tab: "tours" },
+                    { key: "openFindings", icon: "⚠️", label: "Отворени проблеми", color: "#dc2626", tab: "issues" },
+                    { key: "pendingOffers", icon: "💰", label: "Чакащи оферти", color: "#a663cc", tab: "issues" },
+                    { key: "totalProperties", icon: "🏠", label: "Активни имоти", color: "#0891b2", tab: "props" },
+                  ].map((card) => (
+                    <button
+                      key={card.key}
+                      onClick={() => {
+                        setSelectedProperty(null);
+                        setShowAddForm(false);
+                        setActiveChecklist(null);
+                        setShowFindings(false);
+                        setSelectedFinding(null);
+                        setOfferFindingId(null);
+                        setEditingUserId(null);
+                        setTab(card.tab);
+                        if (card.tab === "issues") setSubTab("findings");
+                        else if (card.tab === "tours") setSubTab("calendar");
+                      }}
+                      className="p-4 rounded-xl border bg-white text-left transition hover:shadow-md active:scale-[0.98]"
+                      style={{ borderColor: "#e4e9f0" }}
+                    >
+                      <div className="text-3xl mb-2">{card.icon}</div>
+                      <div className="text-3xl font-extrabold mb-1" style={{ color: card.color }}>
+                        {(stats as any)[card.key] ?? 0}
+                      </div>
+                      <div className="text-xs font-semibold" style={{ color: "#247ba0" }}>
+                        {card.label}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {tab === "map" && (
           <MapView
             properties={properties.map((p: any) => ({
@@ -466,7 +558,7 @@ export default function DashboardPage() {
               address: p.addr,
               lat: p.lat,
               lng: p.lng,
-              status: (p.status || "ok") as "ok" | "warn" | "bad",
+              status: (p.status || "ok") as "ok" | "in_progress" | "warning" | "overdue",
               kind: p.kind || "",
               zones: p.zones || [],
               accessNotes: p.access || "",
@@ -757,6 +849,29 @@ export default function DashboardPage() {
 
         {tab === "tours" && subTab === "calendar" && (
           <div className="flex-1 overflow-y-auto px-4 py-4">
+            {/* Filter buttons */}
+            <div className="flex gap-1 mb-3 overflow-x-auto pb-1">
+              {[
+                { key: "all", label: "Всички" },
+                { key: "planned", label: "📅 Планирани" },
+                { key: "in_progress", label: "🔄 Активни" },
+                { key: "completed", label: "✅ Завършени" },
+              ].map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setCalendarFilter(f.key)}
+                  className="px-3 min-h-[36px] py-1.5 text-xs font-semibold rounded-full transition whitespace-nowrap"
+                  style={{
+                    fontSize: 13,
+                    background: calendarFilter === f.key ? "#1b98e0" : "transparent",
+                    color: calendarFilter === f.key ? "#fff" : "#247ba0",
+                    border: calendarFilter === f.key ? "none" : "1px solid #e4e9f0",
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
             {calendarLoading ? (
               <div className="text-center py-12" style={{ color: "#247ba0" }}>Зареждане...</div>
             ) : calendarJobs.length === 0 ? (
@@ -850,6 +965,16 @@ export default function DashboardPage() {
                                 >
                                   {status.label}
                                 </span>
+                                {job.status === "planned" && (
+                                  <button
+                                    onClick={() => handleDeleteJob(job.id)}
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-sm hover:bg-red-50 transition flex-shrink-0"
+                                    title="Изтрий задача"
+                                    style={{ fontSize: 16 }}
+                                  >
+                                    🗑️
+                                  </button>
+                                )}
                               </div>
                             );
                           })}

@@ -4,7 +4,7 @@ export type Property = {
   address: string;
   lat: number;
   lng: number;
-  status: "ok" | "warn" | "bad";
+  status: "ok" | "in_progress" | "warning" | "overdue";
   kind: string;
   zones: string[];
   accessNotes: string;

@@ -1,14 +1,72 @@
 import { db } from "@/db";
-import { properties } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { properties, jobs, findings } from "@/db/schema";
+import { eq, and, lt } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const result = await db.select().from(properties).where(eq(properties.archived, false));
-    return NextResponse.json(result);
+    const result = db.select().from(properties).where(eq(properties.archived, false)).all();
+
+    // Compute real status for each property
+    const now = new Date().toISOString();
+    const withStatus = result.map((p) => {
+      let status: string = "ok";
+
+      // Check for active (in_progress) job
+      const activeJob = db
+        .select()
+        .from(jobs)
+        .where(
+          and(
+            eq(jobs.property_id, p.id),
+            eq(jobs.status, "active")
+          )
+        )
+        .get();
+
+      if (activeJob) {
+        status = "in_progress";
+      } else {
+        // Check for open findings
+        const openFinding = db
+          .select()
+          .from(findings)
+          .where(
+            and(
+              eq(findings.property_id, p.id),
+              eq(findings.status, "open")
+            )
+          )
+          .get();
+
+        if (openFinding) {
+          status = "warning";
+        } else {
+          // Check for overdue planned jobs
+          const overdueJob = db
+            .select()
+            .from(jobs)
+            .where(
+              and(
+                eq(jobs.property_id, p.id),
+                eq(jobs.status, "planned"),
+                lt(jobs.planned_at, now)
+              )
+            )
+            .get();
+
+          if (overdueJob) {
+            status = "overdue";
+          }
+        }
+      }
+
+      return { ...p, status };
+    });
+
+    return NextResponse.json(withStatus);
   } catch (error) {
     console.error("GET /api/properties error:", error);
     return NextResponse.json({ error: "Грешка при зареждане" }, { status: 500 });
