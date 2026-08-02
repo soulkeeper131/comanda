@@ -119,4 +119,13 @@ sqlite.exec(`
   );
 `);
 
+// Migration: add missing columns to existing tables (CREATE TABLE IF NOT EXISTS won't add them)
+const migrate = (table: string, col: string, type: string) => {
+  try { sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`); } catch {}
+};
+migrate("jobs", "property_name", "TEXT");
+migrate("findings", "job_item_id", "TEXT REFERENCES job_items(id)");
+migrate("findings", "reported_by", "TEXT REFERENCES users(id)");
+migrate("findings", "body", "TEXT");
+
 export const db = drizzle(sqlite, { schema });
