@@ -18,10 +18,10 @@ type UserRole = "admin" | "owner" | "worker" | "inspector";
 type TabDef = { id: string; label: string; roles: UserRole[] };
 
 const ALL_TABS: TabDef[] = [
-  { id: "overview", label: "📊 Преглед", roles: ["admin", "owner"] },
+  { id: "overview", label: "📊 Преглед", roles: ["admin", "owner", "inspector"] },
   { id: "map", label: "🗺️ Карта", roles: ["admin", "owner", "worker", "inspector"] },
   { id: "tours", label: "📋 Обходи", roles: ["admin", "owner", "worker", "inspector"] },
-  { id: "issues", label: "⚠️ Проблеми", roles: ["admin"] },
+  { id: "issues", label: "⚠️ Проблеми", roles: ["admin", "owner"] },
   { id: "props", label: "🏠 Имоти", roles: ["admin", "owner", "inspector"] },
   { id: "settings", label: "⚙️ Настройки", roles: ["admin"] },
 ];
