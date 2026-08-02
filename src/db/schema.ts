@@ -9,6 +9,7 @@ export const organizations = sqliteTable("organizations", {
   name: text("name").notNull(),
   slug: text("slug").unique(),
   accent: text("accent").default("#1b98e0"),
+  settings: text("settings"), // JSON: { smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, notify_email }
   created_at: text("created_at").default(sql`(datetime('now'))`),
   updated_at: text("updated_at").default(sql`(datetime('now'))`),
 });

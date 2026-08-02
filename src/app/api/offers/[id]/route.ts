@@ -1,7 +1,8 @@
 import { db } from "@/db";
-import { offers } from "@/db/schema";
+import { offers, findings, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { sendEmail, getNotifyEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,28 @@ export async function PATCH(
       .set(updates)
       .where(eq(offers.id, id))
       .returning();
+
+    // Send email notification for accept/decline
+    if (body.decision === "accepted" || body.decision === "declined") {
+      const decisionLabel = body.decision === "accepted" ? "приета" : "отказана";
+      const emoji = body.decision === "accepted" ? "✅" : "❌";
+      const [finding] = await db.select().from(findings).where(eq(findings.id, existing.finding_id)).all();
+      sendEmail({
+        to: (await getNotifyEmail()) || "",
+        subject: `${emoji} Офертата е ${decisionLabel}`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
+            <h2 style="color: ${body.decision === "accepted" ? "#16a34a" : "#dc2626"};">${emoji} Офертата е ${decisionLabel}</h2>
+            ${finding ? `<p style="color: #247ba0;"><strong>Констатация:</strong> ${finding.title}</p>` : ""}
+            <p style="color: #247ba0;"><strong>Цена:</strong> ${existing.price} лв</p>
+            <p style="color: #247ba0;"><strong>Срок:</strong> ${existing.days} дни</p>
+            ${existing.scope ? `<p style="color: #247ba0;"><strong>Обхват:</strong> ${existing.scope}</p>` : ""}
+            <hr style="border: none; border-top: 1px solid #e4e9f0; margin: 20px 0;" />
+            <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.blv.bg</p>
+          </div>
+        `,
+      }).catch(() => {});
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { findings, findingPhotos, properties, users, jobItems } from "@/db/schema";
 import { eq, desc, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { sendEmail, getNotifyEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -159,6 +160,23 @@ export async function POST(request: Request) {
       .from(findingPhotos)
       .where(eq(findingPhotos.finding_id, findingId))
       .all();
+
+    // Send email notification
+    const propertyName = result?.property_name || "Имот";
+    sendEmail({
+      to: (await getNotifyEmail()) || "",
+      subject: `⚠️ Нова констатация в ${propertyName}: ${title}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
+          <h2 style="color: #dc2626;">⚠️ Нова констатация</h2>
+          <p style="color: #247ba0;"><strong>Имот:</strong> ${propertyName}</p>
+          <p style="color: #247ba0;"><strong>Заглавие:</strong> ${title}</p>
+          ${desc ? `<p style="color: #247ba0;"><strong>Описание:</strong> ${desc}</p>` : ""}
+          <hr style="border: none; border-top: 1px solid #e4e9f0; margin: 20px 0;" />
+          <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.blv.bg</p>
+        </div>
+      `,
+    }).catch(() => {}); // fire-and-forget
 
     return NextResponse.json(
       {

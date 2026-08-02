@@ -11,6 +11,7 @@ import OffersPanel from "@/components/OffersPanel";
 import HistoryList from "@/components/HistoryList";
 import TaskForm from "@/components/TaskForm";
 import TemplateManager from "@/components/TemplateManager";
+import SmtpSettings from "@/components/SmtpSettings";
 
 type UserRole = "admin" | "owner" | "worker" | "inspector";
 
@@ -479,7 +480,7 @@ export default function DashboardPage() {
           )}
           {tab === "settings" && (
             <>
-              {["team", "templates"].map(st => (
+              {["team", "templates", "mailing"].map(st => (
                 <button key={st} onClick={() => setSubTab(st)}
                   className="px-3 min-h-[36px] py-1.5 text-xs font-semibold rounded-full transition"
                   style={{
@@ -487,7 +488,7 @@ export default function DashboardPage() {
                     background: subTab === st ? "#1b98e0" : "transparent",
                     color: subTab === st ? "#fff" : "#247ba0",
                   }}>
-                  {st === "team" ? "👥 Екип" : "📋 Шаблони"}
+                  {st === "team" ? "👥 Екип" : st === "templates" ? "📋 Шаблони" : "📧 Мейлинг"}
                 </button>
               ))}
             </>
@@ -1123,6 +1124,8 @@ export default function DashboardPage() {
         )}
 
         {tab === "settings" && subTab === "templates" && <TemplateManager />}
+
+        {tab === "settings" && subTab === "mailing" && <SmtpSettings />}
 
         {/* FAB — context-aware per tab */}
         {(() => {
