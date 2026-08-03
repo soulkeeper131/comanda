@@ -82,7 +82,7 @@ export default function OnboardingPage() {
     if (typeof window !== "undefined") {
       localStorage.setItem("onboarding_done", "true");
     }
-    router.push("/dashboard");
+    window.location.href = "/dashboard";
   };
 
   if (loading) {
