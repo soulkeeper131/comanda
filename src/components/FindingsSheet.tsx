@@ -80,8 +80,9 @@ export default function FindingsSheet({
       />
 
       {/* Sheet */}
+      {/* Mobile: bottom sheet */}
       <div
-        className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl flex flex-col"
+        className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl flex flex-col md:hidden"
         style={{
           background: "#fff",
           maxHeight: "90dvh",
@@ -275,6 +276,102 @@ export default function FindingsSheet({
                 "linear-gradient(140deg, #1b98e0, #006494)",
             }}
           >
+            {saving ? "Изпращане..." : "⚠️ Докладвай"}
+          </button>
+        </div>
+      </div>
+
+      {/* Desktop: right side panel */}
+      <div
+        className="hidden md:flex md:flex-col fixed right-0 top-0 bottom-0 z-50 bg-white shadow-2xl md:w-[440px] md:max-w-[90vw]"
+        style={{ borderLeft: "1px solid #e4e9f0" }}
+      >
+        {/* Header */}
+        <div className="flex items-start gap-3 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: "#e4e9f0" }}>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-bold" style={{ color: "#006494" }}>⚠️ Докладвай проблем</h3>
+            {(propertyName || propertyAddr) && (
+              <p className="text-xs mt-0.5 truncate" style={{ color: "#247ba0" }}>
+                {propertyName}{propertyAddr && ` · ${propertyAddr.split(",")[0]}`}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 hover:bg-gray-100 transition"
+            style={{ background: "#f1f5f9", color: "#64748b" }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {/* Type */}
+          <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: "#64748b" }}>Тип проблем</label>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {PROBLEM_TYPES.map((t) => (
+              <button
+                key={t}
+                onClick={() => setType(t)}
+                className="px-3 h-9 rounded-lg text-sm font-semibold border transition"
+                style={{
+                  borderColor: type === t ? "#1b98e0" : "#e4e9f0",
+                  background: type === t ? "#eff6ff" : "#fff",
+                  color: type === t ? "#1b98e0" : "#64748b",
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {/* Title */}
+          <label className="block text-xs font-bold uppercase tracking-wide mb-1" style={{ color: "#64748b" }}>Заглавие</label>
+          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Напр. Теч под мивката"
+            className="w-full px-4 py-2.5 rounded-lg border text-sm mb-4"
+            style={{ borderColor: "#e4e9f0", fontSize: 14, color: "#006494", outline: "none" }} />
+
+          {/* Description */}
+          <label className="block text-xs font-bold uppercase tracking-wide mb-1" style={{ color: "#64748b" }}>Описание</label>
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Опиши какво си видял..." rows={4}
+            className="w-full px-4 py-2.5 rounded-lg border text-sm resize-none mb-4"
+            style={{ borderColor: "#e4e9f0", fontSize: 14, color: "#006494", outline: "none" }} />
+
+          {/* Photos */}
+          <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: "#64748b" }}>Снимки ({photos.length}/3)</label>
+          {photos.length > 0 && (
+            <div className="flex gap-2 mb-3 flex-wrap">
+              {photos.map((url, idx) => (
+                <div key={idx} className="relative">
+                  <img src={url} alt={`Снимка ${idx + 1}`} className="w-20 h-20 rounded-xl object-cover border cursor-pointer"
+                    style={{ borderColor: "#e4e9f0" }} onClick={() => setViewerPhoto(url)} />
+                  <button onClick={() => removePhoto(idx)}
+                    className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs"
+                    style={{ background: "#dc2626" }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {photos.length < 3 && (
+            <label className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border ${uploading ? "" : "cursor-pointer"}`}
+              style={{ borderColor: "#c9ddf0", color: "#1b98e0", background: "#eff6ff" }}>
+              {uploading ? "⏳ Качване..." : (<>
+                📷 Добави снимка
+                <input type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={handleFileInput} disabled={uploading} />
+              </>)}
+            </label>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center gap-3 p-4 border-t flex-shrink-0" style={{ borderColor: "#e4e9f0", background: "#fff" }}>
+          <button onClick={onClose} className="px-4 h-10 rounded-lg text-sm font-semibold border"
+            style={{ borderColor: "#e4e9f0", color: "#64748b" }}>Отказ</button>
+          <button onClick={handleSave} disabled={!canSave || saving}
+            className="flex-1 px-5 h-10 rounded-lg text-sm font-semibold text-white transition disabled:opacity-40"
+            style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>
             {saving ? "Изпращане..." : "⚠️ Докладвай"}
           </button>
         </div>

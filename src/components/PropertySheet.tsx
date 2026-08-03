@@ -44,8 +44,9 @@ export default function PropertySheet({ property, onClose }: { property: MockPro
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
+      {/* Mobile: bottom sheet */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl flex flex-col"
+        className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl flex flex-col md:hidden"
         style={{ maxHeight: "90dvh", paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
       >
         <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1" style={{ background: "#D8DEE6" }} />
@@ -67,59 +68,93 @@ export default function PropertySheet({ property, onClose }: { property: MockPro
           </button>
         </div>
         <div className="overflow-y-auto px-5 py-4" style={{ paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }}>
-          {/* Address & Access */}
-          <div className="text-sm mb-4" style={{ color: "#247ba0" }}>
-            <strong style={{ color: "#006494" }}>Адрес:</strong> {property.addr}
-          </div>
-          <div className="text-sm mb-4" style={{ color: "#247ba0" }}>
-            <strong style={{ color: "#006494" }}>Тип:</strong>{" "}
-            {property.type === "apartment" ? "Апартамент" : property.type === "house" ? "Къща" : property.type === "studio" ? "Студио" : "Вила"}
-          </div>
-          <div className="text-sm mb-4" style={{ color: "#247ba0" }}>
-            <strong style={{ color: "#006494" }}>Последен обход:</strong> {daysAgo(property.lastVisit)}
-          </div>
-
-          {/* Access */}
-          <div className="p-3 rounded-xl mb-3 text-sm" style={{ background: "#f0f7ff", color: "#247ba0", border: "1px solid #d0e5ff" }}>
-            <strong style={{ color: "#006494" }}>🔑 Достъп:</strong> {property.access}
-          </div>
-          <div className="p-3 rounded-xl mb-4 text-sm" style={{ background: "#f0f7ff", color: "#247ba0", border: "1px solid #d0e5ff" }}>
-            <strong style={{ color: "#006494" }}>🔧 Комуникации:</strong> {property.utils}
-          </div>
-
-          {/* Trust Score */}
-          <TrustScore {...generateTrustScore(property.id)} />
-
-          {/* Zones */}
-          <h4 className="text-sm font-bold mb-2" style={{ color: "#006494" }}>
-            📋 Зони за проверка ({property.zones.length})
-          </h4>
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            {property.zones.map((z) => (
-              <span key={z} className="px-2.5 py-1 rounded-lg text-xs font-semibold" style={{ background: "#e8f1f2", color: "#006494" }}>
-                {z}
-              </span>
-            ))}
-          </div>
-
-          {/* Quick actions */}
-          <div className="flex gap-2">
-            <button className="flex-1 min-h-[44px] py-3 rounded-xl text-sm font-semibold text-white"
-              style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>
-              📋 Нов обход
-            </button>
-            <button className="flex-1 min-h-[44px] py-3 rounded-xl text-sm font-semibold border" style={{ borderColor: "#d0e5ff", color: "#006494" }}>
-              🔧 Докладвай проблем
-            </button>
-            <button
-              onClick={() => window.open(`/api/reports/property/${property.id}`, "_blank")}
-              className="flex-1 min-h-[44px] py-3 rounded-xl text-sm font-semibold border"
-              style={{ borderColor: "#d0e5ff", color: "#1b98e0", background: "#eff6ff" }}
-            >
-              📄 Отчет за имот
-            </button>
-          </div>
+          <PropertySheetContent property={property} onClose={onClose} />
         </div>
+      </div>
+      {/* Desktop: right side panel */}
+      <div
+        className="hidden md:flex md:flex-col fixed right-0 top-0 bottom-0 z-50 bg-white shadow-2xl md:w-[420px] md:max-w-[90vw]"
+        style={{ borderLeft: "1px solid #e4e9f0" }}
+      >
+        <div className="px-5 py-3 border-b flex items-center gap-3 flex-shrink-0" style={{ borderColor: "#e4e9f0" }}>
+          <h3 className="text-base font-bold truncate" style={{ color: "#006494" }}>
+            {property.name}
+          </h3>
+          <span
+            className="text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0"
+            style={{
+              color: property.status === "ok" ? "#16a34a" : property.status === "soon" ? "#d97706" : "#dc2626",
+              background: property.status === "ok" ? "#dcfce7" : property.status === "soon" ? "#fef3c7" : "#fee2e2",
+            }}
+          >
+            {property.status === "ok" ? "✓ Активен" : property.status === "soon" ? "⏳ Предстои" : "⚠ Просрочен"}
+          </span>
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 hover:bg-gray-100 transition" style={{ background: "#f1f5f9", color: "#64748b" }}>
+            ✕
+          </button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-5 py-4">
+          <PropertySheetContent property={property} onClose={onClose} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function PropertySheetContent({ property, onClose }: { property: MockProperty; onClose: () => void }) {
+  return (
+    <>
+      {/* Address & Access */}
+      <div className="text-sm mb-4" style={{ color: "#247ba0" }}>
+        <strong style={{ color: "#006494" }}>Адрес:</strong> {property.addr}
+      </div>
+      <div className="text-sm mb-4" style={{ color: "#247ba0" }}>
+        <strong style={{ color: "#006494" }}>Тип:</strong>{" "}
+        {property.type === "apartment" ? "Апартамент" : property.type === "house" ? "Къща" : property.type === "studio" ? "Студио" : "Вила"}
+      </div>
+      <div className="text-sm mb-4" style={{ color: "#247ba0" }}>
+        <strong style={{ color: "#006494" }}>Последен обход:</strong> {daysAgo(property.lastVisit)}
+      </div>
+
+      {/* Access */}
+      <div className="p-3 rounded-xl mb-3 text-sm" style={{ background: "#f0f7ff", color: "#247ba0", border: "1px solid #d0e5ff" }}>
+        <strong style={{ color: "#006494" }}>🔑 Достъп:</strong> {property.access}
+      </div>
+      <div className="p-3 rounded-xl mb-4 text-sm" style={{ background: "#f0f7ff", color: "#247ba0", border: "1px solid #d0e5ff" }}>
+        <strong style={{ color: "#006494" }}>🔧 Комуникации:</strong> {property.utils}
+      </div>
+
+      {/* Trust Score */}
+      <TrustScore {...generateTrustScore(property.id)} />
+
+      {/* Zones */}
+      <h4 className="text-sm font-bold mb-2" style={{ color: "#006494" }}>
+        📋 Зони за проверка ({property.zones.length})
+      </h4>
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {property.zones.map((z) => (
+          <span key={z} className="px-2.5 py-1 rounded-lg text-xs font-semibold" style={{ background: "#e8f1f2", color: "#006494" }}>
+            {z}
+          </span>
+        ))}
+      </div>
+
+      {/* Quick actions */}
+      <div className="flex gap-2 md:flex-wrap">
+        <button className="flex-1 min-h-[44px] md:min-h-0 md:h-10 py-3 md:py-2 rounded-xl text-sm font-semibold text-white"
+          style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>
+          📋 Нов обход
+        </button>
+        <button className="flex-1 min-h-[44px] md:min-h-0 md:h-10 py-3 md:py-2 rounded-xl text-sm font-semibold border" style={{ borderColor: "#d0e5ff", color: "#006494" }}>
+          🔧 Докладвай проблем
+        </button>
+        <button
+          onClick={() => window.open(`/api/reports/property/${property.id}`, "_blank")}
+          className="flex-1 min-h-[44px] md:min-h-0 md:h-10 py-3 md:py-2 rounded-xl text-sm font-semibold border"
+          style={{ borderColor: "#d0e5ff", color: "#1b98e0", background: "#eff6ff" }}
+        >
+          📄 Отчет за имот
+        </button>
       </div>
     </>
   );

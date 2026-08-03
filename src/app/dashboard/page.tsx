@@ -90,6 +90,7 @@ export default function DashboardPage() {
   const [findingsLoading, setFindingsLoading] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState<any>(null);
   const [userRole, setUserRole] = useState<UserRole>("admin");
+  const [userName, setUserName] = useState("");
   const [roleLoading, setRoleLoading] = useState(true);
 
   // Offer inline creation state
@@ -138,6 +139,7 @@ export default function DashboardPage() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.role) setUserRole(data.role as UserRole);
+        if (data?.name) setUserName(data.name);
         setRoleLoading(false);
       })
       .catch(() => setRoleLoading(false));
@@ -515,10 +517,55 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-col h-[100dvh]" style={{ backgroundColor: "#e8f1f2" }}>
+    <div className="flex flex-col h-[100dvh] md:max-w-7xl md:mx-auto md:shadow-xl md:border-x md:rounded-none" style={{ backgroundColor: "#e8f1f2", borderColor: "#e4e9f0" }}>
       <Topbar />
 
-      <div className="flex gap-0 border-b flex-shrink-0 overflow-x-auto px-2"
+      <div className="flex flex-1 overflow-hidden">
+        {/* ====== Desktop Sidebar (md+) ====== */}
+        <aside className="hidden md:flex md:flex-col md:w-60 md:flex-shrink-0 md:border-r md:bg-white/50 md:backdrop-blur-sm" style={{ borderColor: "#e4e9f0" }}>
+          {/* Brand header */}
+          <div className="px-5 py-4 border-b flex items-center gap-2" style={{ borderColor: "#e4e9f0" }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>К</div>
+            <span className="text-base font-bold" style={{ color: "#006494" }}>Ко Манда</span>
+          </div>
+          {/* Nav items */}
+          <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => switchTab(t.id)}
+                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold transition flex items-center gap-2.5"
+                style={{
+                  background: tab === t.id ? "#eff6ff" : "transparent",
+                  color: tab === t.id ? "#1b98e0" : "#334155",
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+          {/* Bottom user info */}
+          {(() => { const b = ROLE_BADGE[userRole]; const ini = userName ? userName.charAt(0) : "В"; return (
+            <div className="px-4 py-3 border-t flex items-center gap-2" style={{ borderColor: "#e4e9f0" }}>
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
+                style={{ background: `linear-gradient(140deg, ${b?.color || "#1b98e0"}, #006494)` }}
+              >
+                {ini}
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold truncate" style={{ color: "#006494" }}>{userName || "Потребител"}</div>
+                {b && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: b.color + "18", color: b.color }}>{b.label}</span>}
+              </div>
+            </div>
+          ); })()}
+        </aside>
+
+        {/* ====== Main content area ====== */}
+        <div className="flex-1 flex flex-col overflow-hidden md:min-w-0">
+
+      {/* Mobile tab bar (hidden on desktop) */}
+      <div className="md:hidden flex gap-0 border-b flex-shrink-0 overflow-x-auto px-2"
         style={{ background: "rgba(255,255,255,0.7)", backdropFilter: "blur(14px)", borderColor: "#e4e9f0" }}>
         {TABS.map((t) => (
           <button key={t.id} onClick={() => switchTab(t.id)}
@@ -595,7 +642,7 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-3">
                 <h2 className="text-lg font-bold mb-1" style={{ color: "#006494" }}>Общ преглед</h2>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {[
                     { key: "activeJobs", icon: "🔄", label: "Активни обходи", color: "#1b98e0", tab: "tours" },
                     { key: "plannedJobs", icon: "📅", label: "Планирани обходи", color: "#d97706", tab: "tours" },
@@ -637,22 +684,56 @@ export default function DashboardPage() {
         )}
 
         {tab === "map" && (
-          <MapView
-            properties={properties.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              address: p.addr,
-              lat: p.lat,
-              lng: p.lng,
-              status: (p.status || "ok") as "ok" | "in_progress" | "warning" | "overdue",
-              kind: p.kind || "",
-              zones: p.zones || [],
-              accessNotes: p.access || "",
-              lastVisit: p.lastVisit || "",
-              plan: p.plan || "",
-            }))}
-            onPropertyClick={(p) => setSelectedProperty(p as any)}
-          />
+          <div className="flex-1 md:flex md:flex-row overflow-hidden">
+            <div className="flex-1 md:w-[60%] h-full min-h-0">
+              <MapView
+                properties={properties.map((p: any) => ({
+                  id: p.id,
+                  name: p.name,
+                  address: p.addr,
+                  lat: p.lat,
+                  lng: p.lng,
+                  status: (p.status || "ok") as "ok" | "in_progress" | "warning" | "overdue",
+                  kind: p.kind || "",
+                  zones: p.zones || [],
+                  accessNotes: p.access || "",
+                  lastVisit: p.lastVisit || "",
+                  plan: p.plan || "",
+                }))}
+                onPropertyClick={(p) => setSelectedProperty(p as any)}
+              />
+            </div>
+            <div className="hidden md:flex md:flex-col md:w-[40%] md:border-l md:overflow-y-auto" style={{ borderColor: "#e4e9f0", backgroundColor: "#fff" }}>
+              <div className="px-4 py-3 border-b flex-shrink-0" style={{ borderColor: "#e4e9f0" }}>
+                <h3 className="text-sm font-bold" style={{ color: "#006494" }}>🏠 Имоти ({properties.length})</h3>
+              </div>
+              <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+                {properties.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setSelectedProperty(p)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition hover:bg-blue-50/50"
+                    style={{ borderColor: "#e4e9f0", backgroundColor: selectedProperty?.id === p.id ? "#eff6ff" : "#fff" }}
+                  >
+                    {statusDot(p.status)}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold truncate" style={{ color: "#006494" }}>{p.name}</div>
+                      <div className="text-[11px] truncate" style={{ color: "#247ba0" }}>{(p.addr || "").split(",")[0]}</div>
+                    </div>
+                    <span className="text-[11px] font-semibold flex-shrink-0" style={{ color: "#247ba0" }}>
+                      {p.zones?.length || 0} зони
+                    </span>
+                  </button>
+                ))}
+                {properties.length === 0 && !loading && (
+                  <div className="text-center py-12" style={{ color: "#247ba0" }}>
+                    <div className="text-3xl mb-2">🔍</div>
+                    <div className="text-xs">Няма имоти</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {tab === "props" && (
@@ -690,7 +771,7 @@ export default function DashboardPage() {
           <div className="flex-1 overflow-y-auto px-4 py-4">
             <button
               onClick={() => setShowTaskForm(true)}
-              className="w-full mb-3 min-h-[44px] py-3 rounded-xl text-sm font-semibold text-white"
+              className="w-full mb-3 min-h-[44px] md:min-h-0 md:h-10 py-3 md:py-2 rounded-xl text-sm font-semibold text-white"
               style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>
               ➕ Нова задача
             </button>
@@ -1456,33 +1537,60 @@ export default function DashboardPage() {
       )}
 
       {selectedFinding && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col"
-          style={{ background: "#fff" }}
-        >
-          {/* Header */}
+        <>
+          {/* Mobile: fullscreen modal */}
           <div
-            className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0"
-            style={{ borderColor: "#e4e9f0" }}
+            className="fixed inset-0 z-50 flex flex-col md:hidden"
+            style={{ background: "#fff" }}
           >
-            <div className="flex-1 min-w-0">
-              <h3
-                className="text-lg font-bold"
-                style={{ color: "#006494" }}
-              >
-                Детайли за оферта
-              </h3>
-            </div>
-            <button
-              onClick={() => setSelectedFinding(null)}
-              className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center"
-              style={{ background: "#f1f5f9", color: "#64748b", fontSize: 15 }}
+            {/* Header */}
+            <div
+              className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0"
+              style={{ borderColor: "#e4e9f0" }}
             >
-              ✕
-            </button>
+              <div className="flex-1 min-w-0">
+                <h3
+                  className="text-lg font-bold"
+                  style={{ color: "#006494" }}
+                >
+                  Детайли за оферта
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedFinding(null)}
+                className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full flex items-center justify-center"
+                style={{ background: "#f1f5f9", color: "#64748b", fontSize: 15 }}
+              >
+                ✕
+              </button>
+            </div>
+            <OffersPanel findingId={selectedFinding.id} />
           </div>
-          <OffersPanel findingId={selectedFinding.id} />
-        </div>
+
+          {/* Desktop: right side panel */}
+          <div className="hidden md:block fixed inset-0 z-40 bg-black/30" onClick={() => setSelectedFinding(null)} />
+          <div
+            className="hidden md:flex md:flex-col fixed right-0 top-0 bottom-0 z-50 bg-white shadow-2xl md:w-[460px] md:max-w-[90vw]"
+            style={{ borderLeft: "1px solid #e4e9f0" }}
+          >
+            <div
+              className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0"
+              style={{ borderColor: "#e4e9f0" }}
+            >
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold" style={{ color: "#006494" }}>Детайли за оферта</h3>
+              </div>
+              <button
+                onClick={() => setSelectedFinding(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm hover:bg-gray-100 transition"
+                style={{ background: "#f1f5f9", color: "#64748b" }}
+              >
+                ✕
+              </button>
+            </div>
+            <OffersPanel findingId={selectedFinding.id} />
+          </div>
+        </>
       )}
 
       {toast && (
@@ -1498,6 +1606,10 @@ export default function DashboardPage() {
           </button>
         </div>
       )}
+
+      {/* ====== CLOSE main content area & flex container ====== */}
+      </div>
+      </div>
     </div>
   );
 }

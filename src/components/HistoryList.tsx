@@ -219,8 +219,9 @@ export default function HistoryList() {
             style={{ background: "rgba(0,0,0,0.3)" }}
             onClick={() => setDetailedJob(null)}
           />
+          {/* Mobile: bottom sheet */}
           <div
-            className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl flex flex-col"
+            className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl flex flex-col md:hidden"
             style={{
               background: "#fff",
               maxHeight: "85dvh",
@@ -311,6 +312,56 @@ export default function HistoryList() {
                   className="p-3 rounded-xl text-sm leading-relaxed"
                   style={{ background: "#f8fafc", color: "#334155" }}
                 >
+                  {detailedJob.notes || "Няма допълнителни бележки."}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop: right side panel */}
+          <div
+            className="hidden md:flex md:flex-col fixed right-0 top-0 bottom-0 z-50 bg-white shadow-2xl md:w-[440px] md:max-w-[90vw]"
+            style={{ borderLeft: "1px solid #e4e9f0" }}
+          >
+            <div className="px-4 py-3 border-b flex-shrink-0" style={{ borderColor: "#e4e9f0" }}>
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-bold" style={{ color: "#006494" }}>{detailedJob.propertyName}</h3>
+                  <p className="text-xs mt-0.5" style={{ color: "#247ba0" }}>{formatDate(detailedJob.date)}</p>
+                </div>
+                <button
+                  onClick={() => setDetailedJob(null)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 hover:bg-gray-100 transition"
+                  style={{ background: "#f1f5f9", color: "#64748b" }}
+                >✕</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              <div className="flex items-center gap-3">
+                {(() => { const dst = STATUS_MAP[detailedJob.status] || FALLBACK_STATUS; return (
+                <span className="px-3 py-1 rounded-full text-sm font-bold" style={{ background: dst.bg, color: dst.color }}>{dst.label}</span>
+                ); })()}
+                <span className="text-sm" style={{ color: "#247ba0" }}>👷 {detailedJob.assignee_name || detailedJob.worker}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 rounded-xl text-center" style={{ background: "#e8f1f2" }}>
+                  <div className="text-2xl font-bold" style={{ color: "#1b98e0" }}>{detailedJob.itemsChecked || 0}/{detailedJob.itemsTotal || 0}</div>
+                  <div className="text-xs mt-1" style={{ color: "#247ba0" }}>Точки</div>
+                </div>
+                <div className="p-3 rounded-xl text-center" style={{ background: "#e8f1f2" }}>
+                  <div className="text-2xl font-bold" style={{ color: "#a663cc" }}>{detailedJob.photoCount || 0}</div>
+                  <div className="text-xs mt-1" style={{ color: "#247ba0" }}>Снимки</div>
+                </div>
+                <div className="p-3 rounded-xl text-center" style={{ background: "#e8f1f2" }}>
+                  <div className="text-2xl font-bold" style={{ color: "#006494" }}>
+                    {detailedJob.itemsTotal ? Math.round(((detailedJob.itemsChecked || 0) / detailedJob.itemsTotal) * 100) : 0}%
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: "#247ba0" }}>Покритие</div>
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: "#64748b" }}>📝 Бележки</div>
+                <div className="p-3 rounded-xl text-sm leading-relaxed" style={{ background: "#f8fafc", color: "#334155" }}>
                   {detailedJob.notes || "Няма допълнителни бележки."}
                 </div>
               </div>

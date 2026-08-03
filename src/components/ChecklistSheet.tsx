@@ -208,7 +208,7 @@ export default function ChecklistSheet({ propertyName, propertyAddr, propertyId,
       <div className="fixed inset-0 z-40" style={{ background: "rgba(0,0,0,0.3)" }} onClick={onClose} />
 
       {/* Sheet */}
-      <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl flex flex-col"
+      <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl flex flex-col md:hidden"
         style={{
           background: "#fff",
           maxHeight: "90dvh",
@@ -385,6 +385,91 @@ export default function ChecklistSheet({ propertyName, propertyAddr, propertyId,
             onClick={() => onComplete({ items, gps })}
             disabled={pct < 50 && !gps}
             className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40"
+            style={{ background: pct >= 100 ? "linear-gradient(140deg, #16a34a, #15803d)" : "linear-gradient(140deg, #1b98e0, #006494)" }}>
+            {pct >= 100 ? "✅ Завърши обход" : `Завърши (${pct}%)`}
+          </button>
+        </div>
+      </div>
+
+      {/* Desktop: right side panel */}
+      <div
+        className="hidden md:flex md:flex-col fixed right-0 top-0 bottom-0 z-50 bg-white shadow-2xl md:w-[440px] md:max-w-[90vw]"
+        style={{ borderLeft: "1px solid #e4e9f0" }}
+      >
+        {/* Header */}
+        <div className="flex items-start gap-3 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: "#e4e9f0" }}>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-bold" style={{ color: "#006494" }}>{propertyName}</h3>
+            <p className="text-xs mt-0.5 truncate" style={{ color: "#247ba0" }}>{propertyAddr}</p>
+            <div className="flex items-center gap-3 mt-1.5">
+              {gps ? (
+                <span className="text-xs font-semibold" style={{ color: "#16a34a" }}>📍 {gps.lat.toFixed(4)}, {gps.lng.toFixed(4)}</span>
+              ) : (
+                <button onClick={getGPS} disabled={gpsLoading} className="text-xs font-semibold px-2 py-1 rounded border"
+                  style={{ borderColor: gpsError ? "#fecaca" : "#d0e5ff", color: gpsError ? "#dc2626" : "#1b98e0" }}>
+                  {gpsLoading ? "📍 Търси..." : gpsError || "📍 Потвърди локация"}
+                </button>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 hover:bg-gray-100 transition"
+            style={{ background: "#f1f5f9", color: "#64748b" }}>✕</button>
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-1.5 mx-4 mt-3 rounded-full overflow-hidden flex-shrink-0" style={{ background: "#e4e9f0" }}>
+          <div className="h-full rounded-full transition-all duration-300"
+            style={{ width: `${pct}%`, background: "linear-gradient(90deg, #1b98e0, #006494)" }} />
+        </div>
+        <div className="text-center text-xs py-1 flex-shrink-0" style={{ color: "#247ba0" }}>{done}/{total} точки ({pct}%)</div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-4 py-2">
+          {zones.map(zoneKey => {
+            const zone = ZONES[zoneKey] || { name: zoneKey, icon: "📌" };
+            const zoneItems = items.filter(i => i.zone === zoneKey);
+            const zoneDone = zoneItems.filter(i => i.done).length;
+            return (
+              <div key={zoneKey} className="mb-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-sm">{zone.icon}</span>
+                  <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#64748b" }}>{zone.name}</span>
+                  <span className="ml-auto text-xs font-semibold" style={{ color: "#247ba0" }}>{zoneDone}/{zoneItems.length}</span>
+                </div>
+                {zoneItems.map(item => (
+                  <div key={item.id}
+                    className="flex gap-2.5 p-2.5 rounded-lg border mb-1.5 transition cursor-pointer"
+                    style={{ borderColor: item.done ? "#c9ddf0" : "#e4e9f0", background: item.done ? "#f0f7ff" : "#fff" }}
+                    onClick={() => toggleItem(item.id)}>
+                    <div className={`w-5 h-5 rounded-md border-2 flex-shrink-0 mt-0.5 flex items-center justify-center text-white text-[10px] transition ${
+                      item.done ? "bg-green-500 border-green-500" : "bg-white border-gray-300"
+                    }`}>
+                      {item.done && "✓"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-[13px] font-medium leading-snug ${item.done ? "line-through" : ""}`}
+                        style={{ color: item.done ? "#94a3b8" : "#1e293b" }}>{item.label}</div>
+                      {item.required && (
+                        <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                          style={{ background: "#fffbeb", color: "#b45309" }}>Задължително</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center gap-2 p-3 border-t flex-shrink-0" style={{ borderColor: "#e4e9f0", background: "#fff" }}>
+          <div className="flex-1 text-xs font-semibold" style={{ color: "#247ba0" }}>
+            📍 {gps ? "GPS ✓" : "GPS ✗"} · 📷 {Object.values(photos).flat().length} снимки
+          </div>
+          <button
+            onClick={() => onComplete({ items, gps })}
+            disabled={pct < 50 && !gps}
+            className="px-4 h-10 rounded-lg text-sm font-semibold text-white transition disabled:opacity-40"
             style={{ background: pct >= 100 ? "linear-gradient(140deg, #16a34a, #15803d)" : "linear-gradient(140deg, #1b98e0, #006494)" }}>
             {pct >= 100 ? "✅ Завърши обход" : `Завърши (${pct}%)`}
           </button>

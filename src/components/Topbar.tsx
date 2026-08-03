@@ -73,7 +73,7 @@ export default function Topbar() {
 
   return (
     <header
-      className="sticky top-0 z-50 flex items-center gap-3 px-4 py-3 border-b flex-shrink-0"
+      className="sticky top-0 z-50 flex items-center gap-3 px-4 py-3 md:py-2 border-b flex-shrink-0 md:h-14"
       style={{
         background: "rgba(255,255,255,0.85)",
         backdropFilter: "blur(14px)",
@@ -82,8 +82,12 @@ export default function Topbar() {
       }}
     >
       {/* Brand */}
-      <Link href="/dashboard" className="flex items-center no-underline">
+      <Link href="/dashboard" className="flex items-center no-underline md:hidden">
         <img src="/logo.png" alt="КОМАНДА" className="h-16 w-auto" />
+      </Link>
+      {/* Desktop: compact brand */}
+      <Link href="/dashboard" className="hidden md:flex items-center no-underline">
+        <img src="/logo.png" alt="КОМАНДА" className="h-10 w-auto" />
       </Link>
 
       <div className="flex-1" />
