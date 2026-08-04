@@ -1,4 +1,5 @@
 import Link from "next/link";
+import HeroSection from "@/components/HeroSection";
 
 export default function Home() {
   return (
@@ -19,54 +20,7 @@ export default function Home() {
         </div>
       </nav>
 
-      <header className="l-hero">
-        <div className="l-wrap l-hero-in">
-          <div className="l-badge">
-            <span className="d" />Активен обход — Драгалевци, 10:34
-          </div>
-          <h1 className="l-h1">
-            Имотът ти стои празен.
-            <br />
-            <em>Не и без надзор.</em>
-          </h1>
-          <p className="l-sub">
-            Грижа за вакантни жилища, докато собственикът е в друг град или друга държава.
-            Редовни обходи, проветряване, проверка за течове и влага, зимна консервация
-            и организиране на ремонтите. Всеки обход излиза със снимки, час и потвърдена локация.
-          </p>
-          <div className="l-cta">
-            <Link href="#contact" className="l-btn l-btn-p">
-              Изпрати запитване →
-            </Link>
-            <Link href="/login" className="l-btn l-btn-g">
-              Виж приложението
-            </Link>
-          </div>
-          <p className="l-note">
-            Ядрото ни е грижата за празния имот. Ако след време ти потрябва
-            и пълноценно управление — отдаване, наематели, счетоводство — говорим и за това.
-          </p>
-
-          <div className="l-strip">
-            <div>
-              <div className="n">2×</div>
-              <div className="l">обхода месечно по абонамент</div>
-            </div>
-            <div>
-              <div className="n">100%</div>
-              <div className="l">обходи със снимков отчет</div>
-            </div>
-            <div>
-              <div className="n">±75 м</div>
-              <div className="l">потвърждение на локацията по GPS</div>
-            </div>
-            <div>
-              <div className="n">24 ч</div>
-              <div className="l">до оферта при открит проблем</div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <HeroSection />
 
       {/* ============ ЗАЩО ============ */}
       <section className="l-sec l-sec-alt" id="why">
