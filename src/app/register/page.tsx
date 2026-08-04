@@ -5,10 +5,15 @@ import { useRouter } from "next/navigation";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [accountType, setAccountType] = useState<"individual" | "company">("individual");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [eik, setEik] = useState("");
+  const [vatNumber, setVatNumber] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -17,6 +22,10 @@ export default function RegisterPage() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Невалиден имейл адрес";
     if (password.length < 6) return "Паролата трябва да е поне 6 символа";
     if (password !== confirmPassword) return "Паролите не съвпадат";
+    if (accountType === "company") {
+      if (!companyName.trim()) return "Името на фирмата е задължително";
+      if (!eik.trim()) return "ЕИК е задължително";
+    }
     return null;
   };
 
@@ -36,7 +45,16 @@ export default function RegisterPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name: name.trim() }),
+        body: JSON.stringify({
+          email,
+          password,
+          name: name.trim(),
+          phone: phone.trim() || undefined,
+          is_company: accountType === "company",
+          company_name: accountType === "company" ? companyName.trim() : undefined,
+          eik: accountType === "company" ? eik.trim() : undefined,
+          vat_number: accountType === "company" ? vatNumber.trim() || undefined : undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -73,6 +91,50 @@ export default function RegisterPage() {
             </div>
           )}
 
+          {/* Тип профил */}
+          <div className="mb-5">
+            <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Тип профил</label>
+            <div className="flex gap-3">
+              <label
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border cursor-pointer transition text-sm font-semibold ${
+                  accountType === "individual"
+                    ? "border-[#1b98e0] bg-blue-50 text-[#1b98e0]"
+                    : "border-gray-200 text-[#247ba0]"
+                }`}
+                style={{ minHeight: "44px" }}
+              >
+                <input
+                  type="radio"
+                  name="accountType"
+                  value="individual"
+                  checked={accountType === "individual"}
+                  onChange={() => setAccountType("individual")}
+                  className="sr-only"
+                />
+                👤 Физическо лице
+              </label>
+              <label
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border cursor-pointer transition text-sm font-semibold ${
+                  accountType === "company"
+                    ? "border-[#1b98e0] bg-blue-50 text-[#1b98e0]"
+                    : "border-gray-200 text-[#247ba0]"
+                }`}
+                style={{ minHeight: "44px" }}
+              >
+                <input
+                  type="radio"
+                  name="accountType"
+                  value="company"
+                  checked={accountType === "company"}
+                  onChange={() => setAccountType("company")}
+                  className="sr-only"
+                />
+                🏢 Фирма
+              </label>
+            </div>
+          </div>
+
+          {/* Име */}
           <div className="mb-5">
             <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Име</label>
             <input
@@ -86,6 +148,61 @@ export default function RegisterPage() {
             />
           </div>
 
+          {/* Фирмени полета */}
+          {accountType === "company" && (
+            <>
+              <div className="mb-5">
+                <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Име на фирма</label>
+                <input
+                  type="text"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="Фирма ЕООД"
+                  required
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
+                  style={{ fontSize: "16px", minHeight: "44px" }}
+                />
+              </div>
+              <div className="mb-5">
+                <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>ЕИК</label>
+                <input
+                  type="text"
+                  value={eik}
+                  onChange={(e) => setEik(e.target.value)}
+                  placeholder="123456789"
+                  required
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
+                  style={{ fontSize: "16px", minHeight: "44px" }}
+                />
+              </div>
+              <div className="mb-5">
+                <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>ДДС номер <span className="font-normal text-gray-400">(по желание)</span></label>
+                <input
+                  type="text"
+                  value={vatNumber}
+                  onChange={(e) => setVatNumber(e.target.value)}
+                  placeholder="BG123456789"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
+                  style={{ fontSize: "16px", minHeight: "44px" }}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Телефон */}
+          <div className="mb-5">
+            <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Телефон <span className="font-normal text-gray-400">(по желание)</span></label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+359 88 123 4567"
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
+              style={{ fontSize: "16px", minHeight: "44px" }}
+            />
+          </div>
+
+          {/* Имейл */}
           <div className="mb-5">
             <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Имейл</label>
             <input
@@ -99,6 +216,7 @@ export default function RegisterPage() {
             />
           </div>
 
+          {/* Парола */}
           <div className="mb-5">
             <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Парола</label>
             <input
@@ -112,6 +230,7 @@ export default function RegisterPage() {
             />
           </div>
 
+          {/* Потвърди парола */}
           <div className="mb-6">
             <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Потвърди паролата</label>
             <input

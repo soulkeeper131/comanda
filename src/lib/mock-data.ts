@@ -34,7 +34,7 @@ export type MockTemplateItem = {
 export type MockUser = {
   id: string;
   name: string;
-  role: "admin" | "owner" | "worker" | "inspector";
+  role: "admin" | "client" | "inspector";
   color: string;
   sub: string;
 };
@@ -44,7 +44,7 @@ const d = (days: number) => new Date(now - days * 86400000).toISOString();
 
 export const MOCK_USERS: MockUser[] = [
   { id: "u_admin", name: "Владимир", role: "admin", color: "#0E1826", sub: "Диспечер · КОМАНДА" },
-  { id: "u_own1", name: "Елена Петрова", role: "owner", color: "#7C3AED", sub: "Собственик · живее в Мюнхен" },
+  { id: "u_own1", name: "Елена Петрова", role: "client", color: "#7C3AED", sub: "Клиент · живее в Мюнхен" },
   { id: "u_ins1", name: "Мария Стоянова", role: "inspector", color: "#1D4E89", sub: "Инспектор · Център и юг" },
   { id: "u_ins2", name: "Иван Георгиев", role: "inspector", color: "#B45309", sub: "Инспектор · Изток" },
 ];

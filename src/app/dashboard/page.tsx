@@ -12,25 +12,26 @@ import HistoryList from "@/components/HistoryList";
 import TaskForm from "@/components/TaskForm";
 import TemplateManager from "@/components/TemplateManager";
 import SmtpSettings from "@/components/SmtpSettings";
+import ClientProfile from "@/components/ClientProfile";
 import OnboardingPage from "./onboarding/page";
 
-type UserRole = "admin" | "owner" | "worker" | "inspector";
+type UserRole = "admin" | "client" | "inspector";
 
 type TabDef = { id: string; label: string; roles: UserRole[] };
 
 const ALL_TABS: TabDef[] = [
-  { id: "overview", label: "📊 Преглед", roles: ["admin", "owner", "inspector"] },
-  { id: "map", label: "🗺️ Карта", roles: ["admin", "owner", "worker", "inspector"] },
-  { id: "tours", label: "📋 Обходи", roles: ["admin", "owner", "worker", "inspector"] },
-  { id: "issues", label: "⚠️ Проблеми", roles: ["admin", "owner"] },
-  { id: "props", label: "🏠 Имоти", roles: ["admin", "owner", "inspector"] },
+  { id: "overview", label: "📊 Преглед", roles: ["admin", "client", "inspector"] },
+  { id: "map", label: "🗺️ Карта", roles: ["admin", "client", "inspector"] },
+  { id: "tours", label: "📋 Обходи", roles: ["admin", "inspector"] },
+  { id: "issues", label: "⚠️ Проблеми", roles: ["admin", "client"] },
+  { id: "props", label: "🏠 Имоти", roles: ["admin", "inspector"] },
+  { id: "profile", label: "👤 Профил", roles: ["client"] },
   { id: "settings", label: "⚙️ Настройки", roles: ["admin"] },
 ];
 
 const ROLE_BADGE: Record<string, { label: string; color: string }> = {
   admin: { label: "Админ", color: "#a663cc" },
-  owner: { label: "Собственик", color: "#1b98e0" },
-  worker: { label: "Работник", color: "#247ba0" },
+  client: { label: "Клиент", color: "#1b98e0" },
   inspector: { label: "Инспектор", color: "#d97706" },
 };
 
@@ -70,6 +71,8 @@ export default function DashboardPage() {
     setEditingUserId(null);
     setBulkSelected(new Set());
     setShowBulkForm(false);
+    setShowPayment(false);
+    setReportProblemContext(null);
     setTab(id);
     // Reset sub-tab based on main tab
     if (id === "tours") setSubTab("calendar");
@@ -99,6 +102,21 @@ export default function DashboardPage() {
   const [offerDays, setOfferDays] = useState("");
   const [offerScope, setOfferScope] = useState("");
 
+  // Payment state
+  const [showPayment, setShowPayment] = useState(false);
+  const [paymentOfferId, setPaymentOfferId] = useState("");
+  const [paymentPrice, setPaymentPrice] = useState(0);
+  const [paymentTitle, setPaymentTitle] = useState("");
+
+  // Report problem from checklist context
+  const [reportProblemContext, setReportProblemContext] = useState<{
+    jobItemId: string;
+    itemLabel: string;
+    zone: string;
+    propertyId?: string;
+    jobId?: string;
+  } | null>(null);
+
   // Календар state
   const [calendarJobs, setCalendarJobs] = useState<any[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -114,7 +132,7 @@ export default function DashboardPage() {
   // Inline edit state for Team tab
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
-  const [editRole, setEditRole] = useState<UserRole>("worker");
+  const [editRole, setEditRole] = useState<UserRole>("client");
 
   // Filter states for sub-tabs
   const [findingsStatusFilter, setFindingsStatusFilter] = useState("all");
@@ -290,13 +308,13 @@ export default function DashboardPage() {
   const handleEditStart = (user: any) => {
     setEditingUserId(user.id);
     setEditName(user.name || "");
-    setEditRole((user.role as UserRole) || "worker");
+    setEditRole((user.role as UserRole) || "client");
   };
 
   const handleEditCancel = () => {
     setEditingUserId(null);
     setEditName("");
-    setEditRole("worker");
+    setEditRole("client");
   };
 
   const handleEditSave = async (userId: string) => {
@@ -348,6 +366,19 @@ export default function DashboardPage() {
   };
 
   const handleReportProblem = () => {
+    setReportProblemContext(null);
+    setShowFindings(true);
+  };
+
+  const handleChecklistReportProblem = (data: { jobItemId: string; itemLabel: string; zone: string }) => {
+    // Open findings sheet with context from the checklist — WITHOUT closing the checklist
+    setReportProblemContext({
+      jobItemId: data.jobItemId,
+      itemLabel: data.itemLabel,
+      zone: data.zone,
+      propertyId: activeChecklist ? undefined : undefined,
+      jobId: undefined,
+    });
     setShowFindings(true);
   };
 
@@ -376,21 +407,26 @@ export default function DashboardPage() {
     }
   };
 
-  const handleSaveFinding = async (data: { type: string; title: string; body: string }) => {
+  const handleSaveFinding = async (data: { type: string; title: string; body: string; propertyId?: string; jobId?: string; jobItemId?: string }) => {
     try {
+      const payload: Record<string, unknown> = {
+        type: data.type,
+        title: data.title,
+        body: data.body,
+        property_id: data.propertyId || (reportProblemContext ? undefined : "p1"),
+      };
+      if (data.jobId || reportProblemContext?.jobId) payload.job_id = data.jobId || reportProblemContext?.jobId;
+      if (data.jobItemId || reportProblemContext?.jobItemId) payload.job_item_id = data.jobItemId || reportProblemContext?.jobItemId;
+
       const res = await fetch("/api/findings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: data.type,
-          title: data.title,
-          body: data.body,
-          propertyId: "p1",
-        }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         showToast("✅ Проблемът е докладван");
         setShowFindings(false);
+        setReportProblemContext(null);
         loadFindings();
       } else {
         showToast("❌ Грешка при докладване");
@@ -436,6 +472,30 @@ export default function DashboardPage() {
       showToast("❌ Грешка при отказване");
     }
     setSelectedFinding(null);
+  };
+
+  const handleOpenPayment = (offerId: string) => {
+    // Find the offer to get price and title
+    fetch(`/api/offers?finding_id=&decision=accepted`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((offers: any[]) => {
+        const offer = offers.find((o: any) => o.id === offerId);
+        if (offer) {
+          setPaymentOfferId(offerId);
+          setPaymentPrice(offer.price || 0);
+          setPaymentTitle(offer.finding?.title || "Оферта");
+          setShowPayment(true);
+        }
+      })
+      .catch(() => {
+        showToast("❌ Грешка при зареждане на оферта");
+      });
+  };
+
+  const handlePaymentComplete = () => {
+    showToast("✅ Плащането е успешно!");
+    setShowPayment(false);
+    loadFindings();
   };
 
   const handleDeleteJob = async (jobId: string) => {
@@ -954,6 +1014,9 @@ export default function DashboardPage() {
                 { key: "all", label: "Всички" },
                 { key: "pending", label: "⏳ Чакащи" },
                 { key: "accepted", label: "✅ Приети" },
+                { key: "paid", label: "💳 Платени" },
+                { key: "in_progress", label: "🔧 В процес" },
+                { key: "done", label: "🏁 Завършени" },
                 { key: "declined", label: "❌ Отказани" },
               ].map((f) => (
                 <button
@@ -971,7 +1034,7 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
-            <OffersPanel decisionFilter={fixesDecisionFilter} />
+            <OffersPanel decisionFilter={fixesDecisionFilter} onPay={handleOpenPayment} />
           </div>
         )}
 
@@ -1363,8 +1426,7 @@ export default function DashboardPage() {
                             style={{ fontSize: 16, borderColor: "#e4e9f0", color: "#006494" }}
                           >
                             <option value="admin">Админ</option>
-                            <option value="owner">Собственик</option>
-                            <option value="worker">Работник</option>
+                            <option value="client">Клиент</option>
                             <option value="inspector">Инспектор</option>
                           </select>
                           <div className="flex gap-2">
@@ -1459,6 +1521,8 @@ export default function DashboardPage() {
 
         {tab === "settings" && subTab === "mailing" && <SmtpSettings />}
 
+        {tab === "profile" && <ClientProfile />}
+
         {/* FAB — context-aware per tab */}
         {(() => {
             if (userRole !== "admin") return null;
@@ -1521,6 +1585,7 @@ export default function DashboardPage() {
           propertyName={activeChecklist.name}
           propertyAddr={activeChecklist.addr}
           onClose={() => setActiveChecklist(null)}
+          onReportProblem={handleChecklistReportProblem}
           onComplete={(data) => {
             const done = data.items.filter(i => i.done).length;
             showToast(`✅ Обход завършен: ${done}/${data.items.length} точки`);
@@ -1531,8 +1596,11 @@ export default function DashboardPage() {
 
       {showFindings && (
         <FindingsSheet
-          onClose={() => setShowFindings(false)}
+          onClose={() => { setShowFindings(false); setReportProblemContext(null); }}
           onSave={handleSaveFinding}
+          propertyId={reportProblemContext?.propertyId}
+          jobId={reportProblemContext?.jobId}
+          jobItemId={reportProblemContext?.jobItemId}
         />
       )}
 
@@ -1564,7 +1632,7 @@ export default function DashboardPage() {
                 ✕
               </button>
             </div>
-            <OffersPanel findingId={selectedFinding.id} />
+            <OffersPanel findingId={selectedFinding.id} onPay={handleOpenPayment} />
           </div>
 
           {/* Desktop: right side panel */}
@@ -1588,9 +1656,19 @@ export default function DashboardPage() {
                 ✕
               </button>
             </div>
-            <OffersPanel findingId={selectedFinding.id} />
+            <OffersPanel findingId={selectedFinding.id} onPay={handleOpenPayment} />
           </div>
         </>
+      )}
+
+      {showPayment && (
+        <PaymentPanel
+          offerId={paymentOfferId}
+          price={paymentPrice}
+          title={paymentTitle}
+          onClose={() => setShowPayment(false)}
+          onPaid={handlePaymentComplete}
+        />
       )}
 
       {toast && (

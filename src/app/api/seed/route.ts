@@ -95,8 +95,7 @@ export async function POST(request: Request) {
       // Hash passwords with bcrypt
       const usersToCreate = [
         { id: "u1", email: "admin@komanda.bg", password: "admin1234", role: "admin", name: "Админ" },
-        { id: "u2", email: "owner@komanda.bg", password: "owner1234", role: "owner", name: "Собственик" },
-        { id: "u3", email: "worker@komanda.bg", password: "worker1234", role: "worker", name: "Работник" },
+        { id: "u2", email: "client@komanda.bg", password: "client1234", role: "client", name: "Клиент", company_name: "Имот ЕООД", eik: "123456789", vat_number: "BG123456789" },
         { id: "u4", email: "inspector@komanda.bg", password: "inspector1234", role: "inspector", name: "Инспектор" },
       ];
 
@@ -110,6 +109,9 @@ export async function POST(request: Request) {
             password_hash: hash,
             role: u.role,
             full_name: u.name,
+            company_name: (u as any).company_name ?? null,
+            eik: (u as any).eik ?? null,
+            vat_number: (u as any).vat_number ?? null,
             active: true,
           })
           .run();

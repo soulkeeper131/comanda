@@ -12,7 +12,11 @@ export type User = {
   id: string;
   email: string;
   name: string;
-  role: "admin" | "owner" | "worker" | "inspector";
+  role: "admin" | "client" | "inspector";
+  phone?: string;
+  company_name?: string;
+  eik?: string;
+  vat_number?: string;
 };
 
 /** Query the DB for a user by email and verify password */
@@ -28,6 +32,10 @@ export async function validateUser(email: string, password: string): Promise<Use
       email: row.email,
       name: row.full_name ?? "",
       role: row.role as User["role"],
+      phone: row.phone ?? undefined,
+      company_name: row.company_name ?? undefined,
+      eik: row.eik ?? undefined,
+      vat_number: row.vat_number ?? undefined,
     };
   }
 
@@ -40,6 +48,10 @@ export async function validateUser(email: string, password: string): Promise<Use
       email: row.email,
       name: row.full_name ?? "",
       role: row.role as User["role"],
+      phone: row.phone ?? undefined,
+      company_name: row.company_name ?? undefined,
+      eik: row.eik ?? undefined,
+      vat_number: row.vat_number ?? undefined,
     };
   }
 
@@ -51,8 +63,9 @@ export async function createUser(
   email: string,
   password: string,
   name: string,
-  role: User["role"] = "worker",
+  role: User["role"] = "client",
   org_id?: string,
+  extra?: { phone?: string; company_name?: string; eik?: string; vat_number?: string },
 ): Promise<User> {
   const hash = await bcrypt.hash(password, 10);
   const id = crypto.randomUUID();
@@ -63,9 +76,13 @@ export async function createUser(
     full_name: name,
     role,
     org_id: org_id ?? null,
+    phone: extra?.phone ?? null,
+    company_name: extra?.company_name ?? null,
+    eik: extra?.eik ?? null,
+    vat_number: extra?.vat_number ?? null,
     active: true,
   }).run();
-  return { id, email, name, role };
+  return { id, email, name, role, phone: extra?.phone, company_name: extra?.company_name, eik: extra?.eik, vat_number: extra?.vat_number };
 }
 
 /** Return a single user by ID */
@@ -77,6 +94,10 @@ export function getUser(uid: string): User | null {
     email: row.email,
     name: row.full_name ?? "",
     role: row.role as User["role"],
+    phone: row.phone ?? undefined,
+    company_name: row.company_name ?? undefined,
+    eik: row.eik ?? undefined,
+    vat_number: row.vat_number ?? undefined,
   };
 }
 

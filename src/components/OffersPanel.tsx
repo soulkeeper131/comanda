@@ -24,6 +24,7 @@ type OfferFromApi = {
 type Props = {
   findingId?: string;
   decisionFilter?: string;
+  onPay?: (offerId: string) => void;
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -34,7 +35,16 @@ const TYPE_COLORS: Record<string, string> = {
   "Друго": "#64748b",
 };
 
-export default function OffersPanel({ findingId, decisionFilter }: Props) {
+const DECISION_CONFIG: Record<string, { label: string; bg: string; color: string; emoji: string; sectionLabel: string }> = {
+  pending: { label: "Чакаща", bg: "#fef3c7", color: "#d97706", emoji: "⏳", sectionLabel: "⏳ За решение" },
+  accepted: { label: "Приета", bg: "#dcfce7", color: "#16a34a", emoji: "✅", sectionLabel: "✅ Приети" },
+  declined: { label: "Отказана", bg: "#fee2e2", color: "#dc2626", emoji: "❌", sectionLabel: "❌ Отказани" },
+  paid: { label: "Платена", bg: "#dbeafe", color: "#1b98e0", emoji: "💳", sectionLabel: "💳 Платени" },
+  in_progress: { label: "В процес", bg: "#ede9fe", color: "#a663cc", emoji: "🔧", sectionLabel: "🔧 В процес" },
+  done: { label: "Завършена", bg: "#dcfce7", color: "#15803d", emoji: "🏁", sectionLabel: "🏁 Завършени" },
+};
+
+export default function OffersPanel({ findingId, decisionFilter, onPay }: Props) {
   const [offers, setOffers] = useState<OfferFromApi[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -62,60 +72,49 @@ export default function OffersPanel({ findingId, decisionFilter }: Props) {
     loadOffers();
   }, [loadOffers]);
 
-  const handleAccept = async (offerId: string) => {
+  const updateDecision = async (offerId: string, decision: string) => {
     try {
       const res = await fetch(`/api/offers/${offerId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision: "accepted" }),
+        body: JSON.stringify({ decision }),
       });
       if (res.ok) {
         setOffers((prev) =>
           prev.map((o) =>
-            o.id === offerId ? { ...o, decision: "accepted" } : o
+            o.id === offerId ? { ...o, decision } : o
           )
         );
       }
     } catch (e) {
-      console.error("Accept offer error:", e);
+      console.error("Update offer error:", e);
     }
   };
 
-  const handleDecline = async (offerId: string) => {
-    try {
-      const res = await fetch(`/api/offers/${offerId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision: "declined" }),
-      });
-      if (res.ok) {
-        setOffers((prev) =>
-          prev.map((o) =>
-            o.id === offerId ? { ...o, decision: "declined" } : o
-          )
-        );
-      }
-    } catch (e) {
-      console.error("Decline offer error:", e);
-    }
-  };
+  const handleAccept = (offerId: string) => updateDecision(offerId, "accepted");
+  const handleDecline = (offerId: string) => updateDecision(offerId, "declined");
 
-  const pending = offers.filter((o) => o.decision === "pending");
-  const accepted = offers.filter((o) => o.decision === "accepted");
-  const declined = offers.filter((o) => o.decision === "declined");
+  // Group offers by decision category
+  const sections: { key: string; items: OfferFromApi[] }[] = [
+    { key: "paid", items: offers.filter((o) => o.decision === "paid") },
+    { key: "in_progress", items: offers.filter((o) => o.decision === "in_progress") },
+    { key: "done", items: offers.filter((o) => o.decision === "done") },
+    { key: "accepted", items: offers.filter((o) => o.decision === "accepted") },
+    { key: "pending", items: offers.filter((o) => o.decision === "pending") },
+    { key: "declined", items: offers.filter((o) => o.decision === "declined") },
+  ].filter((s) => s.items.length > 0);
 
   const renderOfferCard = (offer: OfferFromApi) => {
     const f = offer.finding;
-    const isAccepted = offer.decision === "accepted";
-    const isDeclined = offer.decision === "declined";
     const type = f?.type || "Друго";
+    const config = DECISION_CONFIG[offer.decision] || DECISION_CONFIG.pending;
 
     return (
       <div
         key={offer.id}
         className="p-4 rounded-xl border bg-white mb-3"
         style={{
-          borderColor: isAccepted ? "#bbf7d0" : isDeclined ? "#fecaca" : "#e4e9f0",
+          borderColor: `${config.color}40`,
         }}
       >
         {/* Header with type badge */}
@@ -135,22 +134,12 @@ export default function OffersPanel({ findingId, decisionFilter }: Props) {
           >
             {f?.property_name || "Имот"}
           </span>
-          {isAccepted && (
-            <span
-              className="ml-auto text-xs font-bold px-2 py-0.5 rounded-md"
-              style={{ background: "#dcfce7", color: "#16a34a" }}
-            >
-              ✓ Приета
-            </span>
-          )}
-          {isDeclined && (
-            <span
-              className="ml-auto text-xs font-bold px-2 py-0.5 rounded-md"
-              style={{ background: "#fee2e2", color: "#dc2626" }}
-            >
-              ✕ Отказана
-            </span>
-          )}
+          <span
+            className="ml-auto text-xs font-bold px-2 py-0.5 rounded-md"
+            style={{ background: config.bg, color: config.color }}
+          >
+            {config.emoji} {config.label}
+          </span>
         </div>
 
         {/* Title */}
@@ -200,7 +189,7 @@ export default function OffersPanel({ findingId, decisionFilter }: Props) {
           </div>
         </div>
 
-        {/* Action buttons - only for pending */}
+        {/* Action buttons — pending: accept/decline */}
         {offer.decision === "pending" && (
           <div className="flex gap-2">
             <button
@@ -224,6 +213,26 @@ export default function OffersPanel({ findingId, decisionFilter }: Props) {
             </button>
           </div>
         )}
+
+        {/* Action buttons — accepted: pay */}
+        {offer.decision === "accepted" && (
+          <button
+            onClick={() => onPay?.(offer.id)}
+            className="w-full min-h-[44px] py-2.5 rounded-lg text-xs font-semibold text-white"
+            style={{
+              background: "linear-gradient(140deg, #1b98e0, #006494)",
+            }}
+          >
+            💳 Плати сега ({offer.price ? offer.price.toFixed(0) : "0"} лв)
+          </button>
+        )}
+
+        {/* Action buttons — paid: mark in progress (admin only in dashboard) */}
+        {offer.decision === "paid" && (
+          <div className="text-xs text-center py-1" style={{ color: "#247ba0" }}>
+            💳 Плащането е получено — очаква изпълнение
+          </div>
+        )}
       </div>
     );
   };
@@ -238,44 +247,18 @@ export default function OffersPanel({ findingId, decisionFilter }: Props) {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4">
-      {/* Accepted offers */}
-      {accepted.length > 0 && (
-        <div className="mb-4">
+      {/* Grouped sections */}
+      {sections.map((section) => (
+        <div key={section.key} className="mb-4">
           <div
             className="text-xs font-bold uppercase tracking-wide mb-2"
-            style={{ color: "#16a34a" }}
+            style={{ color: DECISION_CONFIG[section.key]?.color || "#247ba0" }}
           >
-            ✅ Приети ({accepted.length})
+            {DECISION_CONFIG[section.key]?.sectionLabel || section.key} ({section.items.length})
           </div>
-          {accepted.map(renderOfferCard)}
+          {section.items.map(renderOfferCard)}
         </div>
-      )}
-
-      {/* Pending offers */}
-      {pending.length > 0 && (
-        <div className="mb-4">
-          <div
-            className="text-xs font-bold uppercase tracking-wide mb-2"
-            style={{ color: "#d97706" }}
-          >
-            ⏳ За решение ({pending.length})
-          </div>
-          {pending.map(renderOfferCard)}
-        </div>
-      )}
-
-      {/* Declined offers */}
-      {declined.length > 0 && (
-        <div className="mb-4">
-          <div
-            className="text-xs font-bold uppercase tracking-wide mb-2"
-            style={{ color: "#dc2626" }}
-          >
-            ❌ Отказани ({declined.length})
-          </div>
-          {declined.map(renderOfferCard)}
-        </div>
-      )}
+      ))}
 
       {/* Empty state */}
       {offers.length === 0 && (

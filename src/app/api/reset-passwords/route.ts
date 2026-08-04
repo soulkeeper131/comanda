@@ -20,8 +20,7 @@ export async function POST() {
 
     const list = [
       { id: "u1", email: "admin@komanda.bg",    password: "admin1234",    role: "admin",     name: "Админ" },
-      { id: "u2", email: "owner@komanda.bg",    password: "owner1234",    role: "owner",     name: "Собственик" },
-      { id: "u3", email: "worker@komanda.bg",   password: "worker1234",   role: "worker",    name: "Работник" },
+      { id: "u2", email: "client@komanda.bg",   password: "client1234",   role: "client",    name: "Клиент" },
       { id: "u4", email: "inspector@komanda.bg", password: "inspector1234", role: "inspector", name: "Инспектор" },
     ];
 

@@ -20,8 +20,9 @@ sqlite.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY, org_id TEXT REFERENCES organizations(id),
     email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'worker', full_name TEXT,
-    phone TEXT, active INTEGER DEFAULT 1,
+    role TEXT NOT NULL DEFAULT 'client', full_name TEXT,
+    phone TEXT, company_name TEXT, eik TEXT, vat_number TEXT,
+    active INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
   );
@@ -123,6 +124,22 @@ sqlite.exec(`
     p256dh TEXT NOT NULL, auth TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS payments (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
+    offer_id TEXT REFERENCES offers(id),
+    amount REAL NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    method TEXT NOT NULL DEFAULT 'card',
+    paid_at TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS invoices (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
+    payment_id TEXT REFERENCES payments(id),
+    number TEXT NOT NULL,
+    pdf_path TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
 `);
 
 // Migration: add missing columns to existing tables (CREATE TABLE IF NOT EXISTS won't add them)
@@ -133,5 +150,8 @@ migrate("jobs", "property_name", "TEXT");
 migrate("findings", "job_item_id", "TEXT REFERENCES job_items(id)");
 migrate("findings", "reported_by", "TEXT REFERENCES users(id)");
 migrate("findings", "body", "TEXT");
+migrate("users", "company_name", "TEXT");
+migrate("users", "eik", "TEXT");
+migrate("users", "vat_number", "TEXT");
 
 export const db = drizzle(sqlite, { schema });

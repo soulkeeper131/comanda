@@ -7,12 +7,18 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  let email = "", password = "", name = "";
+  let email = "", password = "", name = "", phone = "";
+  let is_company = false, company_name = "", eik = "", vat_number = "";
   try {
     const body = await request.json();
     email = (body.email || "").trim().toLowerCase();
     password = body.password || "";
     name = (body.name || "").trim();
+    phone = (body.phone || "").trim();
+    is_company = !!body.is_company;
+    company_name = (body.company_name || "").trim();
+    eik = (body.eik || "").trim();
+    vat_number = (body.vat_number || "").trim();
   } catch {
     return NextResponse.json({ error: "Невалидна заявка" }, { status: 400 });
   }
@@ -27,6 +33,14 @@ export async function POST(request: Request) {
   if (!name) {
     return NextResponse.json({ error: "Името е задължително" }, { status: 400 });
   }
+  if (is_company) {
+    if (!company_name) {
+      return NextResponse.json({ error: "Името на фирмата е задължително" }, { status: 400 });
+    }
+    if (!eik) {
+      return NextResponse.json({ error: "ЕИК е задължително" }, { status: 400 });
+    }
+  }
 
   // Check uniqueness
   const exists = db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
@@ -35,7 +49,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const user = await createUser(email, password, name, "worker");
+    const user = await createUser(email, password, name, "client", undefined, {
+      phone: phone || undefined,
+      company_name: is_company ? company_name : undefined,
+      eik: is_company ? eik : undefined,
+      vat_number: is_company ? (vat_number || undefined) : undefined,
+    });
     await setSession(user);
     return NextResponse.json({
       success: true,

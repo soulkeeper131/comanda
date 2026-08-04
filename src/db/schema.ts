@@ -22,9 +22,12 @@ export const users = sqliteTable("users", {
   org_id: text("org_id").references(() => organizations.id),
   email: text("email").notNull().unique(),
   password_hash: text("password_hash").notNull(),
-  role: text("role").notNull().default("worker"),
+  role: text("role").notNull().default("client"),
   full_name: text("full_name"),
   phone: text("phone"),
+  company_name: text("company_name"),
+  eik: text("eik"),
+  vat_number: text("vat_number"),
   active: integer("active", { mode: "boolean" }).default(true),
   created_at: text("created_at").default(sql`(datetime('now'))`),
   updated_at: text("updated_at").default(sql`(datetime('now'))`),
@@ -188,7 +191,7 @@ export const offers = sqliteTable("offers", {
   days: integer("days"),
   scope: text("scope"),
   sent_at: text("sent_at").default(sql`(datetime('now'))`),
-  decision: text("decision").default("pending"),
+  decision: text("decision").default("pending"), // "pending"|"accepted"|"declined"|"paid"|"in_progress"|"done"
 });
 
 // ============================================================
@@ -229,5 +232,31 @@ export const pushSubscriptions = sqliteTable("push_subscriptions", {
   user_id: text("user_id").references(() => users.id),
   subscription: text("subscription").notNull(), // JSON string of PushSubscriptionJSON
   user_agent: text("user_agent"),
+  created_at: text("created_at").default(sql`(datetime('now'))`),
+});
+
+// ============================================================
+// Плащания
+// ============================================================
+export const payments = sqliteTable("payments", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  user_id: text("user_id").references(() => users.id).notNull(),
+  offer_id: text("offer_id").references(() => offers.id),
+  amount: real("amount").notNull(),
+  status: text("status").notNull().default("pending"),
+  method: text("method").notNull().default("card"),
+  paid_at: text("paid_at"),
+  created_at: text("created_at").default(sql`(datetime('now'))`),
+});
+
+// ============================================================
+// Фактури
+// ============================================================
+export const invoices = sqliteTable("invoices", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  user_id: text("user_id").references(() => users.id).notNull(),
+  payment_id: text("payment_id").references(() => payments.id),
+  number: text("number").notNull(),
+  pdf_path: text("pdf_path"),
   created_at: text("created_at").default(sql`(datetime('now'))`),
 });

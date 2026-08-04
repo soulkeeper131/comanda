@@ -31,9 +31,10 @@ export async function PATCH(
     const updates: Record<string, unknown> = {};
 
     if (body.decision !== undefined) {
-      if (!["pending", "accepted", "declined"].includes(body.decision)) {
+      const VALID_DECISIONS = ["pending", "accepted", "declined", "paid", "in_progress", "done"];
+      if (!VALID_DECISIONS.includes(body.decision)) {
         return NextResponse.json(
-          { error: "Невалиден статус. Позволени: pending, accepted, declined" },
+          { error: `Невалиден статус. Позволени: ${VALID_DECISIONS.join(", ")}` },
           { status: 400 }
         );
       }

@@ -6,6 +6,19 @@ export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
+    // Add new columns to users table (ignore errors if they already exist)
+    const userCols = [
+      "phone TEXT",
+      "company_name TEXT",
+      "eik TEXT",
+      "vat_number TEXT",
+    ];
+    for (const col of userCols) {
+      try {
+        db.run(sql.raw(`ALTER TABLE users ADD COLUMN ${col}`));
+      } catch { /* column likely already exists */ }
+    }
+
     // Create all tables that Drizzle manages but may not exist in SQLite
     db.run(sql`CREATE TABLE IF NOT EXISTS service_templates (
       id TEXT PRIMARY KEY, org_id TEXT, category TEXT NOT NULL,
@@ -85,6 +98,21 @@ export async function POST() {
       phone TEXT, email TEXT, city TEXT,
       property_kind TEXT, service TEXT, message TEXT,
       status TEXT DEFAULT 'new',
+      created_at TEXT DEFAULT (datetime('now'))
+    )`);
+
+    db.run(sql`CREATE TABLE IF NOT EXISTS payments (
+      id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+      offer_id TEXT, amount REAL NOT NULL,
+      description TEXT, status TEXT DEFAULT 'pending',
+      payment_method TEXT, paid_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`);
+
+    db.run(sql`CREATE TABLE IF NOT EXISTS invoices (
+      id TEXT PRIMARY KEY, payment_id TEXT,
+      user_id TEXT NOT NULL, number TEXT NOT NULL,
+      amount REAL NOT NULL, status TEXT DEFAULT 'issued',
       created_at TEXT DEFAULT (datetime('now'))
     )`);
 

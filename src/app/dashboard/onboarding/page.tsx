@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-type UserRole = "admin" | "owner" | "worker" | "inspector";
+type UserRole = "admin" | "client" | "inspector";
 
 interface Step {
   emoji: string;
@@ -17,15 +17,10 @@ const STEPS: Record<UserRole, Step[]> = {
     { emoji: "📋", title: "Създай шаблон", description: "Дефинирай чек-лист за обходите — почистване, инспекция, ремонт." },
     { emoji: "📅", title: "Възложи обход", description: "Планирай първия обход, избери шаблон и назначи изпълнител." },
   ],
-  owner: [
+  client: [
     { emoji: "🏠", title: "Разгледай имотите си", description: "Виж всичките си имоти на картата и в списъка." },
     { emoji: "⚠️", title: "Виж констатациите", description: "Прегледай докладваните проблеми и снимки от обходите." },
     { emoji: "💰", title: "Приеми оферта", description: "Разгледай и приеми оферти за ремонт от администратора." },
-  ],
-  worker: [
-    { emoji: "📋", title: "Виж задачите си", description: "Тук ще намериш всички възложени ти обходи, подредени по дата." },
-    { emoji: "▶️", title: "Започни обход", description: "Стартирай задача, маркирай точки от чек-листа и качвай снимки." },
-    { emoji: "⚠️", title: "Докладвай проблем", description: "Откри ли теч, повреда или липса — докладвай веднага със снимка." },
   ],
   inspector: [
     { emoji: "🏠", title: "Виж имотите", description: "Разгледай възложените ти имоти на картата и в списъка." },
@@ -36,15 +31,13 @@ const STEPS: Record<UserRole, Step[]> = {
 
 const ROLE_EMOJI: Record<string, string> = {
   admin: "🛡️",
-  owner: "🏡",
-  worker: "🧹",
+  client: "🏡",
   inspector: "🔍",
 };
 
 const ROLE_LABEL: Record<string, string> = {
   admin: "Администратор",
-  owner: "Собственик",
-  worker: "Работник",
+  client: "Клиент",
   inspector: "Инспектор",
 };
 
