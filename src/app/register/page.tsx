@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const plan = searchParams.get("plan") || "";
   const [accountType, setAccountType] = useState<"individual" | "company">("individual");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -61,7 +64,8 @@ export default function RegisterPage() {
         const data = await res.json();
         setError(data.error || "Грешка при регистрация");
       } else {
-        window.location.href = "/dashboard";
+        const target = plan ? `/register/property?plan=${encodeURIComponent(plan)}` : "/dashboard";
+        window.location.href = target;
       }
     } catch {
       setError("Възникна грешка. Опитай отново.");
@@ -79,8 +83,13 @@ export default function RegisterPage() {
             alt="КОМАНДА"
             className="h-14 mx-auto mb-4"
           />
+          {plan && (
+            <div className="inline-block px-4 py-2 rounded-full text-sm font-semibold mb-3" style={{ background: "#e0f2fe", color: "#1b98e0" }}>
+              {plan === "year" ? "🔄 Пълен надзор · 60€/мес" : plan === "winter" ? "❄️ Зимен сезон · 40€/мес" : "☀️ Летен сезон · 50€/мес"}
+            </div>
+          )}
           <p className="text-sm mt-2" style={{ color: "#247ba0" }}>
-            Създай своя профил
+            Стъпка 1 от 3 — Създай своя профил
           </p>
         </div>
 
@@ -273,5 +282,13 @@ export default function RegisterPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[100dvh] flex items-center justify-center" style={{ backgroundColor: "#e8f1f2" }}><p>Зареждане...</p></div>}>
+      <RegisterForm />
+    </Suspense>
   );
 }

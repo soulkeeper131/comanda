@@ -147,7 +147,7 @@ export default function Home() {
                 <li>Приоритет при спешна проверка</li>
                 <li>Оферта за ремонт до 24 часа</li>
               </ul>
-              <Link href="/login" className="l-btn">
+              <Link href="/register?plan=year" className="l-btn">
                 Виж как изглежда
               </Link>
             </div>
@@ -173,7 +173,7 @@ export default function Home() {
                 <li>Прибиране на пощата</li>
                 <li>Прозорци и врати заключени при тръгване</li>
               </ul>
-              <Link href="/login" className="l-btn">
+              <Link href="/register?plan=winter" className="l-btn">
                 Виж как изглежда
               </Link>
             </div>
@@ -199,7 +199,7 @@ export default function Home() {
                 <li>Поливане на растения при заявка</li>
                 <li>Прибиране на пощата</li>
               </ul>
-              <Link href="/login" className="l-btn">
+              <Link href="/register?plan=summer" className="l-btn">
                 Виж как изглежда
               </Link>
             </div>

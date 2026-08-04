@@ -1,6 +1,7 @@
 import { db } from "@/db";
-import { properties, jobs, findings } from "@/db/schema";
+import { properties, jobs, findings, organizations, users } from "@/db/schema";
 import { eq, and, lt } from "drizzle-orm";
+import { getSession } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -75,8 +76,13 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Не сте влезли в профила си" }, { status: 401 });
+    }
+
     const body = await request.json();
-    let { name, address, lat, lng, kind, owner_id } = body;
+    let { name, address, lat, lng, kind } = body;
 
     if (!name || !address) {
       return NextResponse.json(
@@ -134,7 +140,7 @@ export async function POST(request: Request) {
         lat,
         lng,
         kind: kind || "apartment",
-        owner_id: owner_id || "u2", // default owner
+        owner_id: session.uid,
         org_id: "org1", // default org
       })
       .returning();
