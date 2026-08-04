@@ -136,8 +136,8 @@ export default function Home() {
                 сезонът и кога свършва — чек-листът се сменя сам.
               </div>
               <div className="l-sub-price">
-                <span className="v">120</span>
-                <span className="u">лв / месец</span>
+                <span className="v">60</span>
+                <span className="u">€ / месец</span>
               </div>
               <div className="cad">2 обхода месечно · чек-листът следва сезона</div>
               <ul className="l-sub-feats">
@@ -161,8 +161,8 @@ export default function Home() {
                 изсъхнали сифони, замръзнала тръба.
               </div>
               <div className="l-sub-price">
-                <span className="v">80</span>
-                <span className="u">лв / месец</span>
+                <span className="v">40</span>
+                <span className="u">€ / месец</span>
               </div>
               <div className="cad">2 обхода месечно · около 40 мин всеки</div>
               <ul className="l-sub-feats">
@@ -187,8 +187,8 @@ export default function Home() {
                 двор и тераса, които обрастват.
               </div>
               <div className="l-sub-price">
-                <span className="v">95</span>
-                <span className="u">лв / месец</span>
+                <span className="v">50</span>
+                <span className="u">€ / месец</span>
               </div>
               <div className="cad">2 обхода месечно · около 1 ч всеки</div>
               <ul className="l-sub-feats">
