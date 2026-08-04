@@ -166,6 +166,8 @@ p {
 .l-hero-in {
   position: relative;
   max-width: 730px;
+  margin: 0 auto;
+  text-align: center;
 }
 
 .l-badge {
@@ -223,12 +225,15 @@ p {
   margin-top: 18px;
   line-height: 1.62;
   max-width: 580px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .l-cta {
   display: flex;
   gap: 11px;
   margin-top: 30px;
+  justify-content: center;
   flex-wrap: wrap;
 }
 
@@ -546,6 +551,126 @@ p {
   margin-top: 7px;
   line-height: 1.5;
   flex: 1;
+}
+
+/* ===== Тематични анимирани бекграунди ===== */
+.l-pkg {
+  position: relative;
+  overflow: hidden;
+}
+
+.l-pkg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity .6s;
+}
+
+.l-pkg:hover::before {
+  opacity: 1;
+}
+
+/* 🔨 hammer — кръгове (строителство) */
+.l-pkg--hammer::before {
+  background:
+    radial-gradient(circle at 85% 15%, rgba(27,152,224,.12) 0%, transparent 50%),
+    radial-gradient(circle at 15% 80%, rgba(27,152,224,.06) 0%, transparent 40%);
+  animation: pkgPulse 4s ease-in-out infinite;
+}
+
+/* 🚨 alert — пулсираща точка */
+.l-pkg--alert::before {
+  background: radial-gradient(circle at 88% 12%, rgba(239,68,68,.10) 0%, transparent 45%);
+  animation: pkgAlert 2.5s ease-in-out infinite;
+}
+
+@keyframes pkgAlert {
+  0%, 100% { opacity: .6; }
+  50% { opacity: 1; }
+}
+
+/* ❄ snow — плаващи кръгове */
+.l-pkg--snow::before {
+  background:
+    radial-gradient(circle at 20% 30%, rgba(147,197,253,.10) 0%, transparent 30%),
+    radial-gradient(circle at 70% 70%, rgba(147,197,253,.08) 0%, transparent 35%),
+    radial-gradient(circle at 50% 15%, rgba(147,197,253,.06) 0%, transparent 25%);
+  animation: pkgFloat 6s ease-in-out infinite;
+}
+
+@keyframes pkgFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* 📦 box — пулсиращ правоъгълник */
+.l-pkg--box::before {
+  background:
+    linear-gradient(135deg, rgba(245,158,11,.08) 20%, transparent 60%);
+  animation: pkgPulse 3s ease-in-out infinite;
+}
+
+/* 🧹 clean — диагонални линии */
+.l-pkg--clean::before {
+  background:
+    repeating-linear-gradient(
+      -30deg,
+      transparent,
+      transparent 18px,
+      rgba(34,197,94,.04) 18px,
+      rgba(34,197,94,.04) 19px
+    );
+  animation: pkgSlide 8s linear infinite;
+}
+
+@keyframes pkgSlide {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 40px; }
+}
+
+/* 📷 camera — кръгъл затвор */
+.l-pkg--camera::before {
+  background:
+    radial-gradient(circle at 80% 20%, transparent 25%, rgba(139,92,246,.08) 26%, rgba(139,92,246,.08) 28%, transparent 29%);
+  animation: pkgShutter 4s ease-in-out infinite;
+}
+
+@keyframes pkgShutter {
+  0%, 100% { opacity: .5; }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* 🔧 repair — въртящ се градиент */
+.l-pkg--repair::before {
+  background:
+    conic-gradient(from 0deg at 80% 20%, transparent 0deg, rgba(100,116,139,.06) 90deg, transparent 180deg);
+  animation: pkgSpin 10s linear infinite;
+}
+
+@keyframes pkgSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ✎ custom — пулсираща точка с разливане */
+.l-pkg--custom::before {
+  background:
+    radial-gradient(circle at 85% 15%, rgba(166,99,204,.10) 0%, rgba(166,99,204,.03) 40%, transparent 60%);
+  animation: pkgPulse 3.5s ease-in-out infinite;
+}
+
+@keyframes pkgPulse {
+  0%, 100% { opacity: .4; }
+  50% { opacity: 1; }
+}
+
+/* z-index fix — текстът да е над псевдо-елемента */
+.l-pkg > * {
+  position: relative;
+  z-index: 1;
 }
 
 .l-price {
