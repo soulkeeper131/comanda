@@ -154,7 +154,7 @@ export default function Home() {
 
             {/* Зимен */}
             <div className="l-sub-card l-winter">
-              <div className="season">❄ Ноември – Март</div>
+              <div className="season">❄ Октомври – Април</div>
               <h3>Зимен сезон</h3>
               <div className="d">
                 Месеците, в които празният имот се поврежда сам — влага, мухъл,
@@ -180,7 +180,7 @@ export default function Home() {
 
             {/* Летен */}
             <div className="l-sub-card l-summer">
-              <div className="season">☀ Април – Октомври</div>
+              <div className="season">☀ Май – Септември</div>
               <h3>Летен сезон</h3>
               <div className="d">
                 По-спокойните месеци, но не и празни — жега, влага от бури,
