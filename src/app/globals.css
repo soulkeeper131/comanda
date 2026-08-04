@@ -559,112 +559,182 @@ p {
   overflow: hidden;
 }
 
-.l-pkg::before {
+.l-pkg::before,
+.l-pkg::after {
   content: '';
   position: absolute;
-  inset: 0;
   pointer-events: none;
   z-index: 0;
   opacity: 0;
-  transition: opacity .6s;
+  transition: opacity .5s;
 }
 
-.l-pkg:hover::before {
+.l-pkg:hover::before,
+.l-pkg:hover::after {
   opacity: 1;
 }
 
-/* 🔨 hammer — кръгове (строителство) */
+/* shared brand color for all shapes */
+.l-pkg::before,
+.l-pkg::after {
+  border-color: rgba(0,100,148,.09);
+}
+
+/* 🔨 hammer — кръстосани линии */
 .l-pkg--hammer::before {
-  background:
-    radial-gradient(circle at 85% 15%, rgba(27,152,224,.12) 0%, transparent 50%),
-    radial-gradient(circle at 15% 80%, rgba(27,152,224,.06) 0%, transparent 40%);
-  animation: pkgPulse 4s ease-in-out infinite;
+  top: 8px; right: 12px;
+  width: 28px; height: 28px;
+  border-left: 2px solid;
+  border-top: 2px solid;
+  border-color: inherit;
+  transform: rotate(45deg);
+  border-radius: 1px;
+  animation: hammerTilt 3s ease-in-out infinite;
+}
+.l-pkg--hammer::after {
+  bottom: 14px; left: 14px;
+  width: 20px; height: 20px;
+  border: 2px solid;
+  border-color: inherit;
+  border-radius: 50%;
+  animation: hammerBounce 4s ease-in-out infinite;
+}
+@keyframes hammerTilt {
+  0%, 100% { transform: rotate(45deg); }
+  50% { transform: rotate(60deg); }
+}
+@keyframes hammerBounce {
+  0%, 100% { transform: translateY(0); opacity: .5; }
+  50% { transform: translateY(-6px); opacity: 1; }
 }
 
-/* 🚨 alert — пулсираща точка */
+/* 🚨 alert — пулсиращи концентрични кръгове */
 .l-pkg--alert::before {
-  background: radial-gradient(circle at 88% 12%, rgba(239,68,68,.10) 0%, transparent 45%);
-  animation: pkgAlert 2.5s ease-in-out infinite;
+  top: 10px; right: 16px;
+  width: 24px; height: 24px;
+  border: 2px solid;
+  border-color: inherit;
+  border-radius: 50%;
+  animation: alertRing 2s ease-out infinite;
+}
+.l-pkg--alert::after {
+  top: 10px; right: 16px;
+  width: 24px; height: 24px;
+  border: 2px solid;
+  border-color: inherit;
+  border-radius: 50%;
+  animation: alertRing 2s ease-out .6s infinite;
+}
+@keyframes alertRing {
+  0% { transform: scale(1); opacity: .8; }
+  100% { transform: scale(2.8); opacity: 0; }
 }
 
-@keyframes pkgAlert {
-  0%, 100% { opacity: .6; }
-  50% { opacity: 1; }
-}
-
-/* ❄ snow — плаващи кръгове */
+/* ❄ snow — плаващи точки */
 .l-pkg--snow::before {
-  background:
-    radial-gradient(circle at 20% 30%, rgba(147,197,253,.10) 0%, transparent 30%),
-    radial-gradient(circle at 70% 70%, rgba(147,197,253,.08) 0%, transparent 35%),
-    radial-gradient(circle at 50% 15%, rgba(147,197,253,.06) 0%, transparent 25%);
-  animation: pkgFloat 6s ease-in-out infinite;
+  top: 12px; left: 18px;
+  width: 6px; height: 6px;
+  background: rgba(0,100,148,.12);
+  border-radius: 50%;
+  box-shadow:
+    18px 22px 0 0 rgba(0,100,148,.08),
+    -8px 48px 0 0 rgba(0,100,148,.06),
+    28px 60px 0 0 rgba(0,100,148,.07);
+  animation: snowFloat 5s ease-in-out infinite;
 }
-
-@keyframes pkgFloat {
+@keyframes snowFloat {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+  25% { transform: translateY(-8px) translateX(4px); }
+  75% { transform: translateY(-3px) translateX(-4px); }
 }
 
-/* 📦 box — пулсиращ правоъгълник */
+/* 📦 box — подскачащ квадрат */
 .l-pkg--box::before {
-  background:
-    linear-gradient(135deg, rgba(245,158,11,.08) 20%, transparent 60%);
-  animation: pkgPulse 3s ease-in-out infinite;
+  top: 14px; right: 18px;
+  width: 20px; height: 20px;
+  border: 2px solid;
+  border-color: inherit;
+  border-radius: 3px;
+  animation: boxBounce 1.8s ease-in-out infinite;
+}
+@keyframes boxBounce {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-10px); }
+  50% { transform: translateY(0); }
+  70% { transform: translateY(-4px); }
 }
 
-/* 🧹 clean — диагонални линии */
+/* 🧹 clean — премитаща диагонална линия */
 .l-pkg--clean::before {
-  background:
-    repeating-linear-gradient(
-      -30deg,
-      transparent,
-      transparent 18px,
-      rgba(34,197,94,.04) 18px,
-      rgba(34,197,94,.04) 19px
-    );
-  animation: pkgSlide 8s linear infinite;
+  top: -20px; left: -30px;
+  width: 3px; height: 80px;
+  background: rgba(0,100,148,.08);
+  transform: rotate(35deg);
+  animation: cleanSweep 4s linear infinite;
+}
+@keyframes cleanSweep {
+  0% { left: -30px; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { left: calc(100% + 30px); opacity: 0; }
 }
 
-@keyframes pkgSlide {
-  0% { background-position: 0 0; }
-  100% { background-position: 40px 40px; }
-}
-
-/* 📷 camera — кръгъл затвор */
+/* 📷 camera — разширяващ се кръгъл затвор */
 .l-pkg--camera::before {
-  background:
-    radial-gradient(circle at 80% 20%, transparent 25%, rgba(139,92,246,.08) 26%, rgba(139,92,246,.08) 28%, transparent 29%);
-  animation: pkgShutter 4s ease-in-out infinite;
+  top: 16px; right: 22px;
+  width: 22px; height: 22px;
+  border: 2px solid;
+  border-color: inherit;
+  border-radius: 50%;
+  animation: cameraOpen 3.5s ease-in-out infinite;
+}
+.l-pkg--camera::after {
+  top: 21px; right: 27px;
+  width: 12px; height: 12px;
+  border: 2px solid;
+  border-color: inherit;
+  border-radius: 50%;
+  animation: cameraOpen 3.5s ease-in-out .3s infinite;
+}
+@keyframes cameraOpen {
+  0%, 100% { transform: scale(1); opacity: .5; }
+  50% { transform: scale(1.6); opacity: 1; }
 }
 
-@keyframes pkgShutter {
-  0%, 100% { opacity: .5; }
-  50% { opacity: 1; transform: scale(1.05); }
-}
-
-/* 🔧 repair — въртящ се градиент */
+/* 🔧 repair — кръг + линия (ключ) */
 .l-pkg--repair::before {
-  background:
-    conic-gradient(from 0deg at 80% 20%, transparent 0deg, rgba(100,116,139,.06) 90deg, transparent 180deg);
-  animation: pkgSpin 10s linear infinite;
+  bottom: 14px; right: 16px;
+  width: 18px; height: 18px;
+  border: 2px solid;
+  border-color: inherit;
+  border-radius: 50%;
+  animation: repairSpin 8s linear infinite;
+  transform-origin: center center;
 }
-
-@keyframes pkgSpin {
+.l-pkg--repair::after {
+  bottom: 23px; right: 24px;
+  width: 2px; height: 20px;
+  background: rgba(0,100,148,.10);
+  animation: repairSpin 8s linear infinite;
+  transform-origin: bottom center;
+}
+@keyframes repairSpin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
-/* ✎ custom — пулсираща точка с разливане */
+/* ✎ custom — пишеща линия */
 .l-pkg--custom::before {
-  background:
-    radial-gradient(circle at 85% 15%, rgba(166,99,204,.10) 0%, rgba(166,99,204,.03) 40%, transparent 60%);
-  animation: pkgPulse 3.5s ease-in-out infinite;
+  bottom: 16px; left: 16px;
+  width: 0; height: 2px;
+  background: rgba(0,100,148,.10);
+  animation: customWrite 4s ease-in-out infinite;
 }
-
-@keyframes pkgPulse {
-  0%, 100% { opacity: .4; }
-  50% { opacity: 1; }
+@keyframes customWrite {
+  0% { width: 0; opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { width: 60px; opacity: 0; }
 }
 
 /* z-index fix — текстът да е над псевдо-елемента */
