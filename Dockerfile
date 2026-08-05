@@ -1,7 +1,10 @@
 # Ко Манда — production Dockerfile (Next.js standalone)
 
+ARG CACHE_BUST=20260805-2
 FROM node:20 AS build
 WORKDIR /app
+
+RUN echo "Cache bust: ${CACHE_BUST}"
 
 COPY package*.json ./
 RUN npm ci
