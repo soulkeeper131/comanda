@@ -41,6 +41,7 @@ export const properties = sqliteTable("properties", {
   org_id: text("org_id").references(() => organizations.id).notNull(),
   owner_id: text("owner_id").references(() => users.id).notNull(),
   name: text("name").notNull(),
+  city: text("city"),
   address: text("address"),
   lat: real("lat").notNull(),
   lng: real("lng").notNull(),

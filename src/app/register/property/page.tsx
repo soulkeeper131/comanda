@@ -24,6 +24,7 @@ function PropertyForm() {
   const planInfo = PLAN_NAMES[plan] || null;
 
   const [name, setName] = useState("");
+  const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
   const [kind, setKind] = useState("apartment");
   const [accessNotes, setAccessNotes] = useState("");
@@ -36,6 +37,10 @@ function PropertyForm() {
 
     if (!name.trim()) {
       setError("Името на обекта е задължително");
+      return;
+    }
+    if (!city.trim()) {
+      setError("Градът е задължителен");
       return;
     }
     if (!address.trim()) {
@@ -51,6 +56,7 @@ function PropertyForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
+          city: city.trim(),
           address: address.trim(),
           kind,
           access_notes: accessNotes.trim() || undefined,
@@ -119,6 +125,20 @@ function PropertyForm() {
             />
           </div>
 
+          {/* Град */}
+          <div className="mb-5">
+            <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Град</label>
+            <input
+              type="text"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="София, Варна, Боровец..."
+              required
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
+              style={{ fontSize: "16px", minHeight: "44px" }}
+            />
+          </div>
+
           {/* Адрес */}
           <div className="mb-5">
             <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Адрес</label>
@@ -126,7 +146,7 @@ function PropertyForm() {
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="ул. Примерна №1, гр. София"
+              placeholder="ул. Примерна №1"
               required
               className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
               style={{ fontSize: "16px", minHeight: "44px" }}

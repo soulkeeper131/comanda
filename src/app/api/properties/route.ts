@@ -8,7 +8,17 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const result = db.select().from(properties).where(eq(properties.archived, false)).all();
+    const session = await getSession();
+    
+    // Clients see only their own properties; admins/inspectors see all
+    let result;
+    if (session && session.role === "client") {
+      result = db.select().from(properties)
+        .where(and(eq(properties.archived, false), eq(properties.owner_id, session.uid)))
+        .all();
+    } else {
+      result = db.select().from(properties).where(eq(properties.archived, false)).all();
+    }
 
     // Compute real status for each property
     const now = new Date().toISOString();
@@ -82,19 +92,21 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    let { name, address, lat, lng, kind } = body;
+    let { name, city, address, lat, lng, kind } = body;
 
-    if (!name || !address) {
+    if (!name || !city || !address) {
       return NextResponse.json(
-        { error: "Име и адрес са задължителни" },
+        { error: "Име, град и адрес са задължителни" },
         { status: 400 },
       );
     }
 
+    const fullAddress = `${city}, ${address}`;
+
     // Auto-geocode if lat/lng not provided but address is
-    if ((lat === undefined || lng === undefined) && address) {
+    if ((lat === undefined || lng === undefined) && fullAddress) {
       try {
-        const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&accept-language=bg`;
+        const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}&limit=1&accept-language=bg`;
         const geoRes = await fetch(geocodeUrl, {
           headers: { "User-Agent": "KoManda/1.0" },
         });
@@ -136,12 +148,13 @@ export async function POST(request: Request) {
       .insert(properties)
       .values({
         name,
+        city: city || null,
         address,
         lat,
         lng,
         kind: kind || "apartment",
         owner_id: session.uid,
-        org_id: "org1", // default org
+        org_id: "org1",
       })
       .returning();
 
