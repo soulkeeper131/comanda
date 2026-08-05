@@ -181,7 +181,7 @@ export default function Home() {
             ].map(({ theme, icon, title, desc, price, unit, color }, i) => (
               <div
                 key={title}
-                className={`l-pkg l-pkg--${theme}`}
+                className={`l-pkg l-pkg--${theme} relative`}
                 style={
                   i === 7
                     ? { borderStyle: "dashed", borderColor: "var(--accent)", background: "var(--accent-soft)" }
