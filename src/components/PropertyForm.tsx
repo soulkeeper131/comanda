@@ -4,6 +4,7 @@ import { useState } from "react";
 
 type PropertyFormData = {
   name: string;
+  city: string;
   addr: string;
   type: string;
   access: string;
@@ -12,18 +13,19 @@ type PropertyFormData = {
 };
 
 export default function PropertyForm({ onAdd, onClose }: { onAdd: (data: PropertyFormData) => void; onClose: () => void }) {
-  const [data, setData] = useState<PropertyFormData>({ name: "", addr: "", type: "apartment", access: "" });
+  const [data, setData] = useState<PropertyFormData>({ name: "", city: "", addr: "", type: "apartment", access: "" });
   const [geocodeLoading, setGeocodeLoading] = useState(false);
   const [geocodeResult, setGeocodeResult] = useState<{ display_name: string; lat: number; lng: number } | null>(null);
   const [geocodeError, setGeocodeError] = useState("");
 
   const handleGeocode = async () => {
-    if (!data.addr.trim()) return;
+    const q = [data.city, data.addr].filter(Boolean).join(", ");
+    if (!q.trim()) return;
     setGeocodeLoading(true);
     setGeocodeError("");
     setGeocodeResult(null);
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(data.addr)}`);
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
       if (res.ok) {
         const json = await res.json();
         setGeocodeResult(json);
@@ -41,7 +43,7 @@ export default function PropertyForm({ onAdd, onClose }: { onAdd: (data: Propert
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!data.name.trim() || !data.addr.trim()) return;
+    if (!data.name.trim() || !data.city.trim() || !data.addr.trim()) return;
     onAdd(data);
     onClose();
   };
@@ -62,6 +64,15 @@ export default function PropertyForm({ onAdd, onClose }: { onAdd: (data: Propert
             required
           />
           <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Град"
+              value={data.city}
+              onChange={(e) => setData({ ...data, city: e.target.value })}
+              className="flex-1 px-4 py-3 rounded-xl border text-base"
+              style={{ borderColor: "#e4e9f0", fontSize: 16 }}
+              required
+            />
             <input
               type="text"
               placeholder="Адрес"

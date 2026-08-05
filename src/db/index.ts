@@ -153,5 +153,6 @@ migrate("findings", "body", "TEXT");
 migrate("users", "company_name", "TEXT");
 migrate("users", "eik", "TEXT");
 migrate("users", "vat_number", "TEXT");
+migrate("properties", "city", "TEXT");
 
 export const db = drizzle(sqlite, { schema });

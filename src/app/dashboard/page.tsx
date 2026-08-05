@@ -22,9 +22,9 @@ type TabDef = { id: string; label: string; roles: UserRole[] };
 const ALL_TABS: TabDef[] = [
   { id: "overview", label: "📊 Преглед", roles: ["admin", "client", "inspector"] },
   { id: "map", label: "🗺️ Карта", roles: ["admin", "client", "inspector"] },
-  { id: "tours", label: "📋 Обходи", roles: ["admin", "inspector"] },
+  { id: "tours", label: "📋 Обходи", roles: ["admin", "inspector", "client"] },
   { id: "issues", label: "⚠️ Проблеми", roles: ["admin", "client"] },
-  { id: "props", label: "🏠 Имоти", roles: ["admin", "inspector"] },
+  { id: "props", label: "🏠 Имоти", roles: ["admin", "inspector", "client"] },
   { id: "profile", label: "👤 Профил", roles: ["client"] },
   { id: "settings", label: "⚙️ Настройки", roles: ["admin"] },
 ];
@@ -1554,6 +1554,7 @@ export default function DashboardPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   name: data.name,
+                  city: data.city,
                   address: data.addr,
                   lat: data.lat,
                   lng: data.lng,
