@@ -535,15 +535,10 @@ p {
   border-color: #CBD5E1;
 }
 
-.l-pkg .ic {
-  font-size: 24px;
-  margin-bottom: 13px;
-}
-
 .l-pkg-icon {
   position: absolute;
   top: 10px;
-  right: 12px;
+  left: 12px;
   font-size: 42px;
   opacity: .08;
   pointer-events: none;
@@ -570,191 +565,12 @@ p {
   flex: 1;
 }
 
-/* ===== Тематични анимирани бекграунди ===== */
+/* ===== Тематични иконки (само faded, без анимации) ===== */
 .l-pkg {
   position: relative;
   overflow: hidden;
 }
 
-.l-pkg::before,
-.l-pkg::after {
-  content: '';
-  position: absolute;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0;
-  transition: opacity .5s;
-}
-
-.l-pkg:hover::before,
-.l-pkg:hover::after {
-  opacity: 1;
-}
-
-/* shared brand color for all shapes */
-.l-pkg::before,
-.l-pkg::after {
-  border-color: rgba(0,100,148,.09);
-}
-
-/* 🔨 hammer — кръстосани линии */
-.l-pkg--hammer::before {
-  top: 8px; right: 12px;
-  width: 28px; height: 28px;
-  border-left: 2px solid;
-  border-top: 2px solid;
-  border-color: inherit;
-  transform: rotate(45deg);
-  border-radius: 1px;
-  animation: hammerTilt 3s ease-in-out infinite;
-}
-.l-pkg--hammer::after {
-  bottom: 14px; left: 14px;
-  width: 20px; height: 20px;
-  border: 2px solid;
-  border-color: inherit;
-  border-radius: 50%;
-  animation: hammerBounce 4s ease-in-out infinite;
-}
-@keyframes hammerTilt {
-  0%, 100% { transform: rotate(45deg); }
-  50% { transform: rotate(60deg); }
-}
-@keyframes hammerBounce {
-  0%, 100% { transform: translateY(0); opacity: .5; }
-  50% { transform: translateY(-6px); opacity: 1; }
-}
-
-/* 🚨 alert — пулсиращи концентрични кръгове */
-.l-pkg--alert::before {
-  top: 10px; right: 16px;
-  width: 24px; height: 24px;
-  border: 2px solid;
-  border-color: inherit;
-  border-radius: 50%;
-  animation: alertRing 2s ease-out infinite;
-}
-.l-pkg--alert::after {
-  top: 10px; right: 16px;
-  width: 24px; height: 24px;
-  border: 2px solid;
-  border-color: inherit;
-  border-radius: 50%;
-  animation: alertRing 2s ease-out .6s infinite;
-}
-@keyframes alertRing {
-  0% { transform: scale(1); opacity: .8; }
-  100% { transform: scale(2.8); opacity: 0; }
-}
-
-/* ❄ snow — плаващи точки */
-.l-pkg--snow::before {
-  top: 12px; left: 18px;
-  width: 6px; height: 6px;
-  background: rgba(0,100,148,.12);
-  border-radius: 50%;
-  box-shadow:
-    18px 22px 0 0 rgba(0,100,148,.08),
-    -8px 48px 0 0 rgba(0,100,148,.06),
-    28px 60px 0 0 rgba(0,100,148,.07);
-  animation: snowFloat 5s ease-in-out infinite;
-}
-@keyframes snowFloat {
-  0%, 100% { transform: translateY(0); }
-  25% { transform: translateY(-8px) translateX(4px); }
-  75% { transform: translateY(-3px) translateX(-4px); }
-}
-
-/* 📦 box — подскачащ квадрат */
-.l-pkg--box::before {
-  top: 14px; right: 18px;
-  width: 20px; height: 20px;
-  border: 2px solid;
-  border-color: inherit;
-  border-radius: 3px;
-  animation: boxBounce 1.8s ease-in-out infinite;
-}
-@keyframes boxBounce {
-  0%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-10px); }
-  50% { transform: translateY(0); }
-  70% { transform: translateY(-4px); }
-}
-
-/* 🧹 clean — премитаща диагонална линия */
-.l-pkg--clean::before {
-  top: -20px; left: -30px;
-  width: 3px; height: 80px;
-  background: rgba(0,100,148,.08);
-  transform: rotate(35deg);
-  animation: cleanSweep 4s linear infinite;
-}
-@keyframes cleanSweep {
-  0% { left: -30px; opacity: 0; }
-  15% { opacity: 1; }
-  85% { opacity: 1; }
-  100% { left: calc(100% + 30px); opacity: 0; }
-}
-
-/* 📷 camera — разширяващ се кръгъл затвор */
-.l-pkg--camera::before {
-  top: 16px; right: 22px;
-  width: 22px; height: 22px;
-  border: 2px solid;
-  border-color: inherit;
-  border-radius: 50%;
-  animation: cameraOpen 3.5s ease-in-out infinite;
-}
-.l-pkg--camera::after {
-  top: 21px; right: 27px;
-  width: 12px; height: 12px;
-  border: 2px solid;
-  border-color: inherit;
-  border-radius: 50%;
-  animation: cameraOpen 3.5s ease-in-out .3s infinite;
-}
-@keyframes cameraOpen {
-  0%, 100% { transform: scale(1); opacity: .5; }
-  50% { transform: scale(1.6); opacity: 1; }
-}
-
-/* 🔧 repair — кръг + линия (ключ) */
-.l-pkg--repair::before {
-  bottom: 14px; right: 16px;
-  width: 18px; height: 18px;
-  border: 2px solid;
-  border-color: inherit;
-  border-radius: 50%;
-  animation: repairSpin 8s linear infinite;
-  transform-origin: center center;
-}
-.l-pkg--repair::after {
-  bottom: 23px; right: 24px;
-  width: 2px; height: 20px;
-  background: rgba(0,100,148,.10);
-  animation: repairSpin 8s linear infinite;
-  transform-origin: bottom center;
-}
-@keyframes repairSpin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* ✎ custom — пишеща линия */
-.l-pkg--custom::before {
-  bottom: 16px; left: 16px;
-  width: 0; height: 2px;
-  background: rgba(0,100,148,.10);
-  animation: customWrite 4s ease-in-out infinite;
-}
-@keyframes customWrite {
-  0% { width: 0; opacity: 0; }
-  20% { opacity: 1; }
-  80% { opacity: 1; }
-  100% { width: 60px; opacity: 0; }
-}
-
-/* z-index fix — текстът да е над псевдо-елемента */
 .l-pkg > * {
   position: relative;
   z-index: 1;
