@@ -10,7 +10,8 @@ export default function ClientProfile({ userId }: ClientProfileProps) {
   const [profile, setProfile] = useState<any>(null);
   const [payments, setPayments] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [activeSection, setActiveSection] = useState<"profile" | "payments" | "invoices">("profile");
+  const [plans, setPlans] = useState<any[]>([]);
+  const [activeSection, setActiveSection] = useState<"profile" | "plans" | "payments" | "invoices">("profile");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,6 +25,12 @@ export default function ClientProfile({ userId }: ClientProfileProps) {
   }, []);
 
   useEffect(() => {
+    if (activeSection === "plans") {
+      fetch("/api/me/plans")
+        .then((r) => r.ok ? r.json() : [])
+        .then((data) => setPlans(Array.isArray(data) ? data : []))
+        .catch(() => setPlans([]));
+    }
     if (activeSection === "payments") {
       fetch("/api/payments")
         .then((r) => r.ok ? r.json() : [])
@@ -52,6 +59,7 @@ export default function ClientProfile({ userId }: ClientProfileProps) {
       <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
         {[
           { key: "profile", label: "👤 Профил" },
+          { key: "plans", label: "📦 Пакети" },
           { key: "payments", label: "💰 Плащания" },
           { key: "invoices", label: "📄 Фактури" },
         ].map((s) => (
@@ -109,6 +117,54 @@ export default function ClientProfile({ userId }: ClientProfileProps) {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Plans section */}
+      {activeSection === "plans" && (
+        <div className="space-y-2">
+          {plans.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-center py-16">
+              <div className="text-5xl mb-4">📦</div>
+              <h3 className="text-lg font-bold mb-2" style={{ color: "#006494" }}>Няма активни пакети</h3>
+              <p className="text-sm max-w-xs" style={{ color: "#247ba0" }}>
+                Добави обект и избраният пакет ще се покаже тук.
+              </p>
+            </div>
+          ) : (
+            plans.map((p: any) => (
+              <div
+                key={p.id}
+                className="p-4 rounded-xl border bg-white"
+                style={{ borderColor: "#e4e9f0" }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <div className="text-sm font-bold" style={{ color: "#006494" }}>{p.name}</div>
+                    <div className="text-xs mt-0.5" style={{ color: "#247ba0" }}>
+                      {p.property_name || "Обект"}
+                    </div>
+                  </div>
+                  <span
+                    className="text-xs font-bold px-2 py-1 rounded-md"
+                    style={{
+                      background: p.active ? "#dcfce7" : "#f1f5f9",
+                      color: p.active ? "#16a34a" : "#94a3b8",
+                    }}
+                  >
+                    {p.active ? "✓ Активен" : "⏸ Неактивен"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 text-xs" style={{ color: "#64748b" }}>
+                  <span>{p.price}€ / месец</span>
+                  <span>{p.per_month} обхода месечно</span>
+                  {p.started_at && (
+                    <span>От: {new Date(p.started_at).toLocaleDateString("bg-BG")}</span>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 
