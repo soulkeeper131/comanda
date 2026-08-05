@@ -538,7 +538,7 @@ p {
 .l-pkg-icon {
   position: absolute;
   top: 10px;
-  left: 12px;
+  right: 12px;
   font-size: 42px;
   opacity: .08;
   pointer-events: none;
