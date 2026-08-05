@@ -131,7 +131,7 @@ export default function HeroSection() {
                 <Link
                   key={plan.key}
                   href={`/register?plan=${plan.key}`}
-                  className="block bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-[#1b98e0] transition-all group"
+                  className="flex flex-col bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-[#1b98e0] transition-all group"
                   onClick={() => setModalOpen(false)}
                 >
                   <div className="text-3xl mb-3">{plan.icon}</div>
@@ -156,9 +156,11 @@ export default function HeroSection() {
                       </li>
                     ))}
                   </ul>
-                  <div className="mt-4 py-2.5 text-center rounded-xl text-sm font-semibold text-white transition group-hover:opacity-90"
-                    style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>
-                    Избери
+                  <div className="mt-auto pt-3">
+                    <div className="py-2.5 text-center rounded-xl text-sm font-semibold text-white transition group-hover:opacity-90"
+                      style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>
+                      Избери
+                    </div>
                   </div>
                 </Link>
               ))}
