@@ -553,6 +553,7 @@ p {
 .l-pkg h3 {
   font-size: 17.5px;
   letter-spacing: -.02em;
+  margin-top: -6px;
   position: relative;
   z-index: 1;
 }
@@ -560,7 +561,7 @@ p {
 .l-pkg .desc {
   font-size: 13.5px;
   color: var(--muted);
-  margin-top: 7px;
+  margin-top: 4px;
   line-height: 1.5;
   flex: 1;
 }
