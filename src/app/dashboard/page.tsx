@@ -13,6 +13,7 @@ import TaskForm from "@/components/TaskForm";
 import TemplateManager from "@/components/TemplateManager";
 import SmtpSettings from "@/components/SmtpSettings";
 import ClientProfile from "@/components/ClientProfile";
+import PlanSelector from "@/components/PlanSelector";
 import OnboardingPage from "./onboarding/page";
 
 type UserRole = "admin" | "client" | "inspector";
@@ -81,6 +82,7 @@ export default function DashboardPage() {
   };
   const [selectedProperty, setSelectedProperty] = useState<any>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [newPropertyId, setNewPropertyId] = useState<string | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [properties, setProperties] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -1562,8 +1564,10 @@ export default function DashboardPage() {
                 }),
               });
               if (res.ok) {
+                const prop = await res.json();
                 showToast("✅ Обектът е добавен");
-                window.location.reload();
+                setShowAddForm(false);
+                setNewPropertyId(prop.id);
               } else {
                 showToast("❌ Грешка при добавяне");
               }
@@ -1572,6 +1576,12 @@ export default function DashboardPage() {
             }
           }}
           onClose={() => setShowAddForm(false)}
+        />
+      )}
+      {newPropertyId && (
+        <PlanSelector
+          propertyId={newPropertyId}
+          onDone={() => { setNewPropertyId(null); window.location.reload(); }}
         />
       )}
       {showTaskForm && (
