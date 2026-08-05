@@ -188,10 +188,10 @@ export default function Home() {
                 }
               >
                 <span className="l-pkg-icon">{icon}</span>
-                <h3 style={{ color }}>{title}</h3>
+                <h3>{title}</h3>
                 <div className="desc">{desc}</div>
                 <div className="l-price">
-                  <span className="v" style={{ color }}>{price}</span>
+                  <span className="v" style={{ color: "var(--accent)" }}>{price}</span>
                   <span className="u">{unit}</span>
                 </div>
               </div>
