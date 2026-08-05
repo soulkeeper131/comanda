@@ -1,6 +1,7 @@
 import Link from "next/link";
 import HeroSection from "@/components/HeroSection";
 
+// FORCE_REBUILD: cache-bust 2026-08-05-a
 export default function Home() {
   return (
     <>

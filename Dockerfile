@@ -9,6 +9,9 @@ RUN npm ci
 COPY . .
 # Cache-bust: change this on every deploy
 RUN echo "Deploy: $(date +%s)" > /app/.build_id
+# Force Docker to not cache from this point
+ARG CACHEBUST=1
+RUN echo "Cache bust: ${CACHEBUST}"
 RUN mkdir -p /app/data
 RUN npm run build
 
