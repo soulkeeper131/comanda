@@ -519,6 +519,7 @@ p {
 }
 
 .l-pkg {
+  position: relative;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: var(--r-xl);
