@@ -192,7 +192,7 @@ export default function Home() {
               >
                 <span
                   className="l-pkg-icon"
-                  style={{ left: "auto", right: 12 }}
+                  style={{ position: "absolute", left: "auto", right: 12 }}
                 >{icon}</span>
                 <h3>{title}</h3>
                 <div className="desc">{desc}</div>
