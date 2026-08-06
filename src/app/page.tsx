@@ -41,7 +41,7 @@ export default function Home() {
 
           <div className="l-risks">
             <div className="l-risk relative">
-              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.08, pointerEvents: "none", lineHeight: 1 }}>💧</div>
+              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1 }}>💧</div>
               <h4>Теч, който никой не чува</h4>
               <p>
                 Спукана връзка капе седмици. При обитаван имот се хваща за час.
@@ -49,7 +49,7 @@ export default function Home() {
               </p>
             </div>
             <div className="l-risk relative">
-              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.08, pointerEvents: "none", lineHeight: 1 }}>🌫️</div>
+              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1 }}>🌫️</div>
               <h4>Влага и мухъл</h4>
               <p>
                 Без проветряване въздухът застоява. Мухълът тръгва от ъглите и первазите
@@ -57,7 +57,7 @@ export default function Home() {
               </p>
             </div>
             <div className="l-risk relative">
-              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.08, pointerEvents: "none", lineHeight: 1 }}>🚱</div>
+              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1 }}>🚱</div>
               <h4>Изсъхнали сифони</h4>
               <p>
                 Водата в сифона се изпарява за седмици и канализацията започва да мирише
