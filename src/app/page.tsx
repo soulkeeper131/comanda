@@ -190,7 +190,10 @@ export default function Home() {
                     : undefined
                 }
               >
-                <span className="l-pkg-icon">{icon}</span>
+                <span
+                  className="l-pkg-icon"
+                  style={{ left: "auto", right: 12 }}
+                >{icon}</span>
                 <h3>{title}</h3>
                 <div className="desc">{desc}</div>
                 <div className="l-price">

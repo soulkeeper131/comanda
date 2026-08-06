@@ -1,4 +1,4 @@
-const CACHE_NAME = "komanda-v2";
+const CACHE_NAME = "komanda-v3";
 const CACHE_URLS = ["/", "/dashboard", "/login", "/register", "/logo.png"];
 const API_CACHE_NAME = "komanda-api-v1";
 
