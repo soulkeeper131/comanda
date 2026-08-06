@@ -257,24 +257,24 @@ export default function Home() {
           </p>
 
           <div className="l-proof">
-            <div className="l-pcard">
-              <div className="ic" style={{ background: "#EFF6FF" }}>📍</div>
+            <div className="l-pcard relative">
+              <div className="ic" style={{ position: "absolute", right: 12, top: 12, background: "#EFF6FF" }}>📍</div>
               <h4>Потвърдена локация</h4>
               <p>
                 Чек-листът се отключва само когато телефонът е физически в имота.
                 Записва се час на влизане, на излизане и колко време е прекарано вътре.
               </p>
             </div>
-            <div className="l-pcard">
-              <div className="ic" style={{ background: "var(--accent-soft)" }}>📷</div>
+            <div className="l-pcard relative">
+              <div className="ic" style={{ position: "absolute", right: 12, top: 12, background: "var(--accent-soft)" }}>📷</div>
               <h4>Снимки от място</h4>
               <p>
                 Само през камерата в приложението — качване от галерия няма.
                 Всяка снимка носи час и координати, вписани от сървъра, не от телефона.
               </p>
             </div>
-            <div className="l-pcard">
-              <div className="ic" style={{ background: "#FFFBEB" }}>✓</div>
+            <div className="l-pcard relative">
+              <div className="ic" style={{ position: "absolute", right: 12, top: 12, background: "#FFFBEB" }}>✓</div>
               <h4>Последната дума е твоя</h4>
               <p>
                 Преглеждаш отчета и приемаш, приемаш с бележка или оспорваш.
