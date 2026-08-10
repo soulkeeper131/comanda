@@ -14,10 +14,10 @@ export default function Home() {
             <img src="/logo.png" alt="КОМАНДА" style={{ height: 68, width: "auto", display: "block" }} />
           </div>
           <div className="spacer" />
-          <Link href="/login" className="l-btn l-btn-g" style={{ padding: "10px 18px", fontSize: "14.5px" }}>
+          <Link href="/login" className="l-btn l-btn-g" style={{ padding: "10px 18px", fontSize: "14.5px", minHeight: 44, display: "inline-flex", alignItems: "center" }}>
             Вход
           </Link>
-          <Link href="/register" className="l-btn l-btn-p" style={{ padding: "10px 18px", fontSize: "14.5px" }}>
+          <Link href="/register" className="l-btn l-btn-p" style={{ padding: "10px 18px", fontSize: "14.5px", minHeight: 44, display: "inline-flex", alignItems: "center" }}>
             Регистрация
           </Link>
         </div>

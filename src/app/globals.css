@@ -38,6 +38,23 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* iOS smooth momentum scrolling for all scrollable containers */
+.overflow-y-auto,
+.overflow-auto,
+[class*="overflow-y-auto"],
+[class*="overflow-auto"] {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Body scroll lock — use with .body-locked on <body> when overlay/popup is open */
+body.body-locked {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  /* Prevent iOS Safari bounce when overlay is open */
+  position: fixed;
+  width: 100%;
+}
+
 html,
 body {
   height: 100%;

@@ -565,6 +565,19 @@ export default function DashboardPage() {
 
   const showFAB = userRole === "admin";
 
+  // Body scroll lock when overlay/popup is open
+  useEffect(() => {
+    const isOverlayOpen = !!activeChecklist || showFindings || !!selectedFinding || showPayment || !!selectedProperty;
+    if (isOverlayOpen) {
+      document.body.classList.add("body-locked");
+    } else {
+      document.body.classList.remove("body-locked");
+    }
+    return () => {
+      document.body.classList.remove("body-locked");
+    };
+  }, [activeChecklist, showFindings, selectedFinding, showPayment, selectedProperty]);
+
   if (roleLoading) {
     return (
       <div className="flex flex-col h-[100dvh] items-center justify-center" style={{ backgroundColor: "#e8f1f2" }}>
@@ -1620,12 +1633,12 @@ export default function DashboardPage() {
           {/* Mobile: fullscreen modal */}
           <div
             className="fixed inset-0 z-50 flex flex-col md:hidden"
-            style={{ background: "#fff" }}
+            style={{ background: "#fff", paddingTop: "env(safe-area-inset-top, 0px)" }}
           >
             {/* Header */}
             <div
               className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0"
-              style={{ borderColor: "#e4e9f0" }}
+              style={{ borderColor: "#e4e9f0", paddingTop: "max(12px, env(safe-area-inset-top))" }}
             >
               <div className="flex-1 min-w-0">
                 <h3
@@ -1683,7 +1696,7 @@ export default function DashboardPage() {
       )}
 
       {toast && (
-        <div className="fixed bottom-[max(96px,calc(96px+env(safe-area-inset-bottom)))] left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full text-white text-sm font-semibold shadow-lg flex items-center gap-3"
+        <div className="fixed bottom-[max(96px,calc(96px_+_env(safe-area-inset-bottom)))] left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full text-white text-sm font-semibold shadow-lg flex items-center gap-3"
           style={{ background: "#006494" }}>
           <span>{toast}</span>
           <button

@@ -106,11 +106,12 @@ export default function HeroSection() {
       {modalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,.45)" }}
+          style={{ background: "rgba(0,0,0,.45)", overscrollBehavior: "contain" }}
           onClick={() => setModalOpen(false)}
         >
           <div
             className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85dvh] overflow-y-auto p-6"
+            style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">

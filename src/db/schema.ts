@@ -258,6 +258,8 @@ export const invoices = sqliteTable("invoices", {
   user_id: text("user_id").references(() => users.id).notNull(),
   payment_id: text("payment_id").references(() => payments.id),
   number: text("number").notNull(),
+  amount: real("amount"),
+  description: text("description"),
   pdf_path: text("pdf_path"),
   created_at: text("created_at").default(sql`(datetime('now'))`),
 });

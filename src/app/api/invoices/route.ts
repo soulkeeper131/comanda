@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const { payment_id, number } = body;
+  const { payment_id, number, amount, description } = body;
 
   if (!number) {
     return NextResponse.json({ error: "Номер на фактура е задължителен" }, { status: 400 });
@@ -43,6 +43,8 @@ export async function POST(request: Request) {
     user_id: session.uid,
     payment_id: payment_id || null,
     number,
+    amount: amount ?? null,
+    description: description ?? null,
   }).run();
 
   const invoice = db.select().from(invoices).where(eq(invoices.id, id)).get();

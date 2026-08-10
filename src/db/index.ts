@@ -137,6 +137,8 @@ sqlite.exec(`
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
     payment_id TEXT REFERENCES payments(id),
     number TEXT NOT NULL,
+    amount REAL,
+    description TEXT,
     pdf_path TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
@@ -154,5 +156,7 @@ migrate("users", "company_name", "TEXT");
 migrate("users", "eik", "TEXT");
 migrate("users", "vat_number", "TEXT");
 migrate("properties", "city", "TEXT");
+migrate("invoices", "amount", "REAL");
+migrate("invoices", "description", "TEXT");
 
 export const db = drizzle(sqlite, { schema });
