@@ -258,7 +258,7 @@ export default function Home() {
 
           <div className="l-proof">
             <div className="l-pcard relative">
-              <div className="ic" style={{ position: "absolute", right: 12, top: 12, background: "#EFF6FF" }}>📍</div>
+              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1, width: "auto", height: "auto", background: "none", borderRadius: 0 }}>📍</div>
               <h4>Потвърдена локация</h4>
               <p>
                 Чек-листът се отключва само когато телефонът е физически в имота.
@@ -266,7 +266,7 @@ export default function Home() {
               </p>
             </div>
             <div className="l-pcard relative">
-              <div className="ic" style={{ position: "absolute", right: 12, top: 12, background: "var(--accent-soft)" }}>📷</div>
+              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1, width: "auto", height: "auto", background: "none", borderRadius: 0 }}>📷</div>
               <h4>Снимки от място</h4>
               <p>
                 Само през камерата в приложението — качване от галерия няма.
@@ -274,7 +274,7 @@ export default function Home() {
               </p>
             </div>
             <div className="l-pcard relative">
-              <div className="ic" style={{ position: "absolute", right: 12, top: 12, background: "#FFFBEB" }}>✓</div>
+              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1, width: "auto", height: "auto", background: "none", borderRadius: 0 }}>✓</div>
               <h4>Последната дума е твоя</h4>
               <p>
                 Преглеждаш отчета и приемаш, приемаш с бележка или оспорваш.
