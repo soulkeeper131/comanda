@@ -207,11 +207,11 @@ export default function ClientProfile({ userId }: ClientProfileProps) {
                 </span>
                 {p.status === "paid" && (
                   <a
-                    href={`/api/invoices?payment_id=${p.id}&download=1`}
+                    href={`/api/invoices/${p.invoice_id || p.id}/pdf`}
                     className="text-xs font-semibold px-2 py-1.5 rounded-lg border flex-shrink-0 transition hover:bg-gray-50"
                     style={{ borderColor: "#e4e9f0", color: "#1b98e0", minHeight: "32px" }}
                   >
-                    📥 Свали
+                    📄 Свали
                   </a>
                 )}
               </div>
@@ -248,11 +248,11 @@ export default function ClientProfile({ userId }: ClientProfileProps) {
                   {inv.amount?.toFixed(2)} лв
                 </span>
                 <a
-                  href={`/api/invoices?invoice_id=${inv.id}&download=1`}
+                  href={`/api/invoices/${inv.id}/pdf`}
                   className="text-xs font-semibold px-2 py-1.5 rounded-lg border flex-shrink-0 transition hover:bg-gray-50"
                   style={{ borderColor: "#e4e9f0", color: "#1b98e0", minHeight: "32px" }}
                 >
-                  📥 Свали
+                  📄 Свали
                 </a>
               </div>
             ))
