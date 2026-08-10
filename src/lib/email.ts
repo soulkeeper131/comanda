@@ -94,7 +94,18 @@ async function getOrgSettings(): Promise<Record<string, any>> {
   return {};
 }
 
+/** Read a settings map from the dedicated settings table */
+async function getSettingsTableMap(): Promise<Record<string, string>> {
+  try {
+    const rows = db.select({ key: settings.key, value: settings.value }).from(settings).all();
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.key] = r.value;
+    return map;
+  } catch { return {}; }
+}
+
 async function getSmtpConfig(): Promise<SmtpConfig | null> {
+  // 1) Environment variables first
   if (process.env.SMTP_HOST) {
     return {
       smtp_host: process.env.SMTP_HOST,
@@ -105,25 +116,46 @@ async function getSmtpConfig(): Promise<SmtpConfig | null> {
       notify_email: process.env.NOTIFY_EMAIL || process.env.SMTP_USER || "",
     };
   }
-  const settings = await getOrgSettings();
-  if (settings.smtp_host) {
+  // 2) Dedicated settings table
+  const tableMap = await getSettingsTableMap();
+  if (tableMap.smtp_host) {
     return {
-      smtp_host: settings.smtp_host,
-      smtp_port: settings.smtp_port || 587,
-      smtp_user: settings.smtp_user || "",
-      smtp_pass: settings.smtp_pass || "",
-      smtp_from: settings.smtp_from || settings.smtp_user || "",
-      notify_email: settings.notify_email || settings.smtp_user || "",
+      smtp_host: tableMap.smtp_host,
+      smtp_port: parseInt(tableMap.smtp_port || "587", 10),
+      smtp_user: tableMap.smtp_user || "",
+      smtp_pass: tableMap.smtp_pass || "",
+      smtp_from: tableMap.smtp_from || tableMap.smtp_user || "",
+      notify_email: tableMap.notify_email || tableMap.smtp_user || "",
+    };
+  }
+  // 3) Legacy: organizations.settings JSON
+  const orgSettings = await getOrgSettings();
+  if (orgSettings.smtp_host) {
+    return {
+      smtp_host: orgSettings.smtp_host,
+      smtp_port: orgSettings.smtp_port || 587,
+      smtp_user: orgSettings.smtp_user || "",
+      smtp_pass: orgSettings.smtp_pass || "",
+      smtp_from: orgSettings.smtp_from || orgSettings.smtp_user || "",
+      notify_email: orgSettings.notify_email || orgSettings.smtp_user || "",
     };
   }
   return null;
 }
 
-/** Get template from DB settings or default */
+/** Get template from DB settings (or settings table) or default */
 async function getTemplate(key: TemplateKey): Promise<EmailTemplate> {
-  const settings = await getOrgSettings();
-  const templates = settings.email_templates || {};
-  return templates[key] || DEFAULT_TEMPLATES[key];
+  // Check settings table first
+  const tableMap = await getSettingsTableMap();
+  let templates: Record<string, EmailTemplate> | undefined;
+  if (tableMap.email_templates) {
+    try { templates = JSON.parse(tableMap.email_templates); } catch {}
+  }
+  if (templates && templates[key]) return templates[key];
+  // Fallback to org settings
+  const orgSettings = await getOrgSettings();
+  const orgTemplates = orgSettings.email_templates || {};
+  return orgTemplates[key] || DEFAULT_TEMPLATES[key];
 }
 
 /** Render template with variables {{var}} */
@@ -161,8 +193,17 @@ export async function getNotifyEmail(): Promise<string | null> {
 
 /** Get all templates (for admin UI) */
 export async function getAllTemplates(): Promise<Record<string, EmailTemplate>> {
-  const settings = await getOrgSettings();
-  const saved = settings.email_templates || {};
+  // Check settings table first
+  const tableMap = await getSettingsTableMap();
+  let saved: Record<string, EmailTemplate> = {};
+  if (tableMap.email_templates) {
+    try { saved = JSON.parse(tableMap.email_templates); } catch {}
+  }
+  // Fallback to org settings
+  if (Object.keys(saved).length === 0) {
+    const orgSettings = await getOrgSettings();
+    saved = orgSettings.email_templates || {};
+  }
   const all: Record<string, EmailTemplate> = {};
   for (const key of Object.keys(DEFAULT_TEMPLATES) as TemplateKey[]) {
     all[key] = saved[key] || DEFAULT_TEMPLATES[key];
