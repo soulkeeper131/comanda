@@ -217,7 +217,41 @@ export default function OffersPanel({ findingId, decisionFilter, onPay }: Props)
         {/* Action buttons — accepted: pay */}
         {offer.decision === "accepted" && (
           <button
-            onClick={() => onPay?.(offer.id)}
+            onClick={async () => {
+              try {
+                const btn = document.activeElement as HTMLButtonElement;
+                if (btn) {
+                  btn.disabled = true;
+                  btn.textContent = "⏳ Обработка...";
+                }
+                const res = await fetch("/api/stripe/checkout", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    offerId: offer.id,
+                    amount: offer.price || 0,
+                    currency: "bgn",
+                  }),
+                });
+                const data = await res.json();
+                if (res.ok && data.url) {
+                  window.location.href = data.url;
+                } else {
+                  alert(data.error || "Грешка при инициализиране на плащане");
+                  if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = `💳 Плати сега (${offer.price ? offer.price.toFixed(0) : "0"} лв)`;
+                  }
+                }
+              } catch {
+                alert("Възникна грешка. Опитай отново.");
+                const btn = document.activeElement as HTMLButtonElement;
+                if (btn) {
+                  btn.disabled = false;
+                  btn.textContent = `💳 Плати сега (${offer.price ? offer.price.toFixed(0) : "0"} лв)`;
+                }
+              }
+            }}
             className="w-full min-h-[44px] py-2.5 rounded-lg text-xs font-semibold text-white"
             style={{
               background: "linear-gradient(140deg, #1b98e0, #006494)",

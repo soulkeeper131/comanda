@@ -14,6 +14,7 @@ import TemplateManager from "@/components/TemplateManager";
 import SmtpSettings from "@/components/SmtpSettings";
 import ClientProfile from "@/components/ClientProfile";
 import PlanSelector from "@/components/PlanSelector";
+import PaymentPanel from "@/components/PaymentPanel";
 import OnboardingPage from "./onboarding/page";
 
 type UserRole = "admin" | "client" | "inspector";

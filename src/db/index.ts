@@ -130,6 +130,8 @@ sqlite.exec(`
     amount REAL NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     method TEXT NOT NULL DEFAULT 'card',
+    stripe_session_id TEXT,
+    stripe_payment_intent_id TEXT,
     paid_at TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
@@ -158,5 +160,7 @@ migrate("users", "vat_number", "TEXT");
 migrate("properties", "city", "TEXT");
 migrate("invoices", "amount", "REAL");
 migrate("invoices", "description", "TEXT");
+migrate("payments", "stripe_session_id", "TEXT");
+migrate("payments", "stripe_payment_intent_id", "TEXT");
 
 export const db = drizzle(sqlite, { schema });

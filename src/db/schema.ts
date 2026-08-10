@@ -246,6 +246,8 @@ export const payments = sqliteTable("payments", {
   amount: real("amount").notNull(),
   status: text("status").notNull().default("pending"),
   method: text("method").notNull().default("card"),
+  stripe_session_id: text("stripe_session_id"),
+  stripe_payment_intent_id: text("stripe_payment_intent_id"),
   paid_at: text("paid_at"),
   created_at: text("created_at").default(sql`(datetime('now'))`),
 });

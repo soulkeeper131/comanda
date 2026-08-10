@@ -16,7 +16,7 @@ export default function ClientProfile({ userId }: ClientProfileProps) {
 
   useEffect(() => {
     fetch("/api/me")
-      .then((r) => r.ok ? r.json() : null)
+      .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         setProfile(data);
         setLoading(false);
@@ -27,23 +27,47 @@ export default function ClientProfile({ userId }: ClientProfileProps) {
   useEffect(() => {
     if (activeSection === "plans") {
       fetch("/api/me/plans")
-        .then((r) => r.ok ? r.json() : [])
+        .then((r) => (r.ok ? r.json() : []))
         .then((data) => setPlans(Array.isArray(data) ? data : []))
         .catch(() => setPlans([]));
     }
     if (activeSection === "payments") {
       fetch("/api/payments")
-        .then((r) => r.ok ? r.json() : [])
+        .then((r) => (r.ok ? r.json() : []))
         .then((data) => setPayments(Array.isArray(data) ? data : []))
         .catch(() => setPayments([]));
     }
     if (activeSection === "invoices") {
       fetch("/api/invoices")
-        .then((r) => r.ok ? r.json() : [])
+        .then((r) => (r.ok ? r.json() : []))
         .then((data) => setInvoices(Array.isArray(data) ? data : []))
         .catch(() => setInvoices([]));
     }
   }, [activeSection]);
+
+  const paymentMethodLabel = (method: string) => {
+    switch (method) {
+      case "card":
+        return "💳 Карта (Stripe)";
+      case "transfer":
+        return "🏦 Банков превод";
+      default:
+        return method || "—";
+    }
+  };
+
+  const paymentStatusConfig = (status: string) => {
+    switch (status) {
+      case "paid":
+        return { label: "✓ Платено", bg: "#dcfce7", color: "#16a34a", emoji: "✅" };
+      case "pending":
+        return { label: "⏳ В процес", bg: "#fef3c7", color: "#d97706", emoji: "⏳" };
+      case "failed":
+        return { label: "❌ Неуспешно", bg: "#fee2e2", color: "#dc2626", emoji: "❌" };
+      default:
+        return { label: status, bg: "#f1f5f9", color: "#94a3b8", emoji: "❓" };
+    }
+  };
 
   if (loading) {
     return (
@@ -176,46 +200,69 @@ export default function ClientProfile({ userId }: ClientProfileProps) {
               <div className="text-5xl mb-4">💰</div>
               <h3 className="text-lg font-bold mb-2" style={{ color: "#006494" }}>Няма плащания</h3>
               <p className="text-sm max-w-xs" style={{ color: "#247ba0" }}>
-                Тук ще виждаш историята на плащанията си.
+                Тук ще виждаш историята на плащанията си. Плащанията се обработват сигурно през Stripe.
               </p>
             </div>
           ) : (
-            payments.map((p: any) => (
-              <div
-                key={p.id}
-                className="flex items-center gap-3 p-4 rounded-xl border bg-white"
-                style={{ borderColor: "#e4e9f0" }}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold" style={{ color: "#006494" }}>{p.description || "Плащане"}</div>
-                  <div className="text-xs mt-0.5" style={{ color: "#247ba0" }}>
-                    {p.created_at ? new Date(p.created_at).toLocaleDateString("bg-BG") : ""}
-                    {p.payment_method && ` · ${p.payment_method === "card" ? "💳 Карта" : "🏦 Банков превод"}`}
+            payments.map((p: any) => {
+              const statusConfig = paymentStatusConfig(p.status || "pending");
+              return (
+                <div
+                  key={p.id}
+                  className="p-4 rounded-xl border bg-white space-y-2"
+                  style={{ borderColor: "#e4e9f0" }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold" style={{ color: "#006494" }}>
+                        {p.description || "Плащане"}
+                      </div>
+                      <div className="text-xs mt-0.5" style={{ color: "#247ba0" }}>
+                        {p.created_at
+                          ? new Date(p.created_at).toLocaleDateString("bg-BG", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : ""}
+                        {" · "}
+                        {paymentMethodLabel(p.method)}
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold flex-shrink-0" style={{ color: "#006494" }}>
+                      {p.amount?.toFixed(2)} лв
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xs font-bold px-2 py-1 rounded-md flex-shrink-0"
+                      style={{
+                        background: statusConfig.bg,
+                        color: statusConfig.color,
+                      }}
+                    >
+                      {statusConfig.emoji} {statusConfig.label}
+                    </span>
+                    {p.paid_at && (
+                      <span className="text-xs" style={{ color: "#94a3b8" }}>
+                        Платено на: {new Date(p.paid_at).toLocaleDateString("bg-BG")}
+                      </span>
+                    )}
+                    {p.status === "paid" && (
+                      <a
+                        href={`/api/invoices/${p.id}/pdf`}
+                        className="text-xs font-semibold px-2 py-1 rounded-lg border flex-shrink-0 transition hover:bg-gray-50 ml-auto"
+                        style={{ borderColor: "#e4e9f0", color: "#1b98e0", minHeight: "32px" }}
+                      >
+                        📄 Свали
+                      </a>
+                    )}
                   </div>
                 </div>
-                <span className="text-sm font-bold flex-shrink-0" style={{ color: p.status === "paid" ? "#16a34a" : "#d97706" }}>
-                  {p.amount?.toFixed(2)} лв
-                </span>
-                <span
-                  className="text-xs font-bold px-2 py-1 rounded-md flex-shrink-0"
-                  style={{
-                    background: p.status === "paid" ? "#dcfce7" : "#fef3c7",
-                    color: p.status === "paid" ? "#16a34a" : "#d97706",
-                  }}
-                >
-                  {p.status === "paid" ? "✓ Платено" : "⏳ Чака"}
-                </span>
-                {p.status === "paid" && (
-                  <a
-                    href={`/api/invoices/${p.invoice_id || p.id}/pdf`}
-                    className="text-xs font-semibold px-2 py-1.5 rounded-lg border flex-shrink-0 transition hover:bg-gray-50"
-                    style={{ borderColor: "#e4e9f0", color: "#1b98e0", minHeight: "32px" }}
-                  >
-                    📄 Свали
-                  </a>
-                )}
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
