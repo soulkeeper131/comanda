@@ -253,6 +253,15 @@ export const payments = sqliteTable("payments", {
 });
 
 // ============================================================
+// Настройки (key-value)
+// ============================================================
+export const settings = sqliteTable("settings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+});
+
+// ============================================================
 // Фактури
 // ============================================================
 export const invoices = sqliteTable("invoices", {

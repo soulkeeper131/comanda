@@ -1,33 +1,42 @@
 import { db } from "@/db";
-import { organizations } from "@/db/schema";
+import { settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getAllTemplates } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
+const SMTP_KEYS = ["smtp_host", "smtp_port", "smtp_user", "smtp_pass", "smtp_from", "notify_email"] as const;
+
+async function getSettingsMap(): Promise<Record<string, string>> {
+  const rows = db.select({ key: settings.key, value: settings.value }).from(settings).all();
+  const map: Record<string, string> = {};
+  for (const r of rows) map[r.key] = r.value;
+  return map;
+}
+
+function upsertSetting(key: string, value: string): void {
+  const existing = db.select({ id: settings.id }).from(settings).where(eq(settings.key, key)).get();
+  if (existing) {
+    db.update(settings).set({ value }).where(eq(settings.key, key)).run();
+  } else {
+    db.insert(settings).values({ key, value }).run();
+  }
+}
+
 // GET /api/admin/smtp — returns SMTP settings + email templates
 export async function GET() {
   try {
-    const [org] = db
-      .select({ settings: organizations.settings })
-      .from(organizations)
-      .where(eq(organizations.id, "org1"))
-      .all();
-
-    let smtp = null;
-    if (org?.settings) {
-      const parsed = JSON.parse(org.settings);
-      if (parsed.smtp_host) {
-        smtp = {
-          smtp_host: parsed.smtp_host,
-          smtp_port: parsed.smtp_port || 587,
-          smtp_user: parsed.smtp_user || "",
-          smtp_from: parsed.smtp_from || "",
-          notify_email: parsed.notify_email || "",
-        };
-      }
-    }
+    const map = await getSettingsMap();
+    const smtp = map.smtp_host
+      ? {
+          smtp_host: map.smtp_host,
+          smtp_port: map.smtp_port || "587",
+          smtp_user: map.smtp_user || "",
+          smtp_from: map.smtp_from || "",
+          notify_email: map.notify_email || "",
+        }
+      : null;
 
     const templates = await getAllTemplates();
 
@@ -44,39 +53,19 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, notify_email, email_templates } = body;
 
-    // Get existing settings
-    const [existing] = db
-      .select({ id: organizations.id, settings: organizations.settings })
-      .from(organizations)
-      .where(eq(organizations.id, "org1"))
-      .all();
-
-    let current: Record<string, unknown> = {};
-    if (existing?.settings) {
-      try { current = JSON.parse(existing.settings); } catch { current = {}; }
-    }
-
-    // Only update SMTP if host is provided
+    // Store SMTP settings in the settings table
     if (smtp_host) {
-      current.smtp_host = smtp_host;
-      current.smtp_port = smtp_port || 587;
-      current.smtp_user = smtp_user || "";
-      if (smtp_pass) current.smtp_pass = smtp_pass;
-      current.smtp_from = smtp_from || smtp_user || "";
-      current.notify_email = notify_email || smtp_user || "";
+      upsertSetting("smtp_host", smtp_host);
+      upsertSetting("smtp_port", String(smtp_port || 587));
+      upsertSetting("smtp_user", smtp_user || "");
+      if (smtp_pass) upsertSetting("smtp_pass", smtp_pass);
+      upsertSetting("smtp_from", smtp_from || smtp_user || "");
+      upsertSetting("notify_email", notify_email || smtp_user || "");
     }
 
-    // Update email templates if provided
+    // Store email_templates in settings table as JSON
     if (email_templates) {
-      current.email_templates = email_templates;
-    }
-
-    const json = JSON.stringify(current);
-
-    if (existing) {
-      db.update(organizations).set({ settings: json }).where(eq(organizations.id, "org1")).run();
-    } else {
-      db.insert(organizations).values({ id: "org1", name: "Default", settings: json }).run();
+      upsertSetting("email_templates", JSON.stringify(email_templates));
     }
 
     return NextResponse.json({ success: true });

@@ -1,6 +1,6 @@
 import * as nodemailer from "nodemailer";
 import { db } from "@/db";
-import { organizations } from "@/db/schema";
+import { organizations, settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export interface SmtpConfig {

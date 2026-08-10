@@ -21,6 +21,7 @@ const TEMPLATE_META: Record<string, { label: string; vars: string }> = {
 
 export default function SmtpSettings() {
   const [tab, setTab] = useState<"smtp" | "templates">("smtp");
+  const [configured, setConfigured] = useState(false);
   const [form, setForm] = useState<SmtpFormData>({
     smtp_host: "", smtp_port: "587", smtp_user: "", smtp_pass: "", smtp_from: "", notify_email: "",
   });
@@ -37,6 +38,7 @@ export default function SmtpSettings() {
     fetch("/api/admin/smtp")
       .then((r) => r.json())
       .then((data) => {
+        setConfigured(!!data.configured);
         if (data.smtp) {
           setForm({
             smtp_host: data.smtp.smtp_host || "",
@@ -66,7 +68,12 @@ export default function SmtpSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      showMsg(res.ok ? "✅ Запазено" : "❌ Грешка", res.ok);
+      if (res.ok) {
+        setConfigured(true);
+        showMsg("✅ Запазено", true);
+      } else {
+        showMsg("❌ Грешка", false);
+      }
     } catch { showMsg("❌ Грешка", false); }
     setSaving(false);
   };
@@ -74,7 +81,7 @@ export default function SmtpSettings() {
   const handleTest = async () => {
     setTesting(true);
     try {
-      const res = await fetch("/api/admin/smtp/test", { method: "POST" });
+      const res = await fetch("/api/email/test", { method: "POST" });
       showMsg(res.ok ? "✅ Тестовият мейл е изпратен" : "❌ Грешка при изпращане", res.ok);
     } catch { showMsg("❌ Грешка", false); }
     setTesting(false);
@@ -143,6 +150,13 @@ export default function SmtpSettings() {
       {/* SMTP Tab */}
       {tab === "smtp" && (
         <div className="bg-white rounded-2xl border p-5 space-y-4" style={{ borderColor: "#e4e9f0" }}>
+          {/* Status indicator */}
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
+            configured ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"
+          }`}>
+            <span className={`w-2.5 h-2.5 rounded-full ${configured ? "bg-green-500" : "bg-yellow-500"}`} />
+            {configured ? "✅ SMTP е конфигуриран" : "⚠️ SMTP не е конфигуриран"}
+          </div>
           {[
             ["SMTP Host", "smtp_host", "text", "smtp.gmail.com"],
             ["Port", "smtp_port", "text", "587"],

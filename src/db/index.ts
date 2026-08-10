@@ -135,7 +135,7 @@ sqlite.exec(`
     paid_at TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
-  CREATE TABLE IF NOT EXISTS invoices (
+  CREATE TABLE IF NOT EXISTS settings (\n    id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL UNIQUE, value TEXT NOT NULL\n  );\n  CREATE TABLE IF NOT EXISTS invoices (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
     payment_id TEXT REFERENCES payments(id),
     number TEXT NOT NULL,
