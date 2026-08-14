@@ -162,5 +162,17 @@ migrate("invoices", "amount", "REAL");
 migrate("invoices", "description", "TEXT");
 migrate("payments", "stripe_session_id", "TEXT");
 migrate("payments", "stripe_payment_intent_id", "TEXT");
+migrate("organizations", "slug", "TEXT");
+migrate("organizations", "accent", "TEXT DEFAULT '#1b98e0'");
+migrate("organizations", "updated_at", "TEXT");
+migrate("service_templates", "category", "TEXT NOT NULL DEFAULT 'custom'");
+migrate("service_templates", "icon", "TEXT DEFAULT '🧹'");
+migrate("service_templates", "duration_min", "INTEGER DEFAULT 60");
+migrate("service_templates", "price", "REAL DEFAULT 0");
+migrate("service_templates", "bookable", "INTEGER DEFAULT 1");
+migrate("service_templates", "archived", "INTEGER DEFAULT 0");
+migrate("template_items", "proof_type", "TEXT DEFAULT 'photo'");
+migrate("template_items", "sort", "INTEGER DEFAULT 0");
+migrate("properties", "updated_at", "TEXT");
 
 export const db = drizzle(sqlite, { schema });
