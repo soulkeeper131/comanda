@@ -15,7 +15,7 @@ export function canViewProperty(
   property: { owner_id: string },
 ): boolean {
   if (session.role === "admin" || session.role === "inspector") return true;
-  return property.owner_id === session.uid;
+  return session.role === "client" && property.owner_id === session.uid;
 }
 
 /**

@@ -28,6 +28,10 @@ describe("canViewProperty", () => {
   it("отказва на друг клиент", () => {
     expect(canViewProperty(other, property)).toBe(false);
   });
+  it("отказва на непозната роля дори при съвпадащ uid", () => {
+    const strange = { uid: "c1", role: "superuser", org_id: "org1" } as unknown as SessionData;
+    expect(canViewProperty(strange, property)).toBe(false);
+  });
 });
 
 describe("canDecideOffer", () => {
