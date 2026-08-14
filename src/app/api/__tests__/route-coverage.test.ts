@@ -18,6 +18,32 @@ function findRoutes(dir: string): string[] {
   return found;
 }
 
+/**
+ * Маха коментари и string литерали, за да не лъжат проверката.
+ * - Блокови коментари
+ * - Едноредови коментари
+ * - String литерали
+ */
+function stripCommentsAndStrings(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "") // блокови коментари
+    .replace(/\/\/.*$/gm, "") // едноредови коментари
+    .replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""'); // string литерали
+}
+
+/**
+ * Проверява дали route файлът е защитен с withAuth.
+ * Изисква:
+ * 1. Импорт на withAuth от auth модул
+ * 2. Реално извикване на withAuth() в кода (без коментари/strings)
+ */
+export function isGuarded(source: string): boolean {
+  const importsGuard = /import\s*\{[^}]*\bwithAuth\b[^}]*\}\s*from\s*["'][^"']*auth["']/.test(source);
+  const code = stripCommentsAndStrings(source);
+  const callsGuard = /\bwithAuth\s*\(/.test(code);
+  return importsGuard && callsGuard;
+}
+
 describe("покритие на API routes", () => {
   const routes = findRoutes(API_DIR);
 
@@ -29,7 +55,7 @@ describe("покритие на API routes", () => {
     "%s използва withAuth или е изрично публичен",
     (_label, file) => {
       const source = fs.readFileSync(file, "utf8");
-      const guarded = source.includes("withAuth");
+      const guarded = isGuarded(source);
       const publicMarked = source.includes("// @public");
 
       expect(
@@ -50,5 +76,29 @@ describe("покритие на API routes", () => {
       }
     }
     expect(badlyMarked, `Тези @public маркери нямат обяснение: ${badlyMarked.join(", ")}`).toEqual([]);
+  });
+});
+
+describe("детекцията на withAuth не се лъже", () => {
+  const withImport = `import { withAuth } from "@/lib/auth";\n`;
+
+  it("не приема коментар за защита", () => {
+    expect(isGuarded(`// withAuth ще добавя depois\nexport async function GET() {}`)).toBe(false);
+  });
+
+  it("не приема само импорт без извикване", () => {
+    expect(isGuarded(`${withImport}export async function GET() {}`)).toBe(false);
+  });
+
+  it("не приема withAuth в string литерал", () => {
+    expect(isGuarded(`${withImport}const s = "withAuth(";\nexport async function GET() {}`)).toBe(false);
+  });
+
+  it("приема реален guard", () => {
+    expect(isGuarded(`${withImport}export const GET = withAuth({}, async () => {});`)).toBe(true);
+  });
+
+  it("приема guard с роля", () => {
+    expect(isGuarded(`${withImport}export const POST = withAuth({ role: ["admin"] }, async () => {});`)).toBe(true);
   });
 });
