@@ -8,13 +8,26 @@ async function main() {
     process.exit(1);
   }
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await rl.question('Това изтрива ВСИЧКИ данни. Напиши "да", за да продължиш: ');
-  rl.close();
+  const hasYesFlag = process.argv.includes("--yes");
 
-  if (answer.trim().toLowerCase() !== "да") {
-    console.log("Отказано.");
-    process.exit(0);
+  if (!process.stdin.isTTY && !hasYesFlag) {
+    console.error(
+      "Скриптът е пуснат неинтерактивно (без терминал).\n" +
+      "Ако наистина искаш да изтриеш всички данни, добави --yes:\n" +
+      "  npx tsx scripts/reset-db.ts --yes",
+    );
+    process.exit(1);
+  }
+
+  if (!hasYesFlag) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await rl.question('Това изтрива ВСИЧКИ данни. Напиши "да", за да продължиш: ');
+    rl.close();
+
+    if (answer.trim().toLowerCase() !== "да") {
+      console.log("Отказано.");
+      process.exit(0);
+    }
   }
 
   db.run(sql`PRAGMA foreign_keys = OFF`);
