@@ -1,4 +1,5 @@
 import { validateUser, setSession } from "@/lib/auth";
+import { getDefaultOrgId } from "@/lib/org";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Грешен имейл или парола" }, { status: 401 });
   }
 
-  await setSession({ uid: user.id, role: user.role, org_id: user.org_id ?? "org1" });
+  await setSession({ uid: user.id, role: user.role, org_id: user.org_id ?? getDefaultOrgId() });
 
   return NextResponse.json({
     success: true,

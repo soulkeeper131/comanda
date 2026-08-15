@@ -35,7 +35,7 @@ export const GET = withAuth({ role: ["admin"] }, async () => {
   }
 });
 
-export const POST = withAuth({ role: ["admin"] }, async (request) => {
+export const POST = withAuth({ role: ["admin"] }, async (request, { session }) => {
   try {
     const body = await request.json();
     const { category, name, description, icon, duration_min, price } = body;
@@ -50,7 +50,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request) => {
     db
       .insert(serviceTemplates)
       .values({
-        org_id: "org1",
+        org_id: session.org_id,
         category,
         name,
         description: description || null,

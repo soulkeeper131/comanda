@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 // ============================================================
@@ -110,67 +110,101 @@ export const plans = sqliteTable("plans", {
 // ============================================================
 // Задачи / посещения
 // ============================================================
-export const jobs = sqliteTable("jobs", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  org_id: text("org_id").references(() => organizations.id).notNull(),
-  property_id: text("property_id").references(() => properties.id).notNull(),
-  plan_id: text("plan_id").references(() => plans.id),
-  template_id: text("template_id").references(() => serviceTemplates.id),
-  assignee_id: text("assignee_id").references(() => users.id),
-  title: text("title"),
-  duration_min: integer("duration_min"),
-  planned_at: text("planned_at").notNull(),
-  status: text("status").default("planned"),
-  check_in: text("check_in"),
-  check_out: text("check_out"),
-  note: text("note"),
-  created_at: text("created_at").default(sql`(datetime('now'))`),
-});
+export const jobs = sqliteTable(
+  "jobs",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    org_id: text("org_id").references(() => organizations.id).notNull(),
+    property_id: text("property_id").references(() => properties.id).notNull(),
+    plan_id: text("plan_id").references(() => plans.id),
+    template_id: text("template_id").references(() => serviceTemplates.id),
+    assignee_id: text("assignee_id").references(() => users.id),
+    title: text("title"),
+    duration_min: integer("duration_min"),
+    planned_at: text("planned_at").notNull(),
+    status: text("status")
+      .$type<"planned" | "in_progress" | "completed" | "cancelled">()
+      .default("planned"),
+    check_in: text("check_in"),
+    check_out: text("check_out"),
+    // Координати при чекин — техническата основа на геофенсинга (Task 14).
+    check_in_lat: real("check_in_lat"),
+    check_in_lng: real("check_in_lng"),
+    note: text("note"),
+    created_at: text("created_at").default(sql`(datetime('now'))`),
+  },
+  (t) => ({
+    propertyIdx: index("jobs_property_idx").on(t.property_id),
+    assigneeIdx: index("jobs_assignee_idx").on(t.assignee_id),
+    statusIdx: index("jobs_status_idx").on(t.status),
+  }),
+);
 
 // ============================================================
 // Стъпки в задача (копирани от шаблон)
 // ============================================================
-export const jobItems = sqliteTable("job_items", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  job_id: text("job_id").references(() => jobs.id).notNull(),
-  zone_label: text("zone_label"),
-  label: text("label").notNull(),
-  proof_type: text("proof_type").default("photo"),
-  required: integer("required", { mode: "boolean" }).default(true),
-  sort: integer("sort").default(0),
-  done: integer("done", { mode: "boolean" }).default(false),
-  count_value: integer("count_value"),
-  note: text("note"),
-});
+export const jobItems = sqliteTable(
+  "job_items",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    job_id: text("job_id").references(() => jobs.id).notNull(),
+    zone_label: text("zone_label"),
+    label: text("label").notNull(),
+    proof_type: text("proof_type").default("photo"),
+    required: integer("required", { mode: "boolean" }).default(true),
+    sort: integer("sort").default(0),
+    done: integer("done", { mode: "boolean" }).default(false),
+    count_value: integer("count_value"),
+    note: text("note"),
+    // Снимката, която доказва изпълнението на стъпката (задължително доказателство — Task 15).
+    // Кръгова връзка с evidence — изричен тип чупи circular inference-а на TS.
+    evidence_id: text("evidence_id").references((): AnySQLiteColumn => evidence.id),
+  },
+  (t) => ({
+    jobIdx: index("job_items_job_idx").on(t.job_id),
+  }),
+);
 
 // ============================================================
 // Снимкови доказателства
 // ============================================================
-export const evidence = sqliteTable("evidence", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  job_id: text("job_id").references(() => jobs.id).notNull(),
-  job_item_id: text("job_item_id").references(() => jobItems.id),
-  storage_path: text("storage_path").notNull(),
-  taken_at: text("taken_at").default(sql`(datetime('now'))`),
-  lat: real("lat"),
-  lng: real("lng"),
-});
+export const evidence = sqliteTable(
+  "evidence",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    job_id: text("job_id").references(() => jobs.id).notNull(),
+    job_item_id: text("job_item_id").references(() => jobItems.id),
+    storage_path: text("storage_path").notNull(),
+    taken_at: text("taken_at").default(sql`(datetime('now'))`),
+    lat: real("lat"),
+    lng: real("lng"),
+  },
+  (t) => ({
+    jobIdx: index("evidence_job_idx").on(t.job_id),
+  }),
+);
 
 // ============================================================
 // Констатации / проблеми
 // ============================================================
-export const findings = sqliteTable("findings", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  org_id: text("org_id").references(() => organizations.id).notNull(),
-  property_id: text("property_id").references(() => properties.id).notNull(),
-  job_id: text("job_id").references(() => jobs.id),
-  job_item_id: text("job_item_id").references(() => jobItems.id),
-  reported_by: text("reported_by").references(() => users.id),
-  title: text("title").notNull(),
-  body: text("body"),
-  status: text("status").default("open"),
-  created_at: text("created_at").default(sql`(datetime('now'))`),
-});
+export const findings = sqliteTable(
+  "findings",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    org_id: text("org_id").references(() => organizations.id).notNull(),
+    property_id: text("property_id").references(() => properties.id).notNull(),
+    job_id: text("job_id").references(() => jobs.id),
+    job_item_id: text("job_item_id").references(() => jobItems.id),
+    reported_by: text("reported_by").references(() => users.id),
+    title: text("title").notNull(),
+    body: text("body"),
+    status: text("status").default("open"),
+    created_at: text("created_at").default(sql`(datetime('now'))`),
+  },
+  (t) => ({
+    propertyIdx: index("findings_property_idx").on(t.property_id),
+  }),
+);
 
 // ============================================================
 // Снимки към констатации
@@ -185,15 +219,23 @@ export const findingPhotos = sqliteTable("finding_photos", {
 // ============================================================
 // Оферти
 // ============================================================
-export const offers = sqliteTable("offers", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  finding_id: text("finding_id").references(() => findings.id).notNull(),
-  price: real("price"),
-  days: integer("days"),
-  scope: text("scope"),
-  sent_at: text("sent_at").default(sql`(datetime('now'))`),
-  decision: text("decision").default("pending"), // "pending"|"accepted"|"declined"|"paid"|"in_progress"|"done"
-});
+export const offers = sqliteTable(
+  "offers",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    finding_id: text("finding_id").references(() => findings.id).notNull(),
+    price: real("price"),
+    days: integer("days"),
+    scope: text("scope"),
+    sent_at: text("sent_at").default(sql`(datetime('now'))`),
+    decision: text("decision")
+      .$type<"pending" | "accepted" | "declined" | "paid" | "in_progress" | "done">()
+      .default("pending"),
+  },
+  (t) => ({
+    findingIdx: index("offers_finding_idx").on(t.finding_id),
+  }),
+);
 
 // ============================================================
 // Запитвания от клиенти
@@ -214,16 +256,22 @@ export const inquiries = sqliteTable("inquiries", {
 // ============================================================
 // Нотификации (in-app notification center)
 // ============================================================
-export const notifications = sqliteTable("notifications", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  user_id: text("user_id").references(() => users.id).notNull(),
-  type: text("type").notNull(), // job_started/job_done/finding_new/offer_new/offer_decided
-  title: text("title").notNull(),
-  body: text("body"),
-  read: integer("read", { mode: "boolean" }).default(false),
-  link: text("link"),
-  created_at: text("created_at").default(sql`(datetime('now'))`),
-});
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    user_id: text("user_id").references(() => users.id).notNull(),
+    type: text("type").notNull(), // job_started/job_done/finding_new/offer_new/offer_decided
+    title: text("title").notNull(),
+    body: text("body"),
+    read: integer("read", { mode: "boolean" }).default(false),
+    link: text("link"),
+    created_at: text("created_at").default(sql`(datetime('now'))`),
+  },
+  (t) => ({
+    userIdx: index("notifications_user_idx").on(t.user_id),
+  }),
+);
 
 // ============================================================
 // Push абонаменти (Web Push / VAPID)
@@ -272,5 +320,18 @@ export const invoices = sqliteTable("invoices", {
   amount: real("amount"),
   description: text("description"),
   pdf_path: text("pdf_path"),
+  created_at: text("created_at").default(sql`(datetime('now'))`),
+});
+
+// ============================================================
+// Админски прескачания (override на геофенсинг / задължително доказателство)
+// Записва кой, кога и защо е прескочил проверка — не е безшумно.
+// ============================================================
+export const overrides = sqliteTable("overrides", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  admin_id: text("admin_id").references(() => users.id).notNull(),
+  entity_type: text("entity_type").$type<"job_item" | "job_checkin">().notNull(),
+  entity_id: text("entity_id").notNull(),
+  reason: text("reason").notNull(),
   created_at: text("created_at").default(sql`(datetime('now'))`),
 });

@@ -2,6 +2,7 @@ import * as nodemailer from "nodemailer";
 import { db } from "@/db";
 import { organizations, settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getDefaultOrgId } from "@/lib/org";
 
 export interface SmtpConfig {
   smtp_host: string;
@@ -88,7 +89,8 @@ const DEFAULT_TEMPLATES: Record<TemplateKey, EmailTemplate> = {
 
 async function getOrgSettings(): Promise<Record<string, any>> {
   try {
-    const [org] = db.select({ settings: organizations.settings }).from(organizations).where(eq(organizations.id, "org1")).all();
+    const orgId = getDefaultOrgId();
+    const [org] = db.select({ settings: organizations.settings }).from(organizations).where(eq(organizations.id, orgId)).all();
     if (org?.settings) return JSON.parse(org.settings);
   } catch {}
   return {};

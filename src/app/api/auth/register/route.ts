@@ -2,6 +2,7 @@ import { createUser, setSession } from "@/lib/auth";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getDefaultOrgId } from "@/lib/org";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -50,13 +51,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const user = await createUser(email, password, name, "client", undefined, {
+    const orgId = getDefaultOrgId();
+    const user = await createUser(email, password, name, "client", orgId, {
       phone: phone || undefined,
       company_name: is_company ? company_name : undefined,
       eik: is_company ? eik : undefined,
       vat_number: is_company ? (vat_number || undefined) : undefined,
     });
-    await setSession({ uid: user.id, role: user.role, org_id: user.org_id ?? "org1" });
+    await setSession({ uid: user.id, role: user.role, org_id: user.org_id ?? orgId });
     return NextResponse.json({
       success: true,
       user: { id: user.id, name: user.name, email: user.email, role: user.role },

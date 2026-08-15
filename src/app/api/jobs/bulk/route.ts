@@ -6,7 +6,7 @@ import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export const POST = withAuth({ role: ["admin"] }, async (request) => {
+export const POST = withAuth({ role: ["admin"] }, async (request, { session }) => {
   try {
     const body = await request.json();
     const {
@@ -73,7 +73,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request) => {
 
       db.insert(jobs)
         .values({
-          org_id: "org1",
+          org_id: session.org_id,
           property_id,
           assignee_id: assignee_id || null,
           template_id: template_id || null,

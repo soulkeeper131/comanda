@@ -122,7 +122,7 @@ export const GET = withAuth({}, async (request, { session }) => {
   }
 });
 
-export const POST = withAuth({ role: ["admin", "inspector"] }, async (request) => {
+export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, { session }) => {
   try {
     const body = await request.json();
     const { property_id, job_id, job_item_id, title, body: desc, photo_ids, reported_by } = body;
@@ -139,7 +139,7 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request) =
     db.insert(findings)
       .values({
         id: findingId,
-        org_id: "org1",
+        org_id: session.org_id,
         property_id,
         job_id: job_id || null,
         job_item_id: job_item_id || null,

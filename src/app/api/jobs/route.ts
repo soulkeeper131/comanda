@@ -60,7 +60,9 @@ export const GET = withAuth({}, async (request, { session }) => {
       query = query.where(eq(jobs.assignee_id, assigneeIdFilter));
     }
     if (statusFilter) {
-      query = query.where(eq(jobs.status, statusFilter));
+      query = query.where(
+        eq(jobs.status, statusFilter as "planned" | "in_progress" | "completed" | "cancelled"),
+      );
     }
 
     let rows = query.orderBy(desc(jobs.created_at)).all();
@@ -135,7 +137,7 @@ export const GET = withAuth({}, async (request, { session }) => {
   }
 });
 
-export const POST = withAuth({ role: ["admin"] }, async (request) => {
+export const POST = withAuth({ role: ["admin"] }, async (request, { session }) => {
   try {
     const body = await request.json();
     const { property_id, assignee_id, template_id, planned_at, title: bodyTitle } = body;
@@ -179,7 +181,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request) => {
     db
       .insert(jobs)
       .values({
-        org_id: "org1",
+        org_id: session.org_id,
         property_id,
         assignee_id: assignee_id || null,
         template_id: template_id || null,

@@ -144,7 +144,7 @@ export const POST = withAuth({}, async (request, { session }) => {
         lng,
         kind: kind || "apartment",
         owner_id: session.uid,
-        org_id: "org1",
+        org_id: session.org_id,
       })
       .returning();
 
