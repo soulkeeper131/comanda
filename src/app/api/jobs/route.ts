@@ -3,6 +3,7 @@ import { jobs, properties, users, serviceTemplates, jobItems, evidence } from "@
 import { eq, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { createNotification, notifyOwner } from "@/lib/notifications";
+import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ async function pushNotify(title: string, propertyId: string) {
 }
 
 // GET /api/jobs?assignee_id=X&status=Y
-export async function GET(request: Request) {
+export const GET = withAuth({}, async (request, { session }) => {
   try {
     const { searchParams } = new URL(request.url);
     const assigneeIdFilter = searchParams.get("assignee_id");
@@ -62,7 +63,20 @@ export async function GET(request: Request) {
       query = query.where(eq(jobs.status, statusFilter));
     }
 
-    const rows = query.orderBy(desc(jobs.created_at)).all();
+    let rows = query.orderBy(desc(jobs.created_at)).all();
+
+    // Клиентът вижда само задачите за своите имоти
+    if (session.role === "client") {
+      rows = rows.filter((row) => {
+        if (!row.property_id) return false;
+        const property = db
+          .select()
+          .from(properties)
+          .where(eq(properties.id, row.property_id))
+          .get();
+        return property ? canViewProperty(session, property) : false;
+      });
+    }
 
     // Compute itemsChecked / itemsTotal per job
     // Fetch all items for jobs in this result set
@@ -119,9 +133,9 @@ export async function GET(request: Request) {
     console.error("GET /api/jobs error:", error);
     return NextResponse.json({ error: "Грешка при зареждане на задачи" }, { status: 500 });
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin"] }, async (request) => {
   try {
     const body = await request.json();
     const { property_id, assignee_id, template_id, planned_at, title: bodyTitle } = body;
@@ -201,4 +215,4 @@ export async function POST(request: Request) {
     console.error("POST /api/jobs error:", error);
     return NextResponse.json({ error: "Грешка при създаване на задача" }, { status: 500 });
   }
-}
+});

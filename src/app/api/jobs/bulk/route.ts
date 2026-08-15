@@ -2,10 +2,11 @@ import { db } from "@/db";
 import { jobs, properties, serviceTemplates } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin"] }, async (request) => {
   try {
     const body = await request.json();
     const {
@@ -109,4 +110,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

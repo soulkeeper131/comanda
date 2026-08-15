@@ -2,13 +2,11 @@ import { db } from "@/db";
 import { jobItems } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export const PATCH = withAuth({ role: ["admin", "inspector"] }, async (request, { params }) => {
   try {
     const { id } = params;
     const body = await request.json();
@@ -39,4 +37,4 @@ export async function PATCH(
     console.error("PATCH /api/job-items/[id] error:", error);
     return NextResponse.json({ error: "Грешка при обновяване на стъпка" }, { status: 500 });
   }
-}
+});

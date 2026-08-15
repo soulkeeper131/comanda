@@ -3,13 +3,11 @@ import { jobs, templateItems, jobItems, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { notifyOwner } from "@/lib/notifications";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(
-  _request: Request,
-  { params }: { params: { id: string } }
-) {
+export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, { params }) => {
   try {
     const { id } = params;
 
@@ -100,4 +98,4 @@ export async function POST(
     console.error("POST /api/jobs/[id]/start error:", error);
     return NextResponse.json({ error: "Грешка при стартиране на задача" }, { status: 500 });
   }
-}
+});

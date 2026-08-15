@@ -2,10 +2,11 @@ import { db } from "@/db";
 import { evidence, jobItems } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
+export const GET = withAuth({}, async (request) => {
   try {
     const { searchParams } = new URL(request.url);
     const jobId = searchParams.get("job_id");
@@ -49,9 +50,9 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin", "inspector"] }, async (request) => {
   try {
     const body = await request.json();
     const { job_id, job_item_id, storage_path, lat, lng } = body;
@@ -79,4 +80,4 @@ export async function POST(request: Request) {
     console.error("POST /api/evidence error:", error);
     return NextResponse.json({ error: "Грешка при записване на доказателство" }, { status: 500 });
   }
-}
+});

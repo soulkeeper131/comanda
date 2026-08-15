@@ -2,13 +2,11 @@ import { db } from "@/db";
 import { jobs, jobItems, properties, users, evidence } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } }
-) {
+export const GET = withAuth({}, async (_request, { session, params }) => {
   try {
     const { id } = params;
 
@@ -39,6 +37,12 @@ export async function GET(
       .get();
 
     if (!job) {
+      return NextResponse.json({ error: "Задачата не е намерена" }, { status: 404 });
+    }
+
+    const property = db.select().from(properties).where(eq(properties.id, job.property_id)).get();
+    if (!property || !canViewProperty(session, property)) {
+      // 404, не 403 — не издаваме, че задачата съществува
       return NextResponse.json({ error: "Задачата не е намерена" }, { status: 404 });
     }
 
@@ -124,4 +128,4 @@ export async function GET(
     console.error("GET /api/jobs/[id] error:", error);
     return NextResponse.json({ error: "Грешка при зареждане на задача" }, { status: 500 });
   }
-}
+});
