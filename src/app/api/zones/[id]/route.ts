@@ -1,14 +1,12 @@
 import { db } from "@/db";
-import { zones } from "@/db/schema";
+import { zones, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { withAuth, canViewProperty } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export const PATCH = withAuth({}, async (request, { session, params }) => {
   try {
     const { id } = params;
     const body = await request.json();
@@ -16,6 +14,15 @@ export async function PATCH(
 
     const existing = db.select().from(zones).where(eq(zones.id, id)).get();
     if (!existing) {
+      return NextResponse.json(
+        { error: "Зоната не е намерена" },
+        { status: 404 }
+      );
+    }
+
+    // Зоната принадлежи на имот — правата се проверяват през родителя.
+    const property = db.select().from(properties).where(eq(properties.id, existing.property_id)).get();
+    if (!property || !canViewProperty(session, property)) {
       return NextResponse.json(
         { error: "Зоната не е намерена" },
         { status: 404 }
@@ -44,17 +51,23 @@ export async function PATCH(
       { status: 500 }
     );
   }
-}
+});
 
-export async function DELETE(
-  _request: Request,
-  { params }: { params: { id: string } }
-) {
+export const DELETE = withAuth({}, async (_request, { session, params }) => {
   try {
     const { id } = params;
 
     const existing = db.select().from(zones).where(eq(zones.id, id)).get();
     if (!existing) {
+      return NextResponse.json(
+        { error: "Зоната не е намерена" },
+        { status: 404 }
+      );
+    }
+
+    // Зоната принадлежи на имот — правата се проверяват през родителя.
+    const property = db.select().from(properties).where(eq(properties.id, existing.property_id)).get();
+    if (!property || !canViewProperty(session, property)) {
       return NextResponse.json(
         { error: "Зоната не е намерена" },
         { status: 404 }
@@ -71,4 +84,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

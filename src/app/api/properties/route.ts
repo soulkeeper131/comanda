@@ -1,24 +1,19 @@
 import { db } from "@/db";
 import { properties, jobs, findings, organizations, users } from "@/db/schema";
 import { eq, and, lt } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
+import { withAuth, canViewProperty } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export const GET = withAuth({}, async (_request, { session }) => {
   try {
-    const session = await getSession();
-    
-    // Clients see only their own properties; admins/inspectors see all
-    let result;
-    if (session && session.role === "client") {
-      result = db.select().from(properties)
-        .where(and(eq(properties.archived, false), eq(properties.owner_id, session.uid)))
-        .all();
-    } else {
-      result = db.select().from(properties).where(eq(properties.archived, false)).all();
-    }
+    // Изтегляме всички неархивирани имоти, после филтрираме през canViewProperty
+    // (admin/inspector виждат всичко, client — само своите).
+    const all = db.select().from(properties)
+      .where(eq(properties.archived, false))
+      .all();
+    const result = all.filter((p) => canViewProperty(session, p));
 
     // Compute real status for each property
     const now = new Date().toISOString();
@@ -82,15 +77,10 @@ export async function GET() {
     console.error("GET /api/properties error:", error);
     return NextResponse.json({ error: "Грешка при зареждане" }, { status: 500 });
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth({}, async (request, { session }) => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Не сте влезли в профила си" }, { status: 401 });
-    }
-
     const body = await request.json();
     let { name, city, address, lat, lng, kind } = body;
 
@@ -163,4 +153,4 @@ export async function POST(request: Request) {
     console.error("POST /api/properties error:", error);
     return NextResponse.json({ error: "Грешка при създаване" }, { status: 500 });
   }
-}
+});
