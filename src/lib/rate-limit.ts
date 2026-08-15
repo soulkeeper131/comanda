@@ -3,7 +3,7 @@
  *
  * Configuration:
  *   - API routes: 60 requests per minute
- *   - Login:      10 requests per minute
+ *   - Login:       5 requests per minute
  *
  * Uses IP + endpoint as key. Cleanup runs on every request (O(n) sweep of expired entries).
  */
@@ -20,7 +20,7 @@ const windows = new Map<string, WindowEntry>();
 /** Max requests per minute per endpoint type */
 function getLimit(pathname: string): number {
   if (pathname === "/api/auth/login" || pathname.startsWith("/login")) {
-    return 10;
+    return 5;
   }
   return 60;
 }
@@ -96,4 +96,9 @@ export function rateLimitedResponse(resetMs: number): Response {
       },
     },
   );
+}
+
+/** Само за тестове — изчиства броячите между случаите. */
+export function __resetForTests(): void {
+  windows.clear();
 }
