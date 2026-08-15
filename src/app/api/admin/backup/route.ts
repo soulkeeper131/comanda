@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
 
@@ -12,16 +12,7 @@ export const dynamic = "force-dynamic";
  * Only admin users can call this endpoint.
  * Returns { success, path, filename } with the backup file info.
  */
-export async function GET() {
-  // ── Auth: admin only ────────────────────────────────────────────────
-  const session = await getSession();
-  if (!session || session.role !== "admin") {
-    return NextResponse.json(
-      { error: "Нямате права за тази операция" },
-      { status: 403 },
-    );
-  }
-
+export const GET = withAuth({ role: ["admin"] }, async () => {
   const dbDir = path.join(process.cwd(), "data");
   const src = path.join(dbDir, "sqlite.db");
 
@@ -66,4 +57,4 @@ export async function GET() {
     originalSizeBytes: srcStat.size,
     createdAt: new Date().toISOString(),
   });
-}
+});

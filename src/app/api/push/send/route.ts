@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ensureWebpushConfigured } from "@/lib/push";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ interface SendPushBody {
   url?: string;
 }
 
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin"] }, async (request) => {
   try {
     const body = (await request.json()) as SendPushBody;
 
@@ -82,4 +83,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

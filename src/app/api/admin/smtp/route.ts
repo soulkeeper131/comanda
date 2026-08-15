@@ -3,6 +3,7 @@ import { settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getAllTemplates } from "@/lib/email";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ function upsertSetting(key: string, value: string): void {
 }
 
 // GET /api/admin/smtp — returns SMTP settings + email templates
-export async function GET() {
+export const GET = withAuth({ role: ["admin"] }, async () => {
   try {
     const map = await getSettingsMap();
     const smtp = map.smtp_host
@@ -45,10 +46,10 @@ export async function GET() {
     console.error("GET /api/admin/smtp error:", error);
     return NextResponse.json({ error: "Грешка" }, { status: 500 });
   }
-}
+});
 
 // POST /api/admin/smtp — saves SMTP settings + optional email_templates
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin"] }, async (request) => {
   try {
     const body = await request.json();
     const { smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, notify_email, email_templates } = body;
@@ -73,4 +74,4 @@ export async function POST(request: Request) {
     console.error("POST /api/admin/smtp error:", error);
     return NextResponse.json({ error: "Грешка" }, { status: 500 });
   }
-}
+});

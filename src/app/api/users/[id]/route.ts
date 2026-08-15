@@ -1,21 +1,13 @@
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } }
-) {
+export const GET = withAuth({ role: ["admin"] }, async (_request, { params }) => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-    }
-
     const { id } = params;
     const user = db.select().from(users).where(eq(users.id, id)).get();
 
@@ -34,4 +26,4 @@ export async function GET(
     console.error("[USERS GET/:id] Error:", err);
     return NextResponse.json({ error: "Грешка при зареждане на потребител" }, { status: 500 });
   }
-}
+});
