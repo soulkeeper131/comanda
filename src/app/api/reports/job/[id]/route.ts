@@ -1,15 +1,13 @@
 import { db } from "@/db";
 import { jobs, properties, users, jobItems, evidence, findings, findingPhotos } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { generateJobReport } from "@/lib/pdf";
+import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export const GET = withAuth({}, async (_request, { session, params }) => {
   try {
     const jobId = params.id;
 
@@ -29,6 +27,7 @@ export async function GET(
         assignee_id: jobs.assignee_id,
         property_name: properties.name,
         property_addr: properties.address,
+        property_owner_id: properties.owner_id,
         assignee_name: users.full_name,
       })
       .from(jobs)
@@ -38,6 +37,13 @@ export async function GET(
       .get();
 
     if (!job) {
+      return NextResponse.json({ error: "Обходът не е намерен" }, { status: 404 });
+    }
+
+    if (
+      !job.property_owner_id ||
+      !canViewProperty(session, { owner_id: job.property_owner_id })
+    ) {
       return NextResponse.json({ error: "Обходът не е намерен" }, { status: 404 });
     }
 
@@ -84,4 +90,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

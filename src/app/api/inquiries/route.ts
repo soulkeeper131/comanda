@@ -5,6 +5,7 @@ import { sendEmail, getNotifyEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
+// @public Формата от публичния landing сайт — идва преди всякаква сесия.
 export async function POST(request: Request) {
   try {
     const body = await request.json();

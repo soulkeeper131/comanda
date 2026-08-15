@@ -1,14 +1,9 @@
-import { getSession, getUser } from "@/lib/auth";
+import { withAuth, getUser } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-  }
-
+export const GET = withAuth({}, async (_request, { session }) => {
   const user = getUser(session.uid);
   if (!user) {
     return NextResponse.json({ error: "Потребителят не е намерен" }, { status: 404 });
@@ -24,4 +19,4 @@ export async function GET() {
     eik: user.eik,
     vat_number: user.vat_number,
   });
-}
+});

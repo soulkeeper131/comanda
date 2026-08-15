@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+// @public Вход в системата — по дефиниция става преди да има сесия.
 export async function POST(request: Request) {
   let email = "", password = "";
   try {

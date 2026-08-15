@@ -1,11 +1,16 @@
 import { db } from "@/db";
 import { jobs, findings, offers, properties } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { withAuth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+// Забележка: числата тук са глобални (за всички имоти), не само за текущия
+// потребител. Скопирането им към "моите имоти" за client изисква join-и през
+// jobs/findings/offers → properties.owner_id, което е извън обхвата на Task 8
+// (само авторизация). Оставено нарочно — виж task-8-report.md.
+export const GET = withAuth({}, async () => {
   try {
     const activeJobs = db
       .select({ count: sql<number>`count(*)` })
@@ -55,4 +60,4 @@ export async function GET() {
     console.error("GET /api/stats error:", error);
     return NextResponse.json({ error: "Грешка при зареждане на статистика" }, { status: 500 });
   }
-}
+});

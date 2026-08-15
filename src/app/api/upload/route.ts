@@ -3,6 +3,7 @@ import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import crypto from "crypto";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ function getExtension(filename: string): string {
   return map[ext] || ext || ".jpg";
 }
 
-export async function POST(request: Request) {
+export const POST = withAuth({}, async (request) => {
   try {
     const formData = await request.formData();
     const file = formData.get("file");
@@ -79,4 +80,4 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
-}
+});

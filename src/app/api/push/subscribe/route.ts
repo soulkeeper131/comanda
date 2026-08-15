@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ interface PushSubscriptionJSON {
   };
 }
 
-export async function POST(request: Request) {
+export const POST = withAuth({}, async (request, { session }) => {
   try {
     const body = await request.json();
     const { subscription } = body as { subscription: PushSubscriptionJSON };
@@ -42,12 +42,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, existed: true });
     }
 
-    // Extract user_id from auth session if available
-    // For now we store without user_id until auth middleware is wired
     const userAgent = request.headers.get("user-agent") || undefined;
 
     db.insert(pushSubscriptions)
       .values({
+        user_id: session.uid,
         subscription: JSON.stringify(subscription),
         user_agent: userAgent,
       })
@@ -61,4 +60,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

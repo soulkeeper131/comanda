@@ -27,6 +27,7 @@ function getStripe(): Stripe {
  * Важно: тялото се чете като raw text (не JSON), за да може Stripe
  * да верифицира сигнатурата.
  */
+// @public Stripe вика този endpoint отвън; защитен е с подпис в тялото (constructEvent), не със сесия.
 export async function POST(request: Request) {
   const webhookSecret = getWebhookSecret();
 

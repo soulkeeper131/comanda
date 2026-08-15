@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/auth";
 import { db } from "@/db";
 import { payments, offers, invoices, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -16,24 +16,8 @@ export const dynamic = "force-dynamic";
  * Същият flow като Stripe webhook — маркира payment като paid,
  * ъпдейтва offer, създава invoice.
  */
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin"] }, async (request) => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json(
-        { error: "Не сте влезли" },
-        { status: 401 }
-      );
-    }
-
-    // Само admin може да потвърждава ръчно
-    if (session.role !== "admin") {
-      return NextResponse.json(
-        { error: "Нямате права за тази операция" },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json().catch(() => ({}));
     const { paymentId } = body;
 
@@ -181,4 +165,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

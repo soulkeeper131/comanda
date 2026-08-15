@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/auth";
 import { db } from "@/db";
 import { payments } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -24,16 +24,8 @@ function getStripe(): Stripe | null {
  * Създава Stripe Checkout Session и връща URL + sessionId + paymentId.
  * Записва payment запис в DB със status="pending" и stripe_session_id.
  */
-export async function POST(request: Request) {
+export const POST = withAuth({}, async (request, { session }) => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json(
-        { error: "Не сте влезли" },
-        { status: 401 }
-      );
-    }
-
     const body = await request.json().catch(() => ({}));
     let { plan, propertyId, offerId, amount, currency } = body;
 
@@ -155,4 +147,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

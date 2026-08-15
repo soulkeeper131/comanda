@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+// @public Регистрация на нов потребител — по дефиниция става преди да има сесия.
 export async function POST(request: Request) {
   let email = "", password = "", name = "", phone = "";
   let is_company = false, company_name = "", eik = "", vat_number = "";

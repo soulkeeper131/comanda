@@ -1,18 +1,13 @@
 import { db } from "@/db";
 import { plans, properties } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export const GET = withAuth({}, async (_request, { session }) => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-    }
-
     // Get all properties owned by this user
     const userProperties = db.select({ id: properties.id, name: properties.name })
       .from(properties)
@@ -35,4 +30,4 @@ export async function GET() {
     console.error("GET /api/me/plans error:", error);
     return NextResponse.json({ error: "Грешка" }, { status: 500 });
   }
-}
+});
