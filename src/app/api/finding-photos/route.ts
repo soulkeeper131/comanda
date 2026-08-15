@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { findingPhotos, findings } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { findingPhotos, findings, properties } from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
 import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import crypto from "crypto";
-import { withAuth } from "@/lib/auth";
+import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -120,13 +120,43 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request) =
   }
 });
 
-// GET — list photos for a finding (or all)
-export const GET = withAuth({}, async (request) => {
+// GET — list photos for a finding (or all, scoped by права)
+export const GET = withAuth({}, async (request, { session }) => {
   try {
     const url = new URL(request.url);
     const findingId = url.searchParams.get("finding_id");
 
     if (findingId) {
+      // Веригата finding_photos.finding_id → findings.property_id → properties
+      // → canViewProperty, както в findings/route.ts.
+      const finding = db
+        .select({ property_id: findings.property_id })
+        .from(findings)
+        .where(eq(findings.id, findingId))
+        .get();
+
+      if (!finding) {
+        // 404, не 400 — не издаваме дали finding_id съществува
+        return NextResponse.json(
+          { error: "Констатацията не е намерена" },
+          { status: 404 }
+        );
+      }
+
+      const property = db
+        .select()
+        .from(properties)
+        .where(eq(properties.id, finding.property_id))
+        .get();
+
+      if (!property || !canViewProperty(session, property)) {
+        // 404, не 403 — не издаваме, че констатацията съществува
+        return NextResponse.json(
+          { error: "Констатацията не е намерена" },
+          { status: 404 }
+        );
+      }
+
       const photos = db
         .select()
         .from(findingPhotos)
@@ -144,10 +174,39 @@ export const GET = withAuth({}, async (request) => {
       );
     }
 
-    // Return all photos
+    // Без finding_id — връщаме всички снимки, скопирани по видимите за
+    // потребителя констатации (веригата constatация → имот → canViewProperty).
+    const allFindings = db
+      .select({ id: findings.id, property_id: findings.property_id })
+      .from(findings)
+      .all();
+
+    const propertyIds = Array.from(
+      new Set(allFindings.map((f) => f.property_id))
+    );
+    const allProperties =
+      propertyIds.length > 0
+        ? db.select().from(properties).where(inArray(properties.id, propertyIds)).all()
+        : [];
+    const propertiesById: Record<string, (typeof allProperties)[0]> = {};
+    for (const p of allProperties) propertiesById[p.id] = p;
+
+    const visibleFindingIds = new Set(
+      allFindings
+        .filter((f) => {
+          const property = propertiesById[f.property_id];
+          return property ? canViewProperty(session, property) : false;
+        })
+        .map((f) => f.id)
+    );
+
     const allPhotos = db.select().from(findingPhotos).all();
+    const scopedPhotos = allPhotos.filter((p) =>
+      visibleFindingIds.has(p.finding_id)
+    );
+
     return NextResponse.json(
-      allPhotos.map((p) => ({
+      scopedPhotos.map((p) => ({
         id: p.id,
         finding_id: p.finding_id,
         storage_path: p.storage_path,
