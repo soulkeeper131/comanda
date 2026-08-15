@@ -2066,13 +2066,25 @@ export type OverrideInput = {
   reason: string;
 };
 
-/** Записва прескачане на проверка. Викай ТОЧНО когато проверката е прескочена. */
+/**
+ * Записва прескачане на проверка. Викай ТОЧНО когато проверката е прескочена.
+ *
+ * Причината е задължителна и не може да е празна. SQLite `NOT NULL` пропуска
+ * празен низ, а прескачане без обосновка обезсмисля обещанието към клиента,
+ * че всяко заобикаляне се вижда в отчета. Затова проверката е тук, а не само
+ * в route-а — за да важи за всеки бъдещ извикващ.
+ */
 export function recordOverride(input: OverrideInput): void {
+  const reason = input.reason?.trim() ?? "";
+  if (reason.length < 5) {
+    throw new Error("Причината за прескачане е задължителна (поне 5 знака).");
+  }
+
   db.insert(overrides).values({
     admin_id: input.admin_id,
     entity_type: input.entity_type,
     entity_id: input.entity_id,
-    reason: input.reason,
+    reason,
   }).run();
 }
 
