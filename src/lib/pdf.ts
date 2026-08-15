@@ -1,5 +1,58 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { existsSync, readFileSync } from "fs";
+import path from "path";
+
+const PHOTOS_DIR = path.join(process.cwd(), "data", "photos");
+
+const MIME_BY_EXT: Record<string, string> = {
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+};
+
+/**
+ * Превръща снимка в data: URI за вграждане в PDF.
+ *
+ * Чете директно от диска, а НЕ през `/api/photos/[id]`. Този модул работи на
+ * сървъра, значи HTTP заявката към собственото приложение е излишен скок — а
+ * откакто снимките са зад права (Task 8б), тя и получава 401, защото сървърът
+ * няма сесийна бисквитка. Резултатът беше PDF без снимки, без грешка.
+ *
+ * Връща null, ако снимката липсва или пътят е подозрителен.
+ */
+export function photoToDataUri(photo: string): string | null {
+  if (photo.startsWith("data:")) return photo;
+
+  // Име на файла — и от "/api/photos/x.jpg", и от голо "x.jpg"
+  const filename = photo.startsWith("/api/photos/")
+    ? photo.slice("/api/photos/".length)
+    : path.basename(photo);
+
+  // Същата защита като в route-а: без излизане от папката
+  if (!filename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+    return null;
+  }
+
+  // Абсолютен път извън PHOTOS_DIR (стар запис в базата) — чети го както е
+  const filepath = photo.startsWith("/api/photos/")
+    ? path.join(PHOTOS_DIR, filename)
+    : existsSync(photo)
+      ? photo
+      : path.join(PHOTOS_DIR, filename);
+
+  if (!existsSync(filepath)) return null;
+
+  try {
+    const buf = readFileSync(filepath);
+    const mime = MIME_BY_EXT[path.extname(filepath).toLowerCase()] || "image/jpeg";
+    return `data:${mime};base64,${buf.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
 
 // ============================================================
 // Генерира PDF отчет за конкретен обход
@@ -131,41 +184,8 @@ export async function generateJobReport(job: any): Promise<Buffer> {
       }
 
       try {
-        let imgData: string;
-        if (photo.startsWith("data:")) {
-          imgData = photo;
-        } else if (photo.startsWith("/api/photos/")) {
-          // Fetch from API
-          const baseUrl =
-            process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-          const resp = await fetch(`${baseUrl}${photo}`);
-          if (!resp.ok) continue;
-          const arrayBuffer = await resp.arrayBuffer();
-          const base64 = Buffer.from(arrayBuffer).toString("base64");
-          const mimeType = resp.headers.get("content-type") || "image/jpeg";
-          imgData = `data:${mimeType};base64,${base64}`;
-        } else {
-          // Assume it's a file path
-          try {
-            const fs = await import("fs");
-            if (fs.existsSync(photo)) {
-              const buf = fs.readFileSync(photo);
-              const base64 = buf.toString("base64");
-              const ext = photo.split(".").pop()?.toLowerCase() || "jpg";
-              const mime =
-                ext === "png"
-                  ? "image/png"
-                  : ext === "webp"
-                  ? "image/webp"
-                  : "image/jpeg";
-              imgData = `data:${mime};base64,${base64}`;
-            } else {
-              continue;
-            }
-          } catch {
-            continue;
-          }
-        }
+        const imgData = photoToDataUri(photo);
+        if (!imgData) continue;
 
         // Position: 2 per row
         if (i % 2 === 0 && i > 0) {
@@ -354,16 +374,8 @@ export async function generateFindingsReport(findings: any[]): Promise<Buffer> {
         }
 
         try {
-          let imgData: string;
-          const base =
-            process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-          const url = photo.url || photo;
-          const resp = await fetch(`${base}${url}`);
-          if (resp.ok) {
-            const arrayBuffer = await resp.arrayBuffer();
-            const base64 = Buffer.from(arrayBuffer).toString("base64");
-            const mimeType = resp.headers.get("content-type") || "image/jpeg";
-            imgData = `data:${mimeType};base64,${base64}`;
+          const imgData = photoToDataUri(photo.url || photo);
+          if (imgData) {
             doc.addImage(imgData, "JPEG", x, y, thumbSize, thumbSize);
           }
         } catch {
