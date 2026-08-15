@@ -469,7 +469,7 @@ export function canOverride(session: SessionData): boolean {
 - [ ] **Step 4: Пусни тестовете**
 
 Run: `npm test -- policy`
-Expected: PASS — 16 теста.
+Expected: PASS — 14 теста (`canOverride` и `isAdmin` имат по няколко `expect` в един блок).
 
 - [ ] **Step 5: Commit**
 
@@ -997,7 +997,7 @@ describe("покритие на API routes", () => {
     "%s използва withAuth или е изрично публичен",
     (_label, file) => {
       const source = fs.readFileSync(file, "utf8");
-      const guarded = source.includes("withAuth");
+      const guarded = isGuarded(source); // контекстуална проверка — виж бележката
       const publicMarked = source.includes("// @public");
 
       expect(
