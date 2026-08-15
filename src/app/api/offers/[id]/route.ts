@@ -4,14 +4,15 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 // PATCH /api/offers/[id] — обновява оферта (decision, scope, price, days)
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+// Авторизация: всеки автентикиран потребител. Валидацията на преходите
+// между статусите (pending → accepted → paid → ...) е обхват на Task 13,
+// не на тази задача.
+export const PATCH = withAuth({}, async (request, { params }) => {
   try {
     const { id } = params;
     const body = await request.json();
@@ -96,13 +97,10 @@ export async function PATCH(
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/offers/[id] — изтрива оферта (само ако е pending)
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export const DELETE = withAuth({ role: ["admin"] }, async (request, { params }) => {
   try {
     const { id } = params;
 
@@ -134,4 +132,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

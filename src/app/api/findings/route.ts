@@ -4,11 +4,12 @@ import { eq, desc, inArray, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
 import { notifyOwner } from "@/lib/notifications";
+import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/findings?status=open&property_id=X
-export async function GET(request: Request) {
+export const GET = withAuth({}, async (request, { session }) => {
   try {
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get("status");
@@ -45,7 +46,20 @@ export async function GET(request: Request) {
       query = query.where(and(...conditions));
     }
 
-    const rows = query.orderBy(desc(findings.created_at)).all();
+    let rows = query.orderBy(desc(findings.created_at)).all();
+
+    // Клиентът вижда само констатациите по своите имоти
+    if (session.role === "client") {
+      rows = rows.filter((row) => {
+        if (!row.property_id) return false;
+        const property = db
+          .select()
+          .from(properties)
+          .where(eq(properties.id, row.property_id))
+          .get();
+        return property ? canViewProperty(session, property) : false;
+      });
+    }
 
     if (rows.length === 0) {
       return NextResponse.json([]);
@@ -106,9 +120,9 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin", "inspector"] }, async (request) => {
   try {
     const body = await request.json();
     const { property_id, job_id, job_item_id, title, body: desc, photo_ids, reported_by } = body;
@@ -215,4 +229,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

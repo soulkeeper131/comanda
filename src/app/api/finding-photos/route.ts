@@ -6,6 +6,7 @@ import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import crypto from "crypto";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ function getExtension(filename: string): string {
 }
 
 // POST — upload a photo for a finding
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin", "inspector"] }, async (request) => {
   try {
     const formData = await request.formData();
     const file = formData.get("file");
@@ -117,10 +118,10 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
 // GET — list photos for a finding (or all)
-export async function GET(request: Request) {
+export const GET = withAuth({}, async (request) => {
   try {
     const url = new URL(request.url);
     const findingId = url.searchParams.get("finding_id");
@@ -161,4 +162,4 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});

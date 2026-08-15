@@ -4,12 +4,13 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
 import { notifyOwner } from "@/lib/notifications";
+import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/offers — всички оферти (с JOIN към findings и properties)
 // GET /api/offers?finding_id=X&decision=pending — филтрира по finding и/или решение
-export async function GET(request: Request) {
+export const GET = withAuth({}, async (request, { session }) => {
   try {
     const { searchParams } = new URL(request.url);
     const findingId = searchParams.get("finding_id");
@@ -72,7 +73,21 @@ export async function GET(request: Request) {
       })
     );
 
-    return NextResponse.json(enriched);
+    // Клиентът вижда само офертите по своите имоти (оферта → констатация → имот)
+    let visibleOffers = enriched;
+    if (session.role === "client") {
+      visibleOffers = enriched.filter((offer) => {
+        if (!offer.finding?.property_id) return false;
+        const property = db
+          .select()
+          .from(properties)
+          .where(eq(properties.id, offer.finding.property_id))
+          .get();
+        return property ? canViewProperty(session, property) : false;
+      });
+    }
+
+    return NextResponse.json(visibleOffers);
   } catch (error) {
     console.error("GET /api/offers error:", error);
     return NextResponse.json(
@@ -80,10 +95,10 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/offers — създава нова оферта
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin"] }, async (request) => {
   try {
     const body = await request.json();
     const { finding_id, price, days, scope } = body;
@@ -140,4 +155,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});
