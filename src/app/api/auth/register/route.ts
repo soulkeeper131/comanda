@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       eik: is_company ? eik : undefined,
       vat_number: is_company ? (vat_number || undefined) : undefined,
     });
-    await setSession(user);
+    await setSession({ uid: user.id, role: user.role, org_id: user.org_id ?? "org1" });
     return NextResponse.json({
       success: true,
       user: { id: user.id, name: user.name, email: user.email, role: user.role },

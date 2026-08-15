@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { cookies } from "next/headers";
 
 export const SESSION_COOKIE = "komanda_session";
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -64,4 +65,20 @@ export function verifySession(token: string): SessionData | null {
   } catch {
     return null;
   }
+}
+
+/** Подписва сесията и я записва в httpOnly бисквитка. */
+export async function setSession(data: SessionData): Promise<void> {
+  (await cookies()).set(SESSION_COOKIE, signSession(data), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: MAX_AGE_MS / 1000,
+  });
+}
+
+/** Изтрива сесийната бисквитка. */
+export async function clearSession(): Promise<void> {
+  (await cookies()).delete(SESSION_COOKIE);
 }
