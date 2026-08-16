@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { payments, offers, invoices, users } from "@/db/schema";
 import { getWebhookSecret, getStripe } from "@/lib/stripe";
+import { canTransition, type OfferDecision } from "@/lib/domain/offers";
 import { eq } from "drizzle-orm";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
@@ -151,7 +152,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       .where(eq(offers.id, payment.offer_id))
       .get();
 
-    if (offer && offer.decision === "accepted") {
+    // Преходът минава през същата карта, която пази PATCH route-а — за да
+    // няма два източника на истина. Само Stripe има право на accepted → paid.
+    if (offer && canTransition(offer.decision as OfferDecision, "paid")) {
       db.update(offers)
         .set({ decision: "paid" })
         .where(eq(offers.id, payment.offer_id))
@@ -159,6 +162,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
       console.log(
         `[stripe/webhook] Offer ${payment.offer_id} decision → paid`
+      );
+    } else if (offer) {
+      console.warn(
+        `[stripe/webhook] Плащане за оферта ${payment.offer_id} в статус ` +
+          `"${offer.decision}" — преходът към "paid" не е разрешен, пропуснат.`
       );
     }
   }
