@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { jobs, properties, users, serviceTemplates, jobItems, evidence } from "@/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { createNotification, notifyOwner } from "@/lib/notifications";
 import { withAuth, canViewProperty } from "@/lib/auth";
@@ -71,70 +71,70 @@ export const GET = withAuth({}, async (request, { session }) => {
       .orderBy(desc(jobs.created_at))
       .all();
 
-    // Клиентът вижда само задачите за своите имоти
+    // Клиентът вижда само задачите за своите имоти. Вземаме наведнъж имотите
+    // за всички property_id в резултата (една заявка), вместо по един на ред.
     if (session.role === "client") {
+      const propertyIds = Array.from(
+        new Set(rows.map((r) => r.property_id).filter((id): id is string => !!id)),
+      );
+      const ownProperties =
+        propertyIds.length > 0
+          ? db.select().from(properties).where(inArray(properties.id, propertyIds)).all()
+          : [];
+      const propertiesById = new Map(ownProperties.map((p) => [p.id, p]));
+
       rows = rows.filter((row) => {
         if (!row.property_id) return false;
-        const property = db
-          .select()
-          .from(properties)
-          .where(eq(properties.id, row.property_id))
-          .get();
+        const property = propertiesById.get(row.property_id);
         return property ? canViewProperty(session, property) : false;
       });
     }
 
-    // Compute itemsChecked / itemsTotal per job
-    // Fetch all items for jobs in this result set
+    // Compute itemsChecked / itemsTotal / photoCount per job с групови (агрегиращи)
+    // заявки вместо да теглим всички редове от job_items/evidence в паметта.
     const jobIds = rows.map((j) => j.id);
-    if (jobIds.length > 0) {
-      // Build a map of job_id -> { checked, total }
-      const itemCounts: Record<string, { checked: number; total: number }> = {};
+    const withComputed = rows.map((row) => ({
+      ...row,
+      itemsChecked: 0,
+      itemsTotal: 0,
+      photoCount: 0,
+      started_at: row.check_in,
+      completed_at: row.check_out,
+    }));
 
-      // SQLite doesn't support array IN with drizzle easily, so we query all items
-      // and filter in JS. For small datasets this is fine.
-      const allItems = db
+    if (jobIds.length > 0) {
+      const itemCounts = db
         .select({
           job_id: jobItems.job_id,
-          done: jobItems.done,
+          total: sql<number>`count(*)`,
+          checked: sql<number>`sum(case when ${jobItems.done} then 1 else 0 end)`,
         })
         .from(jobItems)
+        .where(inArray(jobItems.job_id, jobIds))
+        .groupBy(jobItems.job_id)
         .all();
+      const itemCountsByJob = new Map(itemCounts.map((c) => [c.job_id, c]));
 
-      for (const item of allItems) {
-        if (!itemCounts[item.job_id]) {
-          itemCounts[item.job_id] = { checked: 0, total: 0 };
-        }
-        itemCounts[item.job_id].total++;
-        if (item.done) {
-          itemCounts[item.job_id].checked++;
-        }
-      }
-
-      // Also count evidence photos per job
-      const allPhotos = db
+      const photoCounts = db
         .select({
           job_id: evidence.job_id,
+          count: sql<number>`count(*)`,
         })
         .from(evidence)
+        .where(inArray(evidence.job_id, jobIds))
+        .groupBy(evidence.job_id)
         .all();
+      const photoCountsByJob = new Map(photoCounts.map((c) => [c.job_id, c.count]));
 
-      const photoCounts: Record<string, number> = {};
-      for (const p of allPhotos) {
-        photoCounts[p.job_id] = (photoCounts[p.job_id] || 0) + 1;
-      }
-
-      for (const row of rows) {
-        const counts = itemCounts[row.id] || { checked: 0, total: 0 };
-        (row as any).itemsChecked = counts.checked;
-        (row as any).itemsTotal = counts.total;
-        (row as any).photoCount = photoCounts[row.id] || 0;
-        (row as any).started_at = row.check_in;
-        (row as any).completed_at = row.check_out;
+      for (const row of withComputed) {
+        const counts = itemCountsByJob.get(row.id);
+        row.itemsChecked = counts ? Number(counts.checked) : 0;
+        row.itemsTotal = counts ? Number(counts.total) : 0;
+        row.photoCount = photoCountsByJob.get(row.id) ? Number(photoCountsByJob.get(row.id)) : 0;
       }
     }
 
-    return NextResponse.json(rows);
+    return NextResponse.json(withComputed);
   } catch (error) {
     console.error("GET /api/jobs error:", error);
     return NextResponse.json({ error: "Грешка при зареждане на задачи" }, { status: 500 });

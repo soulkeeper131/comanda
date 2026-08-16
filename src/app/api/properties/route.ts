@@ -15,62 +15,41 @@ export const GET = withAuth({}, async (_request, { session }) => {
       .all();
     const result = all.filter((p) => canViewProperty(session, p));
 
-    // Compute real status for each property
+    // Статусът на имота се смята с 3 групови заявки (вместо до 3 на имот в цикъл).
+    // Приоритет: in_progress > warning > overdue > ok.
     const now = new Date().toISOString();
-    const withStatus = result.map((p) => {
-      let status: string = "ok";
 
-      // Check for active (in_progress) job
-      const activeJob = db
-        .select()
-        .from(jobs)
-        .where(
-          and(
-            eq(jobs.property_id, p.id),
-            eq(jobs.status, "in_progress")
-          )
-        )
-        .get();
+    const activeJobs = db
+      .select({ property_id: jobs.property_id })
+      .from(jobs)
+      .where(eq(jobs.status, "in_progress"))
+      .all();
+    const activeSet = new Set(activeJobs.map((j) => j.property_id));
 
-      if (activeJob) {
-        status = "in_progress";
-      } else {
-        // Check for open findings
-        const openFinding = db
-          .select()
-          .from(findings)
-          .where(
-            and(
-              eq(findings.property_id, p.id),
-              eq(findings.status, "open")
-            )
-          )
-          .get();
+    const openFindings = db
+      .select({ property_id: findings.property_id })
+      .from(findings)
+      .where(eq(findings.status, "open"))
+      .all();
+    const warningSet = new Set(openFindings.map((f) => f.property_id));
 
-        if (openFinding) {
-          status = "warning";
-        } else {
-          // Check for overdue planned jobs
-          const overdueJob = db
-            .select()
-            .from(jobs)
-            .where(
-              and(
-                eq(jobs.property_id, p.id),
-                eq(jobs.status, "planned"),
-                lt(jobs.planned_at, now)
-              )
-            )
-            .get();
+    const overdueJobs = db
+      .select({ property_id: jobs.property_id })
+      .from(jobs)
+      .where(and(eq(jobs.status, "planned"), lt(jobs.planned_at, now)))
+      .all();
+    const overdueSet = new Set(overdueJobs.map((j) => j.property_id));
 
-          if (overdueJob) {
-            status = "overdue";
-          }
-        }
-      }
-
-      return { ...p, status };
-    });
+    const withStatus = result.map((p) => ({
+      ...p,
+      status: activeSet.has(p.id)
+        ? "in_progress"
+        : warningSet.has(p.id)
+          ? "warning"
+          : overdueSet.has(p.id)
+            ? "overdue"
+            : "ok",
+    }));
 
     return NextResponse.json(withStatus);
   } catch (error) {

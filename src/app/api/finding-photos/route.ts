@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { findingPhotos, findings, properties } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
@@ -175,35 +175,25 @@ export const GET = withAuth({}, async (request, { session }) => {
     }
 
     // Без finding_id — връщаме всички снимки, скопирани по видимите за
-    // потребителя констатации (веригата constatация → имот → canViewProperty).
-    const allFindings = db
-      .select({ id: findings.id, property_id: findings.property_id })
-      .from(findings)
-      .all();
-
-    const propertyIds = Array.from(
-      new Set(allFindings.map((f) => f.property_id))
-    );
-    const allProperties =
-      propertyIds.length > 0
-        ? db.select().from(properties).where(inArray(properties.id, propertyIds)).all()
-        : [];
-    const propertiesById: Record<string, (typeof allProperties)[0]> = {};
-    for (const p of allProperties) propertiesById[p.id] = p;
-
-    const visibleFindingIds = new Set(
-      allFindings
-        .filter((f) => {
-          const property = propertiesById[f.property_id];
-          return property ? canViewProperty(session, property) : false;
-        })
-        .map((f) => f.id)
-    );
-
-    const allPhotos = db.select().from(findingPhotos).all();
-    const scopedPhotos = allPhotos.filter((p) =>
-      visibleFindingIds.has(p.finding_id)
-    );
+    // потребителя констатации (веригата constatация → имот → canViewProperty),
+    // с една заявка вместо да теглим findings/properties/photos изцяло в паметта.
+    // admin/inspector виждат всичко — директна заявка без join по собственик.
+    // client вижда само снимки на констатации от собствените си имоти.
+    const scopedPhotos =
+      session.role === "admin" || session.role === "inspector"
+        ? db.select().from(findingPhotos).all()
+        : db
+            .select({
+              id: findingPhotos.id,
+              finding_id: findingPhotos.finding_id,
+              storage_path: findingPhotos.storage_path,
+              taken_at: findingPhotos.taken_at,
+            })
+            .from(findingPhotos)
+            .innerJoin(findings, eq(findingPhotos.finding_id, findings.id))
+            .innerJoin(properties, eq(findings.property_id, properties.id))
+            .where(eq(properties.owner_id, session.uid))
+            .all();
 
     return NextResponse.json(
       scopedPhotos.map((p) => ({
