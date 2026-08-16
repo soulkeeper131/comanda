@@ -1,16 +1,18 @@
 import { db } from "@/db";
-import { jobItems } from "@/db/schema";
+import { jobItems, jobs, evidence } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { withAuth } from "@/lib/auth";
+import { withAuth, canCompleteJobItem, isAdmin } from "@/lib/auth";
+import { canMarkItemDone } from "@/lib/domain/jobs";
+import { recordOverride } from "@/lib/domain/overrides";
 
 export const dynamic = "force-dynamic";
 
-export const PATCH = withAuth({ role: ["admin", "inspector"] }, async (request, { params }) => {
+export const PATCH = withAuth({ role: ["admin", "inspector"] }, async (request, { session, params }) => {
   try {
     const { id } = params;
     const body = await request.json();
-    const { done } = body;
+    const { done, override_reason } = body;
 
     if (done === undefined) {
       return NextResponse.json(
@@ -25,10 +27,39 @@ export const PATCH = withAuth({ role: ["admin", "inspector"] }, async (request, 
       return NextResponse.json({ error: "Стъпката не е намерена" }, { status: 404 });
     }
 
-    db.update(jobItems)
-      .set({ done: done ? true : false })
-      .where(eq(jobItems.id, id))
-      .run();
+    const job = db.select().from(jobs).where(eq(jobs.id, item.job_id)).get();
+    if (!job || !canCompleteJobItem(session, job)) {
+      return NextResponse.json({ error: "Нямате права за тази стъпка" }, { status: 403 });
+    }
+
+    // Размаркирането (done: false) не твърди, че работата е свършена — не
+    // изисква снимка и не се одитира. Проверката важи само при отмятане.
+    if (done) {
+      const photo = db.select().from(evidence).where(eq(evidence.job_item_id, item.id)).get();
+      const verdict = canMarkItemDone(item, {
+        hasEvidence: Boolean(photo),
+        isAdmin: isAdmin(session),
+        reason: override_reason ?? null,
+      });
+
+      if (!verdict.ok) {
+        return NextResponse.json({ error: verdict.error }, { status: 400 });
+      }
+
+      db.update(jobItems).set({ done: true }).where(eq(jobItems.id, id)).run();
+
+      // Отмятането е сигурно — чак сега записваме прескачането, ако е имало.
+      if (!photo && item.proof_type === "photo") {
+        recordOverride({
+          admin_id: session.uid,
+          entity_type: "job_item",
+          entity_id: item.id,
+          reason: override_reason,
+        });
+      }
+    } else {
+      db.update(jobItems).set({ done: false }).where(eq(jobItems.id, id)).run();
+    }
 
     const updated = db.select().from(jobItems).where(eq(jobItems.id, id)).get();
 
