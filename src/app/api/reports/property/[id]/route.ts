@@ -125,7 +125,8 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
       enrichedFindings
     );
 
-    return new NextResponse(pdfBuffer, {
+    // Buffer не се приема директно като BodyInit — обвиваме в Uint8Array (виж photos/[id]/route.ts).
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

@@ -23,7 +23,7 @@ export const GET = withAuth({}, async (request, { session }) => {
       conditions.push(eq(findings.property_id, propertyIdFilter));
     }
 
-    let query = db
+    const query = db
       .select({
         id: findings.id,
         org_id: findings.org_id,
@@ -40,10 +40,13 @@ export const GET = withAuth({}, async (request, { session }) => {
       })
       .from(findings)
       .leftJoin(properties, eq(findings.property_id, properties.id))
-      .leftJoin(users, eq(findings.reported_by, users.id));
+      .leftJoin(users, eq(findings.reported_by, users.id))
+      // $dynamic() позволява условието да се добави след това, без да се
+      // преприсвоява самият builder (което чупи типа).
+      .$dynamic();
 
     if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      query.where(and(...conditions));
     }
 
     let rows = query.orderBy(desc(findings.created_at)).all();

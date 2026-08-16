@@ -16,10 +16,12 @@ export const GET = withAuth({}, async (request, { session }) => {
     const findingId = searchParams.get("finding_id");
     const decisionFilter = searchParams.get("decision");
 
-    let query = db.select().from(offers);
+    // $dynamic() позволява условието да се добави след това, без да се
+    // преприсвоява самият builder (което чупи типа).
+    const query = db.select().from(offers).$dynamic();
 
     if (findingId) {
-      query = query.where(eq(offers.finding_id, findingId));
+      query.where(eq(offers.finding_id, findingId));
     }
 
     const offersList = await query;

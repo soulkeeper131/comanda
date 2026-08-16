@@ -3,19 +3,9 @@ import { withAuth } from "@/lib/auth";
 import { db } from "@/db";
 import { payments } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { validateStripeAmount, eurToCents } from "@/lib/stripe";
-import type Stripe from "stripe";
+import { validateStripeAmount, eurToCents, getStripeOrNull } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
-
-// Lazy Stripe init — избягва build error когато ключът липсва
-function getStripe(): Stripe | null {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) return null;
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const StripeSDK = require("stripe");
-  return new StripeSDK(key);
-}
 
 /**
  * POST /api/stripe/checkout
@@ -51,7 +41,7 @@ export const POST = withAuth({}, async (request, { session }) => {
       process.env.NEXT_PUBLIC_APP_URL ||
       "https://comanda.blv.bg";
 
-    const stripe = getStripe();
+    const stripe = getStripeOrNull();
 
     // Ако Stripe не е конфигуриран — dev fallback: директно маркираме като платено
     if (!stripe) {

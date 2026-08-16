@@ -1,22 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { payments, offers, invoices, users } from "@/db/schema";
-import { getWebhookSecret } from "@/lib/stripe";
+import { getWebhookSecret, getStripe } from "@/lib/stripe";
 import { eq } from "drizzle-orm";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
 import type Stripe from "stripe";
 
 export const dynamic = "force-dynamic";
-
-// Lazy Stripe init — избягва build error когато ключът липсва
-function getStripe(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error("STRIPE_SECRET_KEY not configured");
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const StripeSDK = require("stripe");
-  return new StripeSDK(key);
-}
 
 /**
  * POST /api/stripe/webhook
@@ -55,11 +46,7 @@ export async function POST(request: Request) {
   let event: Stripe.Event;
 
   try {
-    event = getStripe().webhooks.constructEvent(
-      rawBody,
-      signature,
-      webhookSecret
-    );
+    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
   } catch (err: any) {
     console.error(`[stripe/webhook] Signature verification failed:`, err.message);
     return NextResponse.json(

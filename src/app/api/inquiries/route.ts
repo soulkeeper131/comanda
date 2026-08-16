@@ -29,7 +29,8 @@ export async function POST(request: Request) {
         service: service?.trim() || null,
         message: message?.trim() || null,
       })
-      .returning();
+      .returning()
+      .all();
 
     // Send email notification
     sendEmail({

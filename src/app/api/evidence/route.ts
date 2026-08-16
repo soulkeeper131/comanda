@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { evidence, jobItems, jobs, properties } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth, canViewProperty } from "@/lib/auth";
 
@@ -67,7 +67,15 @@ export const GET = withAuth({}, async (request, { session }) => {
       );
     }
 
-    let query = db
+    const conditions = [];
+    if (jobId) {
+      conditions.push(eq(evidence.job_id, jobId));
+    }
+    if (jobItemId) {
+      conditions.push(eq(evidence.job_item_id, jobItemId));
+    }
+
+    const rows = db
       .select({
         id: evidence.id,
         job_id: evidence.job_id,
@@ -80,16 +88,9 @@ export const GET = withAuth({}, async (request, { session }) => {
         item_zone_label: jobItems.zone_label,
       })
       .from(evidence)
-      .leftJoin(jobItems, eq(evidence.job_item_id, jobItems.id));
-
-    if (jobId) {
-      query = query.where(eq(evidence.job_id, jobId));
-    }
-    if (jobItemId) {
-      query = query.where(eq(evidence.job_item_id, jobItemId));
-    }
-
-    const rows = query.all();
+      .leftJoin(jobItems, eq(evidence.job_item_id, jobItems.id))
+      .where(conditions.length ? and(...conditions) : undefined)
+      .all();
     return NextResponse.json(rows);
   } catch (error) {
     console.error("GET /api/evidence error:", error);
@@ -112,7 +113,7 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request) =
       );
     }
 
-    const [record] = db
+    const [record] = await db
       .insert(evidence)
       .values({
         job_id,

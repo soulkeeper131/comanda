@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { jobs, properties, users, serviceTemplates, jobItems, evidence } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { createNotification, notifyOwner } from "@/lib/notifications";
 import { withAuth, canViewProperty } from "@/lib/auth";
@@ -33,7 +33,19 @@ export const GET = withAuth({}, async (request, { session }) => {
     const assigneeIdFilter = searchParams.get("assignee_id");
     const statusFilter = searchParams.get("status");
 
-    let query = db
+    // Условията се събират предварително — преприсвояването на query builder-а
+    // към себе си след .where() не се типизира коректно от Drizzle.
+    const conditions = [];
+    if (assigneeIdFilter) {
+      conditions.push(eq(jobs.assignee_id, assigneeIdFilter));
+    }
+    if (statusFilter) {
+      conditions.push(
+        eq(jobs.status, statusFilter as "planned" | "in_progress" | "completed" | "cancelled"),
+      );
+    }
+
+    let rows = db
       .select({
         id: jobs.id,
         title: jobs.title,
@@ -54,18 +66,10 @@ export const GET = withAuth({}, async (request, { session }) => {
       })
       .from(jobs)
       .leftJoin(properties, eq(jobs.property_id, properties.id))
-      .leftJoin(users, eq(jobs.assignee_id, users.id));
-
-    if (assigneeIdFilter) {
-      query = query.where(eq(jobs.assignee_id, assigneeIdFilter));
-    }
-    if (statusFilter) {
-      query = query.where(
-        eq(jobs.status, statusFilter as "planned" | "in_progress" | "completed" | "cancelled"),
-      );
-    }
-
-    let rows = query.orderBy(desc(jobs.created_at)).all();
+      .leftJoin(users, eq(jobs.assignee_id, users.id))
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(desc(jobs.created_at))
+      .all();
 
     // Клиентът вижда само задачите за своите имоти
     if (session.role === "client") {

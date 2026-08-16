@@ -41,7 +41,8 @@ export const PATCH = withAuth({}, async (request, { session, params }) => {
       .update(zones)
       .set(updates)
       .where(eq(zones.id, id))
-      .returning();
+      .returning()
+      .all();
 
     return NextResponse.json(updated);
   } catch (error) {
