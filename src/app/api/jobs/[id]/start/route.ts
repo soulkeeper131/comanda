@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { notifyOwner } from "@/lib/notifications";
 import { withAuth, canOverride } from "@/lib/auth";
 import { distanceMeters } from "@/lib/geo";
-import { recordOverride } from "@/lib/domain/overrides";
+import { recordOverride, normalizeOverrideReason } from "@/lib/domain/overrides";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +49,10 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
       );
     }
 
+    // Причината за прескачане, ако има такова — записва се след като
+    // стартирането е сигурно (виж по-долу).
+    let overrideReason: string | null = null;
+
     // Геофенсинг: инспекторът трябва да е в периметъра на имота при check-in.
     const property = db.select().from(properties).where(eq(properties.id, job.property_id)).get();
     if (!property) {
@@ -80,19 +84,25 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
         );
       }
 
-      if (!override_reason || typeof override_reason !== "string" || override_reason.trim().length < 5) {
+      // Причината се валидира СЕГА (за да върнем 400 рано), но записът в
+      // overrides става чак след като стартирането е сигурно — иначе при
+      // "шаблонът няма стъпки" оставаме с осиротял одитен запис за обход,
+      // който никога не е започнал.
+      try {
+        overrideReason = normalizeOverrideReason(
+          typeof override_reason === "string" ? override_reason : "",
+        );
+      } catch (err) {
         return NextResponse.json(
-          { error: "За стартиране извън периметъра е задължителна причина (поне 5 знака)." },
+          {
+            error:
+              err instanceof Error
+                ? err.message
+                : "Причината за прескачане е задължителна.",
+          },
           { status: 400 },
         );
       }
-
-      recordOverride({
-        admin_id: session.uid,
-        entity_type: "job_checkin",
-        entity_id: job.id,
-        reason: override_reason.trim(),
-      });
     }
 
     // Get template items
@@ -133,6 +143,16 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
       })
       .where(eq(jobs.id, id))
       .run();
+
+    // Стартирането е факт — чак сега записваме прескачането, ако е имало.
+    if (overrideReason !== null) {
+      recordOverride({
+        admin_id: session.uid,
+        entity_type: "job_checkin",
+        entity_id: job.id,
+        reason: overrideReason,
+      });
+    }
 
     // Return updated job with items
     const updatedJob = db.select().from(jobs).where(eq(jobs.id, id)).get();
