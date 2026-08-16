@@ -182,7 +182,10 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
       jobTitle = "Задача";
     }
 
-    db
+    // RETURNING дава точно новосъздадения ред. Преди тук се вземаше
+    // "последният по created_at", но той е с точност до секунда — две
+    // задачи в една и съща секунда връщаха чужд запис в отговора.
+    const [job] = db
       .insert(jobs)
       .values({
         org_id: session.org_id,
@@ -194,10 +197,8 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
         planned_at,
         status: "planned",
       })
-      .run();
-
-    // SQLite no RETURNING — fetch the last inserted job
-    const [job] = db.select().from(jobs).orderBy(desc(jobs.created_at)).limit(1).all();
+      .returning()
+      .all();
 
     // Fire push notification (non-blocking)
     pushNotify(jobTitle, property_id).catch((e) =>
