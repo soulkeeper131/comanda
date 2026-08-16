@@ -3,13 +3,17 @@ import { jobs, templateItems, jobItems, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { notifyOwner } from "@/lib/notifications";
-import { withAuth } from "@/lib/auth";
+import { withAuth, canOverride } from "@/lib/auth";
+import { distanceMeters } from "@/lib/geo";
+import { recordOverride } from "@/lib/domain/overrides";
 
 export const dynamic = "force-dynamic";
 
-export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, { params }) => {
+export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, { session, params }) => {
   try {
     const { id } = params;
+    const body = await request.json().catch(() => ({}));
+    const { lat, lng, override_reason } = body ?? {};
 
     // Get the job
     const job = db.select().from(jobs).where(eq(jobs.id, id)).get();
@@ -45,6 +49,52 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, 
       );
     }
 
+    // Геофенсинг: инспекторът трябва да е в периметъра на имота при check-in.
+    const property = db.select().from(properties).where(eq(properties.id, job.property_id)).get();
+    if (!property) {
+      return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
+    }
+
+    const radius = property.geofence_m ?? 75;
+    const hasCoords =
+      typeof lat === "number" && typeof lng === "number" && Number.isFinite(lat) && Number.isFinite(lng);
+    const distance = hasCoords
+      ? distanceMeters({ lat, lng }, { lat: property.lat, lng: property.lng })
+      : null;
+    // geofence_m <= 0 изключва проверката — изрично конфигуриран имот без периметър.
+    const geofenceActive = radius > 0;
+    const insideFence = !geofenceActive || (distance !== null && distance <= radius);
+
+    if (!insideFence) {
+      // Извън периметъра (или без координати) — само админ минава, и то с причина
+      if (!canOverride(session)) {
+        return NextResponse.json(
+          {
+            error: hasCoords
+              ? `Намирате се на ${Math.round(distance!)} м от имота. Трябва да сте в рамките на ${radius} м.`
+              : "Локацията е недостъпна. Разрешете достъп до местоположението.",
+            distance_m: distance !== null ? Math.round(distance) : null,
+            geofence_m: radius,
+          },
+          { status: 403 },
+        );
+      }
+
+      if (!override_reason || typeof override_reason !== "string" || override_reason.trim().length < 5) {
+        return NextResponse.json(
+          { error: "За стартиране извън периметъра е задължителна причина (поне 5 знака)." },
+          { status: 400 },
+        );
+      }
+
+      recordOverride({
+        admin_id: session.uid,
+        entity_type: "job_checkin",
+        entity_id: job.id,
+        reason: override_reason.trim(),
+      });
+    }
+
     // Get template items
     const items = db
       .select()
@@ -75,7 +125,12 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, 
 
     // Update job status to in_progress and set check_in
     db.update(jobs)
-      .set({ status: "in_progress", check_in: now })
+      .set({
+        status: "in_progress",
+        check_in: now,
+        check_in_lat: hasCoords ? lat : null,
+        check_in_lng: hasCoords ? lng : null,
+      })
       .where(eq(jobs.id, id))
       .run();
 
