@@ -269,7 +269,8 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
   const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
   const filename = `faktura-${invoice.number}.pdf`;
 
-  return new NextResponse(pdfBuffer, {
+  // Uint8Array, не суров Buffer — консистентно с останалите PDF/файлови routes.
+  return new NextResponse(new Uint8Array(pdfBuffer), {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",

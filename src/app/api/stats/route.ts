@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { jobs, findings, offers, properties } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { withAuth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
