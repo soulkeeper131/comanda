@@ -1,5 +1,29 @@
 import { describe, it, expect } from "vitest";
-import { canTransition, allowedTransitions } from "./offers";
+import {
+  canTransition,
+  allowedTransitions,
+  isValidDecision,
+  VALID_DECISIONS,
+} from "./offers";
+
+describe("валидните статуси идват от картата", () => {
+  it("покрива точно шестте статуса", () => {
+    expect([...VALID_DECISIONS].sort()).toEqual(
+      ["accepted", "declined", "done", "in_progress", "paid", "pending"].sort(),
+    );
+  });
+
+  it("приема познат статус", () => {
+    expect(isValidDecision("accepted")).toBe(true);
+  });
+
+  it("отхвърля непознат статус и не-низ", () => {
+    expect(isValidDecision("платено")).toBe(false);
+    expect(isValidDecision("")).toBe(false);
+    expect(isValidDecision(null)).toBe(false);
+    expect(isValidDecision(42)).toBe(false);
+  });
+});
 
 describe("преходи на офертата", () => {
   it("позволява приемане и отказ от pending", () => {

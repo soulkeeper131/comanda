@@ -16,6 +16,13 @@ const TRANSITIONS: Record<OfferDecision, OfferDecision[]> = {
   done: [],
 };
 
+/** Всички валидни статуси — извеждат се от картата, за да не се разминават. */
+export const VALID_DECISIONS = Object.keys(TRANSITIONS) as OfferDecision[];
+
+export function isValidDecision(value: unknown): value is OfferDecision {
+  return typeof value === "string" && (VALID_DECISIONS as string[]).includes(value);
+}
+
 export function allowedTransitions(from: OfferDecision): OfferDecision[] {
   return TRANSITIONS[from] ?? [];
 }

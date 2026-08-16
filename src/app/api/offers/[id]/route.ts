@@ -5,7 +5,13 @@ import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
 import { withAuth, canDecideOffer, isAdmin } from "@/lib/auth";
-import { canTransition, allowedTransitions, type OfferDecision } from "@/lib/domain/offers";
+import {
+  canTransition,
+  allowedTransitions,
+  isValidDecision,
+  VALID_DECISIONS,
+  type OfferDecision,
+} from "@/lib/domain/offers";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +41,7 @@ export const PATCH = withAuth({}, async (request, { session, params }) => {
     const updates: Record<string, unknown> = {};
 
     if (body.decision !== undefined) {
-      const VALID_DECISIONS = ["pending", "accepted", "declined", "paid", "in_progress", "done"];
-      if (!VALID_DECISIONS.includes(body.decision)) {
+      if (!isValidDecision(body.decision)) {
         return NextResponse.json(
           { error: `Невалиден статус. Позволени: ${VALID_DECISIONS.join(", ")}` },
           { status: 400 }
@@ -44,7 +49,7 @@ export const PATCH = withAuth({}, async (request, { session, params }) => {
       }
 
       const from = (existing.decision ?? "pending") as OfferDecision;
-      const to = body.decision as OfferDecision;
+      const to = body.decision;
 
       if (!canTransition(from, to)) {
         return NextResponse.json(
