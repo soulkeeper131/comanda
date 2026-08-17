@@ -16,6 +16,7 @@ import ClientProfile from "@/components/ClientProfile";
 import PlanSelector from "@/components/PlanSelector";
 import PaymentPanel from "@/components/PaymentPanel";
 import OnboardingPage from "./onboarding/page";
+import ClientHome from "@/features/client/ClientHome";
 
 type UserRole = "admin" | "client" | "inspector";
 
@@ -590,6 +591,17 @@ export default function DashboardPage() {
   // Show onboarding if not done yet
   if (showOnboarding && !roleLoading && onboardingChecked) {
     return <OnboardingPage />;
+  }
+
+  // Клиентът вижда имота си, не табове (Task 20). Останалите роли минават
+  // през таб-базирания dashboard по-долу — той не се пипа за тях.
+  if (userRole === "client") {
+    return (
+      <div className="flex flex-col h-[100dvh] md:max-w-3xl md:mx-auto md:shadow-xl md:border-x md:rounded-none bg-brand-bg" style={{ borderColor: "#e4e9f0" }}>
+        <Topbar />
+        <ClientHome />
+      </div>
+    );
   }
 
   return (
