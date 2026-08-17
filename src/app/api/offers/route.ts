@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { offers, findings, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { sendEmail, getNotifyEmail } from "@/lib/email";
+import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
 import { notifyOwner } from "@/lib/notifications";
 import { withAuth, canViewProperty } from "@/lib/auth";
 
@@ -133,10 +133,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request) => {
     // Send email notification
     const [finding] = db.select().from(findings).where(eq(findings.id, finding_id)).all();
     const propertyName = "Имот";
-    sendEmail({
-      to: (await getNotifyEmail()) || "",
-      subject: `💰 Нова оферта за ${propertyName}: ${price}лв`,
-      html: `
+    const offerEmailHtml = `
         <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
           <h2 style="color: #1b98e0;">💰 Нова оферта</h2>
           <p style="color: #247ba0;"><strong>Цена:</strong> ${price} лв</p>
@@ -146,8 +143,28 @@ export const POST = withAuth({ role: ["admin"] }, async (request) => {
           <hr style="border: none; border-top: 1px solid #e4e9f0; margin: 20px 0;" />
           <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.blv.bg</p>
         </div>
-      `,
+      `;
+    const offerEmailSubject = `💰 Нова оферта за ${propertyName}: ${price}лв`;
+
+    // Вътрешният адрес получава известие както досега.
+    sendEmail({
+      to: (await getNotifyEmail()) || "",
+      subject: offerEmailSubject,
+      html: offerEmailHtml,
     }).catch(() => {});
+
+    // Клиентът (собственикът на имота) получава същото известие — той е
+    // страната, която трябва да реши дали приема офертата.
+    if (finding?.property_id) {
+      const ownerEmail = ownerEmailFor(finding.property_id);
+      if (ownerEmail) {
+        sendEmail({
+          to: ownerEmail,
+          subject: offerEmailSubject,
+          html: offerEmailHtml,
+        }).catch(() => {});
+      }
+    }
 
     return NextResponse.json(offer, { status: 201 });
   } catch (error) {

@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { jobs, jobItems, properties, evidence, overrides } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { sendEmail, getNotifyEmail } from "@/lib/email";
+import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
 import { notifyOwner } from "@/lib/notifications";
 import { withAuth } from "@/lib/auth";
 
@@ -117,10 +117,8 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, 
     // Send email notification
     const [prop] = db.select({ name: properties.name }).from(properties).where(eq(properties.id, job.property_id)).all();
     const propertyName = prop?.name || "Имот";
-    sendEmail({
-      to: (await getNotifyEmail()) || "",
-      subject: `✅ Обходът на ${propertyName} е завършен`,
-      html: `
+    const completeEmailSubject = `✅ Обходът на ${propertyName} е завършен`;
+    const completeEmailHtml = `
         <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
           <h2 style="color: #16a34a;">✅ Обходът е завършен</h2>
           <p style="color: #247ba0;"><strong>Имот:</strong> ${propertyName}</p>
@@ -129,8 +127,24 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, 
           <hr style="border: none; border-top: 1px solid #e4e9f0; margin: 20px 0;" />
           <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.blv.bg</p>
         </div>
-      `,
+      `;
+
+    // Вътрешният адрес получава известие както досега.
+    sendEmail({
+      to: (await getNotifyEmail()) || "",
+      subject: completeEmailSubject,
+      html: completeEmailHtml,
     }).catch(() => {});
+
+    // Клиентът (собственикът на имота) получава известие, че обходът е готов.
+    const ownerEmail = ownerEmailFor(job.property_id);
+    if (ownerEmail) {
+      sendEmail({
+        to: ownerEmail,
+        subject: completeEmailSubject,
+        html: completeEmailHtml,
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ ...updatedJob, items });
   } catch (error) {

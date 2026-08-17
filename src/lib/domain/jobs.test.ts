@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canMarkItemDone } from "./jobs";
+import { canMarkItemDone, canCancelJob } from "./jobs";
 import { normalizeOverrideReason, MIN_REASON_LENGTH } from "./overrides";
 
 describe("прагът за причината е един и същ на двете места", () => {
@@ -68,5 +68,67 @@ describe("canMarkItemDone", () => {
 
   it("отказва на админ с твърде къса причина", () => {
     expect(canMarkItemDone(photoItem, { hasEvidence: false, isAdmin: true, reason: "ок" }).ok).toBe(false);
+  });
+});
+
+describe("canCancelJob", () => {
+  const inspectorId = "inspector-1";
+  const otherInspectorId = "inspector-2";
+
+  it("позволява на админ да отмени планирана задача", () => {
+    const r = canCancelJob(
+      { status: "planned", assignee_id: inspectorId },
+      { isAdmin: true, userId: "admin-1" },
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  it("позволява на админ да отмени задача в прогрес", () => {
+    const r = canCancelJob(
+      { status: "in_progress", assignee_id: inspectorId },
+      { isAdmin: true, userId: "admin-1" },
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  it("позволява на възложения инспектор да отмени собствена планирана задача", () => {
+    const r = canCancelJob(
+      { status: "planned", assignee_id: inspectorId },
+      { isAdmin: false, userId: inspectorId },
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  it("позволява на възложения инспектор да отмени собствена задача в прогрес (стартирана по грешка)", () => {
+    const r = canCancelJob(
+      { status: "in_progress", assignee_id: inspectorId },
+      { isAdmin: false, userId: inspectorId },
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  it("отказва на друг инспектор да отмени чужда задача", () => {
+    const r = canCancelJob(
+      { status: "planned", assignee_id: inspectorId },
+      { isAdmin: false, userId: otherInspectorId },
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it("отказва отмяна на завършена задача дори за админ", () => {
+    const r = canCancelJob(
+      { status: "completed", assignee_id: inspectorId },
+      { isAdmin: true, userId: "admin-1" },
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("Завършена");
+  });
+
+  it("отказва повторна отмяна на вече отменена задача", () => {
+    const r = canCancelJob(
+      { status: "cancelled", assignee_id: inspectorId },
+      { isAdmin: true, userId: "admin-1" },
+    );
+    expect(r.ok).toBe(false);
   });
 });
