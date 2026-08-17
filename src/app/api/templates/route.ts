@@ -6,8 +6,19 @@ import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export const GET = withAuth({ role: ["admin"] }, async () => {
+/**
+ * Каталогът е видим за всеки влязъл — клиентът трябва да види какво може да
+ * поръча. Преди тук стоеше role: ["admin"], което връщаше 403 на клиента и
+ * правеше заявката за пакет невъзможна.
+ *
+ * Клиентът вижда само това, което реално се продава: неархивирани и bookable
+ * услуги. Админ и инспектор виждат целия списък, включително архивния.
+ * Създаването и промяната остават само за админ (виж POST по-долу).
+ */
+export const GET = withAuth({}, async (_request, { session }) => {
   try {
+    const catalogOnly = session.role === "client";
+
     const rows = db
       .select()
       .from(serviceTemplates)
@@ -20,6 +31,9 @@ export const GET = withAuth({ role: ["admin"] }, async () => {
     for (const row of rows) {
       const t = row.service_templates;
       const item = row.template_items;
+
+      if (catalogOnly && (t.archived || !t.bookable)) continue;
+
       if (!templateMap.has(t.id)) {
         templateMap.set(t.id, { ...t, items: [] });
       }

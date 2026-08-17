@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sheet } from "./ui/Sheet";
 import { Button } from "./ui/Button";
 import { Input, Select, Textarea } from "./ui/Input";
+
+type AddressHit = {
+  lat: number;
+  lng: number;
+  label: string;
+  display_name: string;
+};
 
 type PropertyFormData = {
   name: string;
@@ -17,45 +24,77 @@ type PropertyFormData = {
 
 export default function PropertyForm({ onAdd, onClose }: { onAdd: (data: PropertyFormData) => void; onClose: () => void }) {
   const [data, setData] = useState<PropertyFormData>({ name: "", city: "", addr: "", type: "apartment", access: "" });
-  const [geocodeLoading, setGeocodeLoading] = useState(false);
-  const [geocodeResult, setGeocodeResult] = useState<{ display_name: string; lat: number; lng: number } | null>(null);
-  const [geocodeError, setGeocodeError] = useState("");
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<AddressHit[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [picked, setPicked] = useState<AddressHit | null>(null);
+  const [searchError, setSearchError] = useState("");
 
-  const handleGeocode = async () => {
-    const q = [data.city, data.addr].filter(Boolean).join(", ");
-    if (!q.trim()) return;
-    setGeocodeLoading(true);
-    setGeocodeError("");
-    setGeocodeResult(null);
-    try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
-      if (res.ok) {
-        const json = await res.json();
-        setGeocodeResult(json);
-        setData(prev => ({ ...prev, lat: json.lat, lng: json.lng }));
-      } else {
-        setGeocodeError("Адресът не е намерен");
-        setData(prev => ({ ...prev, lat: undefined, lng: undefined }));
-      }
-    } catch {
-      setGeocodeError("Адресът не е намерен");
-      setData(prev => ({ ...prev, lat: undefined, lng: undefined }));
+  // Търси докато потребителят пише, но изчаква да спре — иначе всяка буква
+  // праща заявка към Nominatim.
+  useEffect(() => {
+    if (picked) return;
+
+    const q = query.trim();
+    if (q.length < 3) {
+      setSuggestions([]);
+      setSearchError("");
+      return;
     }
-    setGeocodeLoading(false);
+
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      setSearchError("");
+      try {
+        const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+        const json = await res.json();
+        if (!res.ok) {
+          setSearchError(json.error ?? "Търсенето не успя");
+          setSuggestions([]);
+        } else {
+          setSuggestions(json.results ?? []);
+          if ((json.results ?? []).length === 0) {
+            setSearchError("Няма намерени адреси. Опитайте с по-малко детайли.");
+          }
+        }
+      } catch {
+        setSearchError("Търсенето не успя. Проверете връзката.");
+        setSuggestions([]);
+      }
+      setSearching(false);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [query, picked]);
+
+  const pickAddress = (hit: AddressHit) => {
+    setPicked(hit);
+    setQuery(hit.label);
+    setSuggestions([]);
+    setSearchError("");
+
+    const a = hit.display_name.split(",").map((s) => s.trim());
+    setData((prev) => ({
+      ...prev,
+      addr: hit.label,
+      // Градът е предпоследната смислена част от пълния адрес.
+      city: prev.city || a.find((part) => /софия|пловдив|варна|бургас/i.test(part)) || a[a.length - 3] || prev.city,
+      lat: hit.lat,
+      lng: hit.lng,
+    }));
+  };
+
+  const clearAddress = () => {
+    setPicked(null);
+    setQuery("");
+    setData((prev) => ({ ...prev, addr: "", lat: undefined, lng: undefined }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!data.name.trim() || !data.city.trim() || !data.addr.trim()) return;
+    if (!data.name.trim() || !picked) return;
     onAdd(data);
     onClose();
-  };
-
-  const geocodeTone = geocodeError ? "danger" : geocodeResult ? "ok" : "info";
-  const geocodeToneClasses: Record<string, string> = {
-    danger: "border-state-danger/30 text-state-danger bg-state-danger/5",
-    ok: "border-state-ok/30 text-state-ok bg-state-ok/5",
-    info: "border-brand-primary/20 text-brand-primary bg-brand-primary/5",
   };
 
   return (
@@ -69,44 +108,61 @@ export default function PropertyForm({ onAdd, onClose }: { onAdd: (data: Propert
           onChange={(e) => setData({ ...data, name: e.target.value })}
           required
         />
-        <div className="flex gap-2">
+        <div className="relative">
           <Input
             type="text"
-            placeholder="Град"
-            value={data.city}
-            onChange={(e) => setData({ ...data, city: e.target.value })}
-            className="flex-1"
+            placeholder="Започнете да пишете адреса…"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if (picked) setPicked(null);
+            }}
+            autoComplete="off"
             required
           />
-          <Input
-            type="text"
-            placeholder="Адрес"
-            value={data.addr}
-            onChange={(e) => setData({ ...data, addr: e.target.value })}
-            className="flex-1"
-            required
-          />
-          <button
-            type="button"
-            onClick={handleGeocode}
-            disabled={geocodeLoading}
-            className={[
-              "min-h-touch min-w-touch px-3 py-3 rounded-xl text-sm font-semibold border",
-              "flex items-center justify-center transition-colors disabled:opacity-50",
-              geocodeToneClasses[geocodeTone],
-            ].join(" ")}
-          >
-            {geocodeLoading ? "⏳" : geocodeResult ? "✓" : "📍 Геокодирай"}
-          </button>
+
+          {picked && (
+            <div className="mt-1 flex items-start gap-2 text-xs text-state-ok">
+              <span className="font-semibold">Избран адрес:</span>
+              <span className="flex-1">{picked.display_name}</span>
+              <button
+                type="button"
+                onClick={clearAddress}
+                className="font-semibold text-muted underline underline-offset-2"
+              >
+                смени
+              </button>
+            </div>
+          )}
+
+          {!picked && searching && (
+            <p className="mt-1 text-xs text-muted">Търси…</p>
+          )}
+
+          {!picked && suggestions.length > 0 && (
+            <ul
+              className="absolute z-10 mt-1 w-full overflow-hidden rounded-card border border-line bg-white shadow-card-2"
+              role="listbox"
+            >
+              {suggestions.map((hit, i) => (
+                <li key={`${hit.lat}-${hit.lng}-${i}`}>
+                  <button
+                    type="button"
+                    onClick={() => pickAddress(hit)}
+                    className="min-h-touch w-full px-3 py-2 text-left hover:bg-brand-bg"
+                  >
+                    <span className="block text-sm font-medium text-ink">{hit.label}</span>
+                    <span className="block truncate text-xs text-muted">{hit.display_name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {!picked && searchError && (
+            <p className="mt-1 text-xs font-medium text-state-danger">{searchError}</p>
+          )}
         </div>
-        {geocodeResult && (
-          <p className="text-xs font-medium text-state-ok">
-            ✓ {geocodeResult.display_name} ({geocodeResult.lat.toFixed(4)}, {geocodeResult.lng.toFixed(4)})
-          </p>
-        )}
-        {geocodeError && (
-          <p className="text-xs font-medium text-state-danger">{geocodeError}</p>
-        )}
         <Select
           value={data.type}
           onChange={(e) => setData({ ...data, type: e.target.value })}
