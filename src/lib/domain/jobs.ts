@@ -9,9 +9,9 @@ export type MarkOptions = {
   reason: string | null;
 };
 
-export type Verdict = { ok: true } | { ok: false; error: string };
+import { isValidOverrideReason, MIN_REASON_LENGTH } from "./overrides";
 
-const MIN_REASON_LENGTH = 5;
+export type Verdict = { ok: true } | { ok: false; error: string };
 
 /**
  * Може ли стъпката да се отметне като изпълнена?
@@ -34,10 +34,13 @@ export function canMarkItemDone(item: ItemForCheck, opts: MarkOptions): Verdict 
     };
   }
 
-  if (!opts.reason || opts.reason.trim().length < MIN_REASON_LENGTH) {
+  // Същото правило, което пази recordOverride — един източник, за да не може
+  // проверката тук да одобри причина, която записът после отхвърля с грешка
+  // (вече след като done: true е записано).
+  if (!isValidOverrideReason(opts.reason)) {
     return {
       ok: false,
-      error: "За отмятане без снимка е задължителна причина (поне 5 знака).",
+      error: `За отмятане без снимка е задължителна причина (поне ${MIN_REASON_LENGTH} знака).`,
     };
   }
 

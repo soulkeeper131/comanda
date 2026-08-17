@@ -18,10 +18,19 @@ export type OverrideInput = {
  * клиента, че всяко заобикаляне се вижда в отчета. Затова проверката е тук —
  * важи за всеки бъдещ извикващ, не само за днешния route.
  */
+export const MIN_REASON_LENGTH = 5;
+
+/** Валидна ли е причината, без да хвърля. За проверка преди действието. */
+export function isValidOverrideReason(reason: string | null | undefined): boolean {
+  return (reason?.trim().length ?? 0) >= MIN_REASON_LENGTH;
+}
+
 export function normalizeOverrideReason(reason: string | null | undefined): string {
   const trimmed = reason?.trim() ?? "";
-  if (trimmed.length < 5) {
-    throw new Error("Причината за прескачане е задължителна (поне 5 знака).");
+  if (trimmed.length < MIN_REASON_LENGTH) {
+    throw new Error(
+      `Причината за прескачане е задължителна (поне ${MIN_REASON_LENGTH} знака).`,
+    );
   }
   return trimmed;
 }

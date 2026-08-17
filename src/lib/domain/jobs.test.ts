@@ -1,5 +1,35 @@
 import { describe, it, expect } from "vitest";
 import { canMarkItemDone } from "./jobs";
+import { normalizeOverrideReason, MIN_REASON_LENGTH } from "./overrides";
+
+describe("прагът за причината е един и същ на двете места", () => {
+  // Ако тези се разминат, canMarkItemDone би одобрила причина, която
+  // recordOverride после отхвърля с грешка — вече след като done: true
+  // е записано в базата.
+  const justBelow = "x".repeat(MIN_REASON_LENGTH - 1);
+  const justAt = "x".repeat(MIN_REASON_LENGTH);
+  const photoItem = { proof_type: "photo", label: "Баня" };
+
+  it("отхвърля една и съща твърде къса причина", () => {
+    const verdict = canMarkItemDone(photoItem, {
+      hasEvidence: false,
+      isAdmin: true,
+      reason: justBelow,
+    });
+    expect(verdict.ok).toBe(false);
+    expect(() => normalizeOverrideReason(justBelow)).toThrow();
+  });
+
+  it("приема една и съща причина на границата", () => {
+    const verdict = canMarkItemDone(photoItem, {
+      hasEvidence: false,
+      isAdmin: true,
+      reason: justAt,
+    });
+    expect(verdict.ok).toBe(true);
+    expect(normalizeOverrideReason(justAt)).toBe(justAt);
+  });
+});
 
 describe("canMarkItemDone", () => {
   const photoItem = { proof_type: "photo", label: "Баня" };
