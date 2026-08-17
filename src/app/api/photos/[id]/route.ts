@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
+import { db } from "@/db";
+import { properties } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { withAuth, canViewProperty } from "@/lib/auth";
+import { propertyIdForPhoto } from "@/lib/domain/photos";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +19,7 @@ const MIME_TYPES: Record<string, string> = {
   ".gif": "image/gif",
 };
 
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } },
-) {
+export const GET = withAuth({}, async (_request, { session, params }) => {
   try {
     const { id } = params;
 
@@ -26,6 +28,30 @@ export async function GET(
       return NextResponse.json(
         { error: "Невалиден идентификатор" },
         { status: 400 },
+      );
+    }
+
+    // Веригата snimka → evidence/finding_photos → job/finding → property_id
+    // → canViewProperty, както в evidence/route.ts и finding-photos/route.ts.
+    const propertyId = propertyIdForPhoto(id);
+    if (!propertyId) {
+      return NextResponse.json(
+        { error: "Файлът не е намерен" },
+        { status: 404 },
+      );
+    }
+
+    const property = db
+      .select()
+      .from(properties)
+      .where(eq(properties.id, propertyId))
+      .get();
+
+    if (!property || !canViewProperty(session, property)) {
+      // 404, не 403 — не издаваме, че снимката съществува
+      return NextResponse.json(
+        { error: "Файлът не е намерен" },
+        { status: 404 },
       );
     }
 
@@ -43,10 +69,12 @@ export async function GET(
 
     const buffer = readFileSync(filepath);
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "public, max-age=31536000, immutable",
+        // private — снимката е лична, публичен кеш (CDN, прокси) не бива
+        // да я държи достъпна за чужди сесии
+        "Cache-Control": "private, max-age=3600",
       },
     });
   } catch (error) {
@@ -56,4 +84,4 @@ export async function GET(
       { status: 500 },
     );
   }
-}
+});

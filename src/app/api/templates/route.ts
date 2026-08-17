@@ -2,10 +2,11 @@ import { db } from "@/db";
 import { serviceTemplates, templateItems } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export const GET = withAuth({ role: ["admin"] }, async () => {
   try {
     const rows = db
       .select()
@@ -32,9 +33,9 @@ export async function GET() {
     console.error("GET /api/templates error:", error);
     return NextResponse.json({ error: "Грешка при зареждане на шаблони" }, { status: 500 });
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin"] }, async (request, { session }) => {
   try {
     const body = await request.json();
     const { category, name, description, icon, duration_min, price } = body;
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     db
       .insert(serviceTemplates)
       .values({
-        org_id: "org1",
+        org_id: session.org_id,
         category,
         name,
         description: description || null,
@@ -67,4 +68,4 @@ export async function POST(request: Request) {
     console.error("POST /api/templates error:", error);
     return NextResponse.json({ error: "Грешка при създаване на шаблон" }, { status: 500 });
   }
-}
+});

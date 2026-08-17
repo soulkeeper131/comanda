@@ -1,8 +1,10 @@
-import { getSession } from "@/lib/auth";
+import { cookies } from "next/headers";
+import { SESSION_COOKIE, verifySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession();
+  const raw = (await cookies()).get(SESSION_COOKIE)?.value;
+  const session = raw ? verifySession(raw) : null;
   if (!session) redirect("/login");
   return <>{children}</>;
 }

@@ -1,18 +1,13 @@
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export const GET = withAuth({ role: ["admin"] }, async () => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-    }
-
     const rows = db.select().from(users).where(eq(users.active, true)).limit(100).all();
     const result = rows.map((u) => ({
       id: u.id,
@@ -26,15 +21,10 @@ export async function GET() {
     console.error("[USERS] Error:", err);
     return NextResponse.json({ error: "Грешка при зареждане на потребители" }, { status: 500 });
   }
-}
+});
 
-export async function PATCH(request: Request) {
+export const PATCH = withAuth({ role: ["admin"] }, async (request) => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-    }
-
     const body = await request.json();
     const { id, role, full_name, active } = body;
 
@@ -74,15 +64,10 @@ export async function PATCH(request: Request) {
     console.error("[USERS PATCH] Error:", err);
     return NextResponse.json({ error: "Грешка при обновяване на потребител" }, { status: 500 });
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withAuth({ role: ["admin"] }, async (request, { session }) => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-    }
-
     const body = await request.json();
     const { id } = body;
 
@@ -113,4 +98,4 @@ export async function DELETE(request: Request) {
     console.error("[USERS DELETE] Error:", err);
     return NextResponse.json({ error: "Грешка при деактивиране на потребител" }, { status: 500 });
   }
-}
+});

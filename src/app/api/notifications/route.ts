@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { notifications } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/auth";
 import { eq, desc, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -9,13 +9,8 @@ export const dynamic = "force-dynamic";
 // GET /api/notifications — връща нотификациите за текущия user
 // GET /api/notifications?all=true — връща всички (и прочетени)
 // GET /api/notifications?limit=10 — лимит
-export async function GET(request: Request) {
+export const GET = withAuth({}, async (request, { session }) => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
     const showAll = searchParams.get("all") === "true";
     const limit = parseInt(searchParams.get("limit") || "50", 10);
@@ -56,17 +51,12 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
-}
+});
 
 // PATCH /api/notifications — маркира нотификация(и) като прочетени
 // Body: { id: string } — single, or { ids: string[] } — multiple, or { markAllRead: true }
-export async function PATCH(request: Request) {
+export const PATCH = withAuth({}, async (request, { session }) => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-    }
-
     const body = await request.json();
 
     if (body.markAllRead) {
@@ -121,4 +111,4 @@ export async function PATCH(request: Request) {
       { status: 500 },
     );
   }
-}
+});

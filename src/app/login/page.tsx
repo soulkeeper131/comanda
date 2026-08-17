@@ -107,14 +107,6 @@ export default function LoginPage() {
             </a>
           </p>
         </form>
-
-        <div className="mt-6 p-4 rounded-xl text-xs text-center" style={{ backgroundColor: "rgba(0,100,148,0.05)", color: "#247ba0" }}>
-          <strong>Тестови акаунти:</strong><br />
-          admin@komanda.bg / admin1234 (Admin)<br />
-          owner@komanda.bg / owner1234 (Owner)<br />
-          worker@komanda.bg / worker1234 (Worker)<br />
-          inspector@komanda.bg / inspector1234 (Inspector)
-        </div>
       </div>
     </div>
   );

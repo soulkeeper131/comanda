@@ -1,4 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { db } from "@/db";
+import { properties } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -53,11 +57,17 @@ function generateScore(id: string) {
   return { score, maxScore, details };
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export const GET = withAuth({}, async (_request, { session, params }) => {
   const { id } = params;
+
+  const property = db.select().from(properties).where(eq(properties.id, id)).get();
+  if (!property) {
+    return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
+  }
+  if (!canViewProperty(session, property)) {
+    return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
+  }
+
   const data = generateScore(id);
   return NextResponse.json(data);
-}
+});

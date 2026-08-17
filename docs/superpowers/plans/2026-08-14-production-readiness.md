@@ -469,7 +469,7 @@ export function canOverride(session: SessionData): boolean {
 - [ ] **Step 4: Пусни тестовете**
 
 Run: `npm test -- policy`
-Expected: PASS — 16 теста.
+Expected: PASS — 14 теста (`canOverride` и `isAdmin` имат по няколко `expect` в един блок).
 
 - [ ] **Step 5: Commit**
 
@@ -997,7 +997,7 @@ describe("покритие на API routes", () => {
     "%s използва withAuth или е изрично публичен",
     (_label, file) => {
       const source = fs.readFileSync(file, "utf8");
-      const guarded = source.includes("withAuth");
+      const guarded = isGuarded(source); // контекстуална проверка — виж бележката
       const publicMarked = source.includes("// @public");
 
       expect(
@@ -1046,7 +1046,9 @@ git commit -m "test: route coverage guard (червен до Task 8)"
 - Consumes: `withAuth` (Task 4), политиките (Task 3).
 
 **Публични routes** (получават `// @public` с обяснение):
-`auth/login`, `auth/register`, `auth/logout`, `inquiries` (POST от landing формата), `stripe/webhook` (Stripe се自 подписва), `push/vapid-public-key` (публичен ключ по дефиниция), `photos/[id]` (виж бележката в Step 6).
+`auth/login`, `auth/register`, `auth/logout`, `inquiries` (POST от landing формата), `stripe/webhook` (Stripe подписва тялото), `push/vapid-public-key` (публичен ключ по дефиниция).
+
+`photos/[id]` **НЕ е публичен** — виж Task 8б.
 
 - [ ] **Step 1: Група 1 — админски routes**
 
@@ -1141,13 +1143,7 @@ git commit -m "feat: withAuth на плащания, отчети и остан�
 // @public Stripe вика този endpoint отвън; защитен е с подпис в тялото (constructEvent), не със сесия.
 ```
 
-За `photos/[id]/route.ts`:
-
-```ts
-// @public Снимките се сервират по случайно UUID име. Познаването на URL-а е достъпът.
-```
-
-**Бележка за преценка:** това е слаба защита — всеки с линка вижда снимката. За снимки от чужд имот това е изтичане на данни. Ако решиш, че снимките трябва да са зад права, кажи и се прави отделна задача (проверка на собственост по `evidence.job_id → jobs.property_id`). Оставям го публично засега, защото затварянето изисква промяна и на клиентската част.
+`photos/[id]` НЕ получава `@public` — той се затваря в Task 8б.
 
 - [ ] **Step 7: Тестът за покритие става зелен**
 
@@ -1157,6 +1153,205 @@ Expected: PASS — всички routes са покрити.
 ```bash
 git add -A
 git commit -m "feat: всички routes са зад withAuth или изрично публични"
+```
+
+---
+
+### Task 8б: Снимките зад права
+
+Днес `/api/photos/[id]` сервира всяка снимка на всеки, който знае UUID-то. Снимка от чужд имот е изтичане на данни — а снимките са същината на продукта („ето доказателството").
+
+**Files:**
+- Modify: `src/app/api/photos/[id]/route.ts`
+- Create: `src/lib/domain/photos.ts`, `src/lib/domain/photos.test.ts`
+
+**Interfaces:**
+- Consumes: `withAuth` (Task 4), `canViewProperty` (Task 3).
+- Produces: `propertyIdForPhoto(storagePath: string): string | null` — намира на кой имот принадлежи дадена снимка, през `evidence` или `finding_photos`.
+
+- [ ] **Step 1: Напиши тестовете за търсенето на собственик**
+
+Файл `src/lib/domain/photos.test.ts`:
+
+```ts
+import { describe, it, expect } from "vitest";
+import { resolveOwningProperty } from "./photos";
+
+describe("resolveOwningProperty", () => {
+  it("намира имота през evidence", () => {
+    const rows = {
+      evidence: [{ storage_path: "/api/photos/a.jpg", job_id: "j1" }],
+      jobs: [{ id: "j1", property_id: "p1" }],
+      findingPhotos: [],
+      findings: [],
+    };
+    expect(resolveOwningProperty("a.jpg", rows)).toBe("p1");
+  });
+
+  it("намира имота през finding_photos", () => {
+    const rows = {
+      evidence: [],
+      jobs: [],
+      findingPhotos: [{ storage_path: "/api/photos/b.jpg", finding_id: "f1" }],
+      findings: [{ id: "f1", property_id: "p2" }],
+    };
+    expect(resolveOwningProperty("b.jpg", rows)).toBe("p2");
+  });
+
+  it("връща null за непозната снимка", () => {
+    const rows = { evidence: [], jobs: [], findingPhotos: [], findings: [] };
+    expect(resolveOwningProperty("няма.jpg", rows)).toBeNull();
+  });
+
+  it("връща null когато снимката сочи към липсваща задача", () => {
+    const rows = {
+      evidence: [{ storage_path: "/api/photos/c.jpg", job_id: "изчезнал" }],
+      jobs: [],
+      findingPhotos: [],
+      findings: [],
+    };
+    expect(resolveOwningProperty("c.jpg", rows)).toBeNull();
+  });
+});
+```
+
+- [ ] **Step 2: Пусни — провал**
+
+Run: `npm test -- domain/photos`
+
+- [ ] **Step 3: Напиши `src/lib/domain/photos.ts`**
+
+Чистата функция е отделена от базата, за да е тестваема:
+
+```ts
+export type PhotoLookupRows = {
+  evidence: { storage_path: string; job_id: string }[];
+  jobs: { id: string; property_id: string }[];
+  findingPhotos: { storage_path: string; finding_id: string }[];
+  findings: { id: string; property_id: string }[];
+};
+
+/** Кой имот притежава тази снимка? Търси и в двата източника. */
+export function resolveOwningProperty(
+  filename: string,
+  rows: PhotoLookupRows,
+): string | null {
+  const matches = (storagePath: string) =>
+    storagePath.endsWith(`/${filename}`) || storagePath === filename;
+
+  const ev = rows.evidence.find((e) => matches(e.storage_path));
+  if (ev) {
+    const job = rows.jobs.find((j) => j.id === ev.job_id);
+    return job?.property_id ?? null;
+  }
+
+  const fp = rows.findingPhotos.find((p) => matches(p.storage_path));
+  if (fp) {
+    const finding = rows.findings.find((f) => f.id === fp.finding_id);
+    return finding?.property_id ?? null;
+  }
+
+  return null;
+}
+```
+
+Плюс обвивката, която чете от базата:
+
+```ts
+import { db } from "@/db";
+import { evidence, jobs, findingPhotos, findings } from "@/db/schema";
+
+export function propertyIdForPhoto(filename: string): string | null {
+  return resolveOwningProperty(filename, {
+    evidence: db.select({ storage_path: evidence.storage_path, job_id: evidence.job_id }).from(evidence).all(),
+    jobs: db.select({ id: jobs.id, property_id: jobs.property_id }).from(jobs).all(),
+    findingPhotos: db.select({ storage_path: findingPhotos.storage_path, finding_id: findingPhotos.finding_id }).from(findingPhotos).all(),
+    findings: db.select({ id: findings.id, property_id: findings.property_id }).from(findings).all(),
+  });
+}
+```
+
+- [ ] **Step 4: Пусни тестовете**
+
+Run: `npm test -- domain/photos`
+Expected: PASS — 4 теста.
+
+- [ ] **Step 5: Затвори route-а**
+
+`src/app/api/photos/[id]/route.ts`:
+
+```ts
+import { withAuth, canViewProperty } from "@/lib/auth";
+import { propertyIdForPhoto } from "@/lib/domain/photos";
+import { db } from "@/db";
+import { properties } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
+import { readFileSync, existsSync } from "fs";
+import path from "path";
+
+export const dynamic = "force-dynamic";
+
+const PHOTOS_DIR = path.join(process.cwd(), "data", "photos");
+
+const MIME_TYPES: Record<string, string> = {
+  ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+  ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif",
+};
+
+export const GET = withAuth({}, async (_request, { session, params }) => {
+  const { id } = params;
+
+  if (id.includes("..") || id.includes("/") || id.includes("\\")) {
+    return NextResponse.json({ error: "Невалиден идентификатор" }, { status: 400 });
+  }
+
+  const propertyId = propertyIdForPhoto(id);
+  if (!propertyId) {
+    return NextResponse.json({ error: "Файлът не е намерен" }, { status: 404 });
+  }
+
+  const property = db.select().from(properties).where(eq(properties.id, propertyId)).get();
+  if (!property || !canViewProperty(session, property)) {
+    // 404, не 403 — не издаваме, че снимката съществува
+    return NextResponse.json({ error: "Файлът не е намерен" }, { status: 404 });
+  }
+
+  const filepath = path.join(PHOTOS_DIR, id);
+  if (!existsSync(filepath)) {
+    return NextResponse.json({ error: "Файлът не е намерен" }, { status: 404 });
+  }
+
+  const ext = path.extname(id).toLowerCase();
+  const buffer = readFileSync(filepath);
+
+  return new NextResponse(new Uint8Array(buffer), {
+    headers: {
+      "Content-Type": MIME_TYPES[ext] || "application/octet-stream",
+      // private — снимката е лична, не се кешира от посредници
+      "Cache-Control": "private, max-age=3600",
+    },
+  });
+});
+```
+
+**Две бележки за реализацията:**
+- Връща се **404, а не 403** при липса на права — иначе отговорът потвърждава, че снимката съществува.
+- `Cache-Control` пада от `public, immutable` на `private` — публичният кеш на CDN или прокси не бива да държи чужди снимки.
+
+- [ ] **Step 6: Провери, че клиентската част още работи**
+
+```bash
+npm run dev
+```
+
+Снимките в чеклиста и в констатациите трябва да се зареждат нормално за влезлия потребител. `<img>` таговете пращат бисквитки по подразбиране за same-origin, така че промяна там не се очаква — ако някоя снимка не се зареди, виж дали не се тегли от контекст без сесия.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add -A
+git commit -m "fix: снимките са зад права, не само зад UUID"
 ```
 
 ---
@@ -1871,13 +2066,25 @@ export type OverrideInput = {
   reason: string;
 };
 
-/** Записва прескачане на проверка. Викай ТОЧНО когато проверката е прескочена. */
+/**
+ * Записва прескачане на проверка. Викай ТОЧНО когато проверката е прескочена.
+ *
+ * Причината е задължителна и не може да е празна. SQLite `NOT NULL` пропуска
+ * празен низ, а прескачане без обосновка обезсмисля обещанието към клиента,
+ * че всяко заобикаляне се вижда в отчета. Затова проверката е тук, а не само
+ * в route-а — за да важи за всеки бъдещ извикващ.
+ */
 export function recordOverride(input: OverrideInput): void {
+  const reason = input.reason?.trim() ?? "";
+  if (reason.length < 5) {
+    throw new Error("Причината за прескачане е задължителна (поне 5 знака).");
+  }
+
   db.insert(overrides).values({
     admin_id: input.admin_id,
     entity_type: input.entity_type,
     entity_id: input.entity_id,
-    reason: input.reason,
+    reason,
   }).run();
 }
 
@@ -2157,7 +2364,7 @@ git commit -m "feat: задължително снимково доказате�
 
 ### Task 16: Имейли до клиента и отказ на задача
 
-**⚠️ Тази задача изпълнява стойностите по подразбиране от §5.4 на спецификацията. Потвърди ги, преди да я започнеш.**
+*Стойностите от §5.4 са потвърдени от потребителя на 2026-08-14 — задачата се изпълнява както е описана.*
 
 **Files:**
 - Modify: `src/lib/email.ts`, `src/app/api/offers/route.ts`, `src/app/api/jobs/[id]/complete/route.ts`

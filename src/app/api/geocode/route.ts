@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
+export const GET = withAuth({}, async (request) => {
   try {
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q");
@@ -53,4 +54,4 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
-}
+});

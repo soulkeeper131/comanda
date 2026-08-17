@@ -4,14 +4,24 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
+import { withAuth, canDecideOffer, isAdmin } from "@/lib/auth";
+import {
+  canTransition,
+  allowedTransitions,
+  isValidDecision,
+  VALID_DECISIONS,
+  type OfferDecision,
+} from "@/lib/domain/offers";
 
 export const dynamic = "force-dynamic";
 
 // PATCH /api/offers/[id] — обновява оферта (decision, scope, price, days)
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+// Авторизация: преходите между статусите следват строга машина на състоянията
+// (виж src/lib/domain/offers.ts). Кой има право на кой преход:
+//   pending → accepted/declined: само собственикът на имота (canDecideOffer)
+//   accepted → paid: само Stripe webhook-ът (директно в базата, не през тук)
+//   paid → in_progress, in_progress → done: само админ
+export const PATCH = withAuth({}, async (request, { session, params }) => {
   try {
     const { id } = params;
     const body = await request.json();
@@ -31,14 +41,74 @@ export async function PATCH(
     const updates: Record<string, unknown> = {};
 
     if (body.decision !== undefined) {
-      const VALID_DECISIONS = ["pending", "accepted", "declined", "paid", "in_progress", "done"];
-      if (!VALID_DECISIONS.includes(body.decision)) {
+      if (!isValidDecision(body.decision)) {
         return NextResponse.json(
           { error: `Невалиден статус. Позволени: ${VALID_DECISIONS.join(", ")}` },
           { status: 400 }
         );
       }
+
+      const from = (existing.decision ?? "pending") as OfferDecision;
+      const to = body.decision;
+
+      if (!canTransition(from, to)) {
+        return NextResponse.json(
+          {
+            error: `Не може да се премине от "${from}" към "${to}".`,
+            allowed: allowedTransitions(from),
+          },
+          { status: 400 }
+        );
+      }
+
+      // Кой има право на този конкретен преход
+      if (to === "accepted" || to === "declined") {
+        const [finding] = await db
+          .select()
+          .from(findings)
+          .where(eq(findings.id, existing.finding_id));
+        const [property] = finding
+          ? await db
+              .select()
+              .from(properties)
+              .where(eq(properties.id, finding.property_id))
+          : [null];
+
+        if (!property || !canDecideOffer(session, property)) {
+          return NextResponse.json(
+            { error: "Само собственикът на имота може да приеме или откаже оферта" },
+            { status: 403 }
+          );
+        }
+      } else if (to === "paid") {
+        // paid се задава само от Stripe webhook-а, не от потребител
+        return NextResponse.json(
+          { error: "Статусът 'платена' се задава автоматично след плащане" },
+          { status: 403 }
+        );
+      } else if (!isAdmin(session)) {
+        return NextResponse.json(
+          { error: "Само админ може да променя този статус" },
+          { status: 403 }
+        );
+      }
+
       updates.decision = body.decision;
+    }
+
+    if (body.scope !== undefined || body.price !== undefined || body.days !== undefined) {
+      if (!isAdmin(session)) {
+        return NextResponse.json(
+          { error: "Само админ може да променя офертата" },
+          { status: 403 }
+        );
+      }
+      if (existing.decision !== "pending") {
+        return NextResponse.json(
+          { error: "Офертата може да се променя само докато е в очакване" },
+          { status: 400 }
+        );
+      }
     }
 
     if (body.scope !== undefined) {
@@ -96,13 +166,10 @@ export async function PATCH(
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/offers/[id] — изтрива оферта (само ако е pending)
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export const DELETE = withAuth({ role: ["admin"] }, async (request, { params }) => {
   try {
     const { id } = params;
 
@@ -134,4 +201,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

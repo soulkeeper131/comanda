@@ -2,23 +2,26 @@ import { db } from "@/db";
 import { offers, findings, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { sendEmail, getNotifyEmail } from "@/lib/email";
+import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
 import { notifyOwner } from "@/lib/notifications";
+import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/offers — всички оферти (с JOIN към findings и properties)
 // GET /api/offers?finding_id=X&decision=pending — филтрира по finding и/или решение
-export async function GET(request: Request) {
+export const GET = withAuth({}, async (request, { session }) => {
   try {
     const { searchParams } = new URL(request.url);
     const findingId = searchParams.get("finding_id");
     const decisionFilter = searchParams.get("decision");
 
-    let query = db.select().from(offers);
+    // $dynamic() позволява условието да се добави след това, без да се
+    // преприсвоява самият builder (което чупи типа).
+    const query = db.select().from(offers).$dynamic();
 
     if (findingId) {
-      query = query.where(eq(offers.finding_id, findingId));
+      query.where(eq(offers.finding_id, findingId));
     }
 
     const offersList = await query;
@@ -72,7 +75,21 @@ export async function GET(request: Request) {
       })
     );
 
-    return NextResponse.json(enriched);
+    // Клиентът вижда само офертите по своите имоти (оферта → констатация → имот)
+    let visibleOffers = enriched;
+    if (session.role === "client") {
+      visibleOffers = enriched.filter((offer) => {
+        if (!offer.finding?.property_id) return false;
+        const property = db
+          .select()
+          .from(properties)
+          .where(eq(properties.id, offer.finding.property_id))
+          .get();
+        return property ? canViewProperty(session, property) : false;
+      });
+    }
+
+    return NextResponse.json(visibleOffers);
   } catch (error) {
     console.error("GET /api/offers error:", error);
     return NextResponse.json(
@@ -80,10 +97,10 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/offers — създава нова оферта
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin"] }, async (request) => {
   try {
     const body = await request.json();
     const { finding_id, price, days, scope } = body;
@@ -116,10 +133,7 @@ export async function POST(request: Request) {
     // Send email notification
     const [finding] = db.select().from(findings).where(eq(findings.id, finding_id)).all();
     const propertyName = "Имот";
-    sendEmail({
-      to: (await getNotifyEmail()) || "",
-      subject: `💰 Нова оферта за ${propertyName}: ${price}лв`,
-      html: `
+    const offerEmailHtml = `
         <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
           <h2 style="color: #1b98e0;">💰 Нова оферта</h2>
           <p style="color: #247ba0;"><strong>Цена:</strong> ${price} лв</p>
@@ -129,8 +143,28 @@ export async function POST(request: Request) {
           <hr style="border: none; border-top: 1px solid #e4e9f0; margin: 20px 0;" />
           <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.blv.bg</p>
         </div>
-      `,
+      `;
+    const offerEmailSubject = `💰 Нова оферта за ${propertyName}: ${price}лв`;
+
+    // Вътрешният адрес получава известие както досега.
+    sendEmail({
+      to: (await getNotifyEmail()) || "",
+      subject: offerEmailSubject,
+      html: offerEmailHtml,
     }).catch(() => {});
+
+    // Клиентът (собственикът на имота) получава същото известие — той е
+    // страната, която трябва да реши дали приема офертата.
+    if (finding?.property_id) {
+      const ownerEmail = ownerEmailFor(finding.property_id);
+      if (ownerEmail) {
+        sendEmail({
+          to: ownerEmail,
+          subject: offerEmailSubject,
+          html: offerEmailHtml,
+        }).catch(() => {});
+      }
+    }
 
     return NextResponse.json(offer, { status: 201 });
   } catch (error) {
@@ -140,4 +174,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

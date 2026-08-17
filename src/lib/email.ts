@@ -1,7 +1,8 @@
 import * as nodemailer from "nodemailer";
 import { db } from "@/db";
-import { organizations, settings } from "@/db/schema";
+import { organizations, settings, properties, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getDefaultOrgId } from "@/lib/org";
 
 export interface SmtpConfig {
   smtp_host: string;
@@ -88,7 +89,8 @@ const DEFAULT_TEMPLATES: Record<TemplateKey, EmailTemplate> = {
 
 async function getOrgSettings(): Promise<Record<string, any>> {
   try {
-    const [org] = db.select({ settings: organizations.settings }).from(organizations).where(eq(organizations.id, "org1")).all();
+    const orgId = getDefaultOrgId();
+    const [org] = db.select({ settings: organizations.settings }).from(organizations).where(eq(organizations.id, orgId)).all();
     if (org?.settings) return JSON.parse(org.settings);
   } catch {}
   return {};
@@ -189,6 +191,14 @@ export async function sendTemplatedEmail(key: TemplateKey, to: string, vars: Rec
 export async function getNotifyEmail(): Promise<string | null> {
   const config = await getSmtpConfig();
   return config?.notify_email || null;
+}
+
+/** Имейлът на собственика на имота, ако има такъв. */
+export function ownerEmailFor(propertyId: string): string | null {
+  const property = db.select().from(properties).where(eq(properties.id, propertyId)).get();
+  if (!property) return null;
+  const owner = db.select().from(users).where(eq(users.id, property.owner_id)).get();
+  return owner?.email ?? null;
 }
 
 /** Get all templates (for admin UI) */

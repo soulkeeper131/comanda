@@ -1,15 +1,13 @@
 import { db } from "@/db";
 import { jobs, properties, users, jobItems, evidence, findings, findingPhotos } from "@/db/schema";
 import { eq, inArray, desc } from "drizzle-orm";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { generatePropertyReport } from "@/lib/pdf";
+import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export const GET = withAuth({}, async (_request, { session, params }) => {
   try {
     const propertyId = params.id;
 
@@ -21,6 +19,10 @@ export async function GET(
       .get();
 
     if (!property) {
+      return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
+    }
+
+    if (!canViewProperty(session, property)) {
       return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
     }
 
@@ -123,7 +125,8 @@ export async function GET(
       enrichedFindings
     );
 
-    return new NextResponse(pdfBuffer, {
+    // Buffer не се приема директно като BodyInit — обвиваме в Uint8Array (виж photos/[id]/route.ts).
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
@@ -138,4 +141,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

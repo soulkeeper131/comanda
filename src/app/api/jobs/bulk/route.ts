@@ -2,10 +2,11 @@ import { db } from "@/db";
 import { jobs, properties, serviceTemplates } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin"] }, async (request, { session }) => {
   try {
     const body = await request.json();
     const {
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
 
       db.insert(jobs)
         .values({
-          org_id: "org1",
+          org_id: session.org_id,
           property_id,
           assignee_id: assignee_id || null,
           template_id: template_id || null,
@@ -109,4 +110,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

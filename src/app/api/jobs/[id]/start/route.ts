@@ -3,15 +3,17 @@ import { jobs, templateItems, jobItems, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { notifyOwner } from "@/lib/notifications";
+import { withAuth, canOverride } from "@/lib/auth";
+import { distanceMeters } from "@/lib/geo";
+import { recordOverride, normalizeOverrideReason } from "@/lib/domain/overrides";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(
-  _request: Request,
-  { params }: { params: { id: string } }
-) {
+export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, { session, params }) => {
   try {
     const { id } = params;
+    const body = await request.json().catch(() => ({}));
+    const { lat, lng, override_reason } = body ?? {};
 
     // Get the job
     const job = db.select().from(jobs).where(eq(jobs.id, id)).get();
@@ -47,6 +49,62 @@ export async function POST(
       );
     }
 
+    // Причината за прескачане, ако има такова — записва се след като
+    // стартирането е сигурно (виж по-долу).
+    let overrideReason: string | null = null;
+
+    // Геофенсинг: инспекторът трябва да е в периметъра на имота при check-in.
+    const property = db.select().from(properties).where(eq(properties.id, job.property_id)).get();
+    if (!property) {
+      return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
+    }
+
+    const radius = property.geofence_m ?? 75;
+    const hasCoords =
+      typeof lat === "number" && typeof lng === "number" && Number.isFinite(lat) && Number.isFinite(lng);
+    const distance = hasCoords
+      ? distanceMeters({ lat, lng }, { lat: property.lat, lng: property.lng })
+      : null;
+    // geofence_m <= 0 изключва проверката — изрично конфигуриран имот без периметър.
+    const geofenceActive = radius > 0;
+    const insideFence = !geofenceActive || (distance !== null && distance <= radius);
+
+    if (!insideFence) {
+      // Извън периметъра (или без координати) — само админ минава, и то с причина
+      if (!canOverride(session)) {
+        return NextResponse.json(
+          {
+            error: hasCoords
+              ? `Намирате се на ${Math.round(distance!)} м от имота. Трябва да сте в рамките на ${radius} м.`
+              : "Локацията е недостъпна. Разрешете достъп до местоположението.",
+            distance_m: distance !== null ? Math.round(distance) : null,
+            geofence_m: radius,
+          },
+          { status: 403 },
+        );
+      }
+
+      // Причината се валидира СЕГА (за да върнем 400 рано), но записът в
+      // overrides става чак след като стартирането е сигурно — иначе при
+      // "шаблонът няма стъпки" оставаме с осиротял одитен запис за обход,
+      // който никога не е започнал.
+      try {
+        overrideReason = normalizeOverrideReason(
+          typeof override_reason === "string" ? override_reason : "",
+        );
+      } catch (err) {
+        return NextResponse.json(
+          {
+            error:
+              err instanceof Error
+                ? err.message
+                : "Причината за прескачане е задължителна.",
+          },
+          { status: 400 },
+        );
+      }
+    }
+
     // Get template items
     const items = db
       .select()
@@ -77,9 +135,24 @@ export async function POST(
 
     // Update job status to in_progress and set check_in
     db.update(jobs)
-      .set({ status: "in_progress", check_in: now })
+      .set({
+        status: "in_progress",
+        check_in: now,
+        check_in_lat: hasCoords ? lat : null,
+        check_in_lng: hasCoords ? lng : null,
+      })
       .where(eq(jobs.id, id))
       .run();
+
+    // Стартирането е факт — чак сега записваме прескачането, ако е имало.
+    if (overrideReason !== null) {
+      recordOverride({
+        admin_id: session.uid,
+        entity_type: "job_checkin",
+        entity_id: job.id,
+        reason: overrideReason,
+      });
+    }
 
     // Return updated job with items
     const updatedJob = db.select().from(jobs).where(eq(jobs.id, id)).get();
@@ -100,4 +173,4 @@ export async function POST(
     console.error("POST /api/jobs/[id]/start error:", error);
     return NextResponse.json({ error: "Грешка при стартиране на задача" }, { status: 500 });
   }
-}
+});

@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { invoices, users, payments } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { withAuth, isAdmin } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import jsPDF from "jspdf";
@@ -9,15 +9,7 @@ import autoTable from "jspdf-autotable";
 export const dynamic = "force-dynamic";
 
 // GET /api/invoices/[id]/pdf — генерира PDF фактура
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } }
-) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-  }
-
+export const GET = withAuth({}, async (_request, { session, params }) => {
   const invoice = db
     .select()
     .from(invoices)
@@ -31,9 +23,13 @@ export async function GET(
     );
   }
 
-  // Само собственикът на фактурата или admin може да я свали
-  if (invoice.user_id !== session.uid && session.role !== "admin") {
-    return NextResponse.json({ error: "Нямате достъп" }, { status: 403 });
+  // Само собственикът на фактурата или admin може да я свали.
+  // 404, не 403 — не издаваме, че фактурата съществува.
+  if (invoice.user_id !== session.uid && !isAdmin(session)) {
+    return NextResponse.json(
+      { error: "Фактурата не е намерена" },
+      { status: 404 }
+    );
   }
 
   // Вземи данни за клиента
@@ -273,7 +269,8 @@ export async function GET(
   const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
   const filename = `faktura-${invoice.number}.pdf`;
 
-  return new NextResponse(pdfBuffer, {
+  // Uint8Array, не суров Buffer — консистентно с останалите PDF/файлови routes.
+  return new NextResponse(new Uint8Array(pdfBuffer), {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
@@ -281,4 +278,4 @@ export async function GET(
       "Content-Length": pdfBuffer.length.toString(),
     },
   });
-}
+});

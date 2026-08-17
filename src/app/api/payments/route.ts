@@ -1,35 +1,27 @@
 import { db } from "@/db";
 import { payments } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { withAuth, isAdmin } from "@/lib/auth";
 import { eq, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/payments — връща плащанията на текущия user
-export async function GET() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-  }
-
-  const rows = db
-    .select()
-    .from(payments)
-    .where(eq(payments.user_id, session.uid))
-    .orderBy(desc(payments.created_at))
-    .all();
+// GET /api/payments — връща плащанията на текущия user (админ вижда всички)
+export const GET = withAuth({}, async (_request, { session }) => {
+  const rows = isAdmin(session)
+    ? db.select().from(payments).orderBy(desc(payments.created_at)).all()
+    : db
+        .select()
+        .from(payments)
+        .where(eq(payments.user_id, session.uid))
+        .orderBy(desc(payments.created_at))
+        .all();
 
   return NextResponse.json(rows);
-}
+});
 
 // POST /api/payments — създава "плащане" (бутафорно)
-export async function POST(request: Request) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-  }
-
+export const POST = withAuth({}, async (request, { session }) => {
   const body = await request.json().catch(() => ({}));
   const { offer_id, amount, method } = body;
 
@@ -53,4 +45,4 @@ export async function POST(request: Request) {
 
   const payment = db.select().from(payments).where(eq(payments.id, id)).get();
   return NextResponse.json(payment, { status: 201 });
-}
+});

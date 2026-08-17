@@ -1,21 +1,11 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { withAuth } from "@/lib/auth";
 import { db } from "@/db";
 import { payments } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { validateStripeAmount, eurToCents } from "@/lib/stripe";
-import type Stripe from "stripe";
+import { validateStripeAmount, eurToCents, getStripeOrNull } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
-
-// Lazy Stripe init — избягва build error когато ключът липсва
-function getStripe(): Stripe | null {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) return null;
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const StripeSDK = require("stripe");
-  return new StripeSDK(key);
-}
 
 /**
  * POST /api/stripe/checkout
@@ -24,16 +14,8 @@ function getStripe(): Stripe | null {
  * Създава Stripe Checkout Session и връща URL + sessionId + paymentId.
  * Записва payment запис в DB със status="pending" и stripe_session_id.
  */
-export async function POST(request: Request) {
+export const POST = withAuth({}, async (request, { session }) => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json(
-        { error: "Не сте влезли" },
-        { status: 401 }
-      );
-    }
-
     const body = await request.json().catch(() => ({}));
     let { plan, propertyId, offerId, amount, currency } = body;
 
@@ -59,7 +41,7 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_APP_URL ||
       "https://comanda.blv.bg";
 
-    const stripe = getStripe();
+    const stripe = getStripeOrNull();
 
     // Ако Stripe не е конфигуриран — dev fallback: директно маркираме като платено
     if (!stripe) {
@@ -155,4 +137,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

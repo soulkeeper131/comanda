@@ -1,25 +1,23 @@
 import { db } from "@/db";
 import { payments } from "@/db/schema";
-import { getSession } from "@/lib/auth";
+import { withAuth, isAdmin } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 // PATCH /api/payments/[id] — сменя статус ("paid") — БУТАФОРНО
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-  }
-
+export const PATCH = withAuth({}, async (request, { session, params }) => {
   const { id } = params;
   const payment = db.select().from(payments).where(eq(payments.id, id)).get();
 
   if (!payment) {
+    return NextResponse.json({ error: "Плащането не е намерено" }, { status: 404 });
+  }
+
+  // Само собственикът на плащането или admin може да го променя.
+  // 404, не 403 — не издаваме, че плащането съществува.
+  if (payment.user_id !== session.uid && !isAdmin(session)) {
     return NextResponse.json({ error: "Плащането не е намерено" }, { status: 404 });
   }
 
@@ -39,4 +37,4 @@ export async function PATCH(
 
   const updated = db.select().from(payments).where(eq(payments.id, id)).get();
   return NextResponse.json(updated);
-}
+});

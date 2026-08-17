@@ -1,8 +1,10 @@
 import { validateUser, setSession } from "@/lib/auth";
+import { getDefaultOrgId } from "@/lib/org";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+// @public Вход в системата — по дефиниция става преди да има сесия.
 export async function POST(request: Request) {
   let email = "", password = "";
   try {
@@ -17,17 +19,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Имейл и парола са задължителни" }, { status: 400 });
   }
 
-  console.log(`[LOGIN] Attempt: ${email}`);
-
   // DB-backed check
   const user = await validateUser(email, password);
   if (!user) {
-    console.log(`[LOGIN] FAIL: ${email} — грешен имейл, парола или деактивиран акаунт`);
+    console.log("[LOGIN] Неуспешен опит за вход");
     return NextResponse.json({ error: "Грешен имейл или парола" }, { status: 401 });
   }
 
-  console.log(`[LOGIN] OK: ${email} (${user.role})`);
-  await setSession(user);
+  await setSession({ uid: user.id, role: user.role, org_id: user.org_id ?? getDefaultOrgId() });
 
   return NextResponse.json({
     success: true,

@@ -2,13 +2,11 @@ import { db } from "@/db";
 import { templateItems } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export const PATCH = withAuth({ role: ["admin"] }, async (request, { params }) => {
   try {
     const { id } = params;
     const body = await request.json();
@@ -61,12 +59,9 @@ export async function PATCH(
       { status: 500 }
     );
   }
-}
+});
 
-export async function DELETE(
-  _request: Request,
-  { params }: { params: { id: string } }
-) {
+export const DELETE = withAuth({ role: ["admin"] }, async (_request, { params }) => {
   try {
     const { id } = params;
 
@@ -95,4 +90,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

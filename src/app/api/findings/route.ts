@@ -4,11 +4,12 @@ import { eq, desc, inArray, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
 import { notifyOwner } from "@/lib/notifications";
+import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/findings?status=open&property_id=X
-export async function GET(request: Request) {
+export const GET = withAuth({}, async (request, { session }) => {
   try {
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get("status");
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
       conditions.push(eq(findings.property_id, propertyIdFilter));
     }
 
-    let query = db
+    const query = db
       .select({
         id: findings.id,
         org_id: findings.org_id,
@@ -39,13 +40,29 @@ export async function GET(request: Request) {
       })
       .from(findings)
       .leftJoin(properties, eq(findings.property_id, properties.id))
-      .leftJoin(users, eq(findings.reported_by, users.id));
+      .leftJoin(users, eq(findings.reported_by, users.id))
+      // $dynamic() позволява условието да се добави след това, без да се
+      // преприсвоява самият builder (което чупи типа).
+      .$dynamic();
 
     if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      query.where(and(...conditions));
     }
 
-    const rows = query.orderBy(desc(findings.created_at)).all();
+    let rows = query.orderBy(desc(findings.created_at)).all();
+
+    // Клиентът вижда само констатациите по своите имоти
+    if (session.role === "client") {
+      rows = rows.filter((row) => {
+        if (!row.property_id) return false;
+        const property = db
+          .select()
+          .from(properties)
+          .where(eq(properties.id, row.property_id))
+          .get();
+        return property ? canViewProperty(session, property) : false;
+      });
+    }
 
     if (rows.length === 0) {
       return NextResponse.json([]);
@@ -106,9 +123,9 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, { session }) => {
   try {
     const body = await request.json();
     const { property_id, job_id, job_item_id, title, body: desc, photo_ids, reported_by } = body;
@@ -125,7 +142,7 @@ export async function POST(request: Request) {
     db.insert(findings)
       .values({
         id: findingId,
-        org_id: "org1",
+        org_id: session.org_id,
         property_id,
         job_id: job_id || null,
         job_item_id: job_item_id || null,
@@ -215,4 +232,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

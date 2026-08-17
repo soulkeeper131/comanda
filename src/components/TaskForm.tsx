@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Sheet } from "./ui/Sheet";
+import { Button } from "./ui/Button";
+import { Select, Input } from "./ui/Input";
 
 type Props = {
   onSave: (data: { propertyId: string; templateId: string; assigneeId: string; title: string; plannedAt: string }) => void;
@@ -50,61 +53,43 @@ export default function TaskForm({ onSave, onClose }: Props) {
   };
 
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
-      <div className="fixed inset-x-4 bottom-1/2 translate-y-1/2 z-50 max-w-md mx-auto bg-white rounded-2xl shadow-2xl p-6">
-        <h3 className="text-lg font-bold mb-4" style={{ color: "#006494" }}>➕ Нова задача</h3>
-        {loading ? (
-          <div className="text-center py-8" style={{ color: "#247ba0" }}>Зареждане...</div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <select value={propertyId} onChange={e => setPropertyId(e.target.value)} required
-              className="w-full px-4 py-3 rounded-xl border text-base"
-              style={{ borderColor: "#e4e9f0", fontSize: 16, color: "#006494" }}>
-              <option value="">🏠 Избери имот</option>
-              {properties.map((p: any) => (
-                <option key={p.id} value={p.id}>{p.name} — {p.address?.split(",")[0]}</option>
-              ))}
-            </select>
+    <Sheet open onClose={onClose} placement="center">
+      <h3 className="text-lg font-bold mb-4 text-brand-dark">➕ Нова задача</h3>
+      {loading ? (
+        <div className="text-center py-8 text-brand-secondary">Зареждане...</div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <Select value={propertyId} onChange={e => setPropertyId(e.target.value)} required className="text-brand-dark">
+            <option value="">🏠 Избери имот</option>
+            {properties.map((p: any) => (
+              <option key={p.id} value={p.id}>{p.name} — {p.address?.split(",")[0]}</option>
+            ))}
+          </Select>
 
-            <select value={templateId} onChange={e => setTemplateId(e.target.value)} required
-              className="w-full px-4 py-3 rounded-xl border text-base"
-              style={{ borderColor: "#e4e9f0", fontSize: 16, color: "#006494" }}>
-              <option value="">📋 Избери шаблон</option>
-              {templates.map((t: any) => (
-                <option key={t.id} value={t.id}>{t.icon} {t.name} ({t.duration_min} мин)</option>
-              ))}
-            </select>
+          <Select value={templateId} onChange={e => setTemplateId(e.target.value)} required className="text-brand-dark">
+            <option value="">📋 Избери шаблон</option>
+            {templates.map((t: any) => (
+              <option key={t.id} value={t.id}>{t.icon} {t.name} ({t.duration_min} мин)</option>
+            ))}
+          </Select>
 
-            <select value={assigneeId} onChange={e => setAssigneeId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border text-base"
-              style={{ borderColor: "#e4e9f0", fontSize: 16, color: "#006494" }}>
-              <option value="">👷 Избери работник (по избор)</option>
-              {users.map((u: any) => (
-                <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-              ))}
-            </select>
+          <Select value={assigneeId} onChange={e => setAssigneeId(e.target.value)} className="text-brand-dark">
+            <option value="">👷 Избери работник (по избор)</option>
+            {users.map((u: any) => (
+              <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+            ))}
+          </Select>
 
-            <input type="text" value={title} onChange={e => setTitle(e.target.value)}
-              placeholder="Заглавие (по избор)"
-              className="w-full px-4 py-3 rounded-xl border text-base"
-              style={{ borderColor: "#e4e9f0", fontSize: 16 }} />
+          <Input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Заглавие (по избор)" />
 
-            <input type="datetime-local" value={plannedAt} onChange={e => setPlannedAt(e.target.value)} required
-              className="w-full px-4 py-3 rounded-xl border text-base"
-              style={{ borderColor: "#e4e9f0", fontSize: 16, color: "#006494" }} />
+          <Input type="datetime-local" value={plannedAt} onChange={e => setPlannedAt(e.target.value)} required className="text-brand-dark" />
 
-            <div className="flex gap-2 pt-2">
-              <button type="button" onClick={onClose}
-                className="flex-1 min-h-[44px] py-3 rounded-xl text-sm font-semibold border"
-                style={{ borderColor: "#d0e5ff", color: "#247ba0" }}>Отказ</button>
-              <button type="submit"
-                className="flex-1 min-h-[44px] py-3 rounded-xl text-sm font-semibold text-white"
-                style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}>Възложи</button>
-            </div>
-          </form>
-        )}
-      </div>
-    </>
+          <div className="flex gap-2 pt-2">
+            <Button type="button" variant="secondary" fullWidth onClick={onClose}>Отказ</Button>
+            <Button type="submit" variant="primary" fullWidth>Възложи</Button>
+          </div>
+        </form>
+      )}
+    </Sheet>
   );
 }

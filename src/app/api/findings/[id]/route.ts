@@ -2,15 +2,13 @@ import { db } from "@/db";
 import { findings, findingPhotos, properties, users, jobItems } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const VALID_STATUSES = ["open", "in_progress", "resolved"] as const;
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export const PATCH = withAuth({ role: ["admin", "inspector"] }, async (request, { params }) => {
   try {
     const { id } = params;
     const body = await request.json();
@@ -120,4 +118,4 @@ export async function PATCH(
       { status: 500 }
     );
   }
-}
+});

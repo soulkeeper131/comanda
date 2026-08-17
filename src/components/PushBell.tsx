@@ -54,7 +54,9 @@ export default function PushBell() {
         }
       })
       .catch(() => {
-        setBellState(permission === "denied" ? "blocked" : "unsubscribed");
+        // Случаят "denied" вече е обработен с ранен return по-горе, затова
+        // тук остава само "default" | "granted".
+        setBellState("unsubscribed");
       });
   }, []);
 
@@ -76,7 +78,13 @@ export default function PushBell() {
 
       // 3. Get service worker registration and subscribe
       const reg = await navigator.serviceWorker.ready;
-      const applicationServerKey = urlBase64ToUint8Array(publicKey);
+      // `.buffer` е ArrayBufferLike; PushManager иска точно ArrayBuffer.
+      const keyBytes = urlBase64ToUint8Array(publicKey);
+      const applicationServerKey = keyBytes.buffer.slice(
+        keyBytes.byteOffset,
+        keyBytes.byteOffset + keyBytes.byteLength,
+      ) as ArrayBuffer;
+
       const subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey,

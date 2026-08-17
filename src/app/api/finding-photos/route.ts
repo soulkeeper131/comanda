@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { findingPhotos, findings } from "@/db/schema";
+import { findingPhotos, findings, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import crypto from "crypto";
+import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ function getExtension(filename: string): string {
 }
 
 // POST — upload a photo for a finding
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin", "inspector"] }, async (request) => {
   try {
     const formData = await request.formData();
     const file = formData.get("file");
@@ -117,15 +118,45 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
-// GET — list photos for a finding (or all)
-export async function GET(request: Request) {
+// GET — list photos for a finding (or all, scoped by права)
+export const GET = withAuth({}, async (request, { session }) => {
   try {
     const url = new URL(request.url);
     const findingId = url.searchParams.get("finding_id");
 
     if (findingId) {
+      // Веригата finding_photos.finding_id → findings.property_id → properties
+      // → canViewProperty, както в findings/route.ts.
+      const finding = db
+        .select({ property_id: findings.property_id })
+        .from(findings)
+        .where(eq(findings.id, findingId))
+        .get();
+
+      if (!finding) {
+        // 404, не 400 — не издаваме дали finding_id съществува
+        return NextResponse.json(
+          { error: "Констатацията не е намерена" },
+          { status: 404 }
+        );
+      }
+
+      const property = db
+        .select()
+        .from(properties)
+        .where(eq(properties.id, finding.property_id))
+        .get();
+
+      if (!property || !canViewProperty(session, property)) {
+        // 404, не 403 — не издаваме, че констатацията съществува
+        return NextResponse.json(
+          { error: "Констатацията не е намерена" },
+          { status: 404 }
+        );
+      }
+
       const photos = db
         .select()
         .from(findingPhotos)
@@ -143,10 +174,29 @@ export async function GET(request: Request) {
       );
     }
 
-    // Return all photos
-    const allPhotos = db.select().from(findingPhotos).all();
+    // Без finding_id — връщаме всички снимки, скопирани по видимите за
+    // потребителя констатации (веригата constatация → имот → canViewProperty),
+    // с една заявка вместо да теглим findings/properties/photos изцяло в паметта.
+    // admin/inspector виждат всичко — директна заявка без join по собственик.
+    // client вижда само снимки на констатации от собствените си имоти.
+    const scopedPhotos =
+      session.role === "admin" || session.role === "inspector"
+        ? db.select().from(findingPhotos).all()
+        : db
+            .select({
+              id: findingPhotos.id,
+              finding_id: findingPhotos.finding_id,
+              storage_path: findingPhotos.storage_path,
+              taken_at: findingPhotos.taken_at,
+            })
+            .from(findingPhotos)
+            .innerJoin(findings, eq(findingPhotos.finding_id, findings.id))
+            .innerJoin(properties, eq(findings.property_id, properties.id))
+            .where(eq(properties.owner_id, session.uid))
+            .all();
+
     return NextResponse.json(
-      allPhotos.map((p) => ({
+      scopedPhotos.map((p) => ({
         id: p.id,
         finding_id: p.finding_id,
         storage_path: p.storage_path,
@@ -161,4 +211,4 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});

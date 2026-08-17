@@ -1,8 +1,9 @@
 import { db } from "@/db";
 import { jobs, properties, users, serviceTemplates, jobItems, evidence } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { createNotification, notifyOwner } from "@/lib/notifications";
+import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +27,25 @@ async function pushNotify(title: string, propertyId: string) {
 }
 
 // GET /api/jobs?assignee_id=X&status=Y
-export async function GET(request: Request) {
+export const GET = withAuth({}, async (request, { session }) => {
   try {
     const { searchParams } = new URL(request.url);
     const assigneeIdFilter = searchParams.get("assignee_id");
     const statusFilter = searchParams.get("status");
 
-    let query = db
+    // Условията се събират предварително — преприсвояването на query builder-а
+    // към себе си след .where() не се типизира коректно от Drizzle.
+    const conditions = [];
+    if (assigneeIdFilter) {
+      conditions.push(eq(jobs.assignee_id, assigneeIdFilter));
+    }
+    if (statusFilter) {
+      conditions.push(
+        eq(jobs.status, statusFilter as "planned" | "in_progress" | "completed" | "cancelled"),
+      );
+    }
+
+    let rows = db
       .select({
         id: jobs.id,
         title: jobs.title,
@@ -53,75 +66,82 @@ export async function GET(request: Request) {
       })
       .from(jobs)
       .leftJoin(properties, eq(jobs.property_id, properties.id))
-      .leftJoin(users, eq(jobs.assignee_id, users.id));
+      .leftJoin(users, eq(jobs.assignee_id, users.id))
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(desc(jobs.created_at))
+      .all();
 
-    if (assigneeIdFilter) {
-      query = query.where(eq(jobs.assignee_id, assigneeIdFilter));
+    // Клиентът вижда само задачите за своите имоти. Вземаме наведнъж имотите
+    // за всички property_id в резултата (една заявка), вместо по един на ред.
+    if (session.role === "client") {
+      const propertyIds = Array.from(
+        new Set(rows.map((r) => r.property_id).filter((id): id is string => !!id)),
+      );
+      const ownProperties =
+        propertyIds.length > 0
+          ? db.select().from(properties).where(inArray(properties.id, propertyIds)).all()
+          : [];
+      const propertiesById = new Map(ownProperties.map((p) => [p.id, p]));
+
+      rows = rows.filter((row) => {
+        if (!row.property_id) return false;
+        const property = propertiesById.get(row.property_id);
+        return property ? canViewProperty(session, property) : false;
+      });
     }
-    if (statusFilter) {
-      query = query.where(eq(jobs.status, statusFilter));
-    }
 
-    const rows = query.orderBy(desc(jobs.created_at)).all();
-
-    // Compute itemsChecked / itemsTotal per job
-    // Fetch all items for jobs in this result set
+    // Compute itemsChecked / itemsTotal / photoCount per job с групови (агрегиращи)
+    // заявки вместо да теглим всички редове от job_items/evidence в паметта.
     const jobIds = rows.map((j) => j.id);
-    if (jobIds.length > 0) {
-      // Build a map of job_id -> { checked, total }
-      const itemCounts: Record<string, { checked: number; total: number }> = {};
+    const withComputed = rows.map((row) => ({
+      ...row,
+      itemsChecked: 0,
+      itemsTotal: 0,
+      photoCount: 0,
+      started_at: row.check_in,
+      completed_at: row.check_out,
+    }));
 
-      // SQLite doesn't support array IN with drizzle easily, so we query all items
-      // and filter in JS. For small datasets this is fine.
-      const allItems = db
+    if (jobIds.length > 0) {
+      const itemCounts = db
         .select({
           job_id: jobItems.job_id,
-          done: jobItems.done,
+          total: sql<number>`count(*)`,
+          checked: sql<number>`sum(case when ${jobItems.done} then 1 else 0 end)`,
         })
         .from(jobItems)
+        .where(inArray(jobItems.job_id, jobIds))
+        .groupBy(jobItems.job_id)
         .all();
+      const itemCountsByJob = new Map(itemCounts.map((c) => [c.job_id, c]));
 
-      for (const item of allItems) {
-        if (!itemCounts[item.job_id]) {
-          itemCounts[item.job_id] = { checked: 0, total: 0 };
-        }
-        itemCounts[item.job_id].total++;
-        if (item.done) {
-          itemCounts[item.job_id].checked++;
-        }
-      }
-
-      // Also count evidence photos per job
-      const allPhotos = db
+      const photoCounts = db
         .select({
           job_id: evidence.job_id,
+          count: sql<number>`count(*)`,
         })
         .from(evidence)
+        .where(inArray(evidence.job_id, jobIds))
+        .groupBy(evidence.job_id)
         .all();
+      const photoCountsByJob = new Map(photoCounts.map((c) => [c.job_id, c.count]));
 
-      const photoCounts: Record<string, number> = {};
-      for (const p of allPhotos) {
-        photoCounts[p.job_id] = (photoCounts[p.job_id] || 0) + 1;
-      }
-
-      for (const row of rows) {
-        const counts = itemCounts[row.id] || { checked: 0, total: 0 };
-        (row as any).itemsChecked = counts.checked;
-        (row as any).itemsTotal = counts.total;
-        (row as any).photoCount = photoCounts[row.id] || 0;
-        (row as any).started_at = row.check_in;
-        (row as any).completed_at = row.check_out;
+      for (const row of withComputed) {
+        const counts = itemCountsByJob.get(row.id);
+        row.itemsChecked = counts ? Number(counts.checked) : 0;
+        row.itemsTotal = counts ? Number(counts.total) : 0;
+        row.photoCount = photoCountsByJob.get(row.id) ? Number(photoCountsByJob.get(row.id)) : 0;
       }
     }
 
-    return NextResponse.json(rows);
+    return NextResponse.json(withComputed);
   } catch (error) {
     console.error("GET /api/jobs error:", error);
     return NextResponse.json({ error: "Грешка при зареждане на задачи" }, { status: 500 });
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin"] }, async (request, { session }) => {
   try {
     const body = await request.json();
     const { property_id, assignee_id, template_id, planned_at, title: bodyTitle } = body;
@@ -162,10 +182,13 @@ export async function POST(request: Request) {
       jobTitle = "Задача";
     }
 
-    db
+    // RETURNING дава точно новосъздадения ред. Преди тук се вземаше
+    // "последният по created_at", но той е с точност до секунда — две
+    // задачи в една и съща секунда връщаха чужд запис в отговора.
+    const [job] = db
       .insert(jobs)
       .values({
-        org_id: "org1",
+        org_id: session.org_id,
         property_id,
         assignee_id: assignee_id || null,
         template_id: template_id || null,
@@ -174,10 +197,8 @@ export async function POST(request: Request) {
         planned_at,
         status: "planned",
       })
-      .run();
-
-    // SQLite no RETURNING — fetch the last inserted job
-    const [job] = db.select().from(jobs).orderBy(desc(jobs.created_at)).limit(1).all();
+      .returning()
+      .all();
 
     // Fire push notification (non-blocking)
     pushNotify(jobTitle, property_id).catch((e) =>
@@ -201,4 +222,4 @@ export async function POST(request: Request) {
     console.error("POST /api/jobs error:", error);
     return NextResponse.json({ error: "Грешка при създаване на задача" }, { status: 500 });
   }
-}
+});

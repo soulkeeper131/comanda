@@ -1,29 +1,23 @@
 import { db } from "@/db";
 import { plans, properties, serviceTemplates } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
+import { eq } from "drizzle-orm";
+import { withAuth, canViewProperty } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/properties/[id]/plans — list plans for a property
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } }
-) {
+export const GET = withAuth({}, async (_request, { session, params }) => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-    }
-
-    // Verify ownership
     const prop = db.select().from(properties)
-      .where(and(eq(properties.id, params.id), eq(properties.owner_id, session.uid)))
+      .where(eq(properties.id, params.id))
       .get();
 
-    if (!prop && session.role !== "admin") {
-      return NextResponse.json({ error: "Нямате достъп" }, { status: 403 });
+    if (!prop) {
+      return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
+    }
+    if (!canViewProperty(session, prop)) {
+      return NextResponse.json({ error: "Нямате достъп до този имот" }, { status: 404 });
     }
 
     const result = db.select().from(plans)
@@ -35,26 +29,20 @@ export async function GET(
     console.error("GET plans error:", error);
     return NextResponse.json({ error: "Грешка" }, { status: 500 });
   }
-}
+});
 
 // POST /api/properties/[id]/plans — add a plan to a property
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export const POST = withAuth({}, async (request, { session, params }) => {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
-    }
-
-    // Verify ownership
     const prop = db.select().from(properties)
-      .where(and(eq(properties.id, params.id), eq(properties.owner_id, session.uid)))
+      .where(eq(properties.id, params.id))
       .get();
 
-    if (!prop && session.role !== "admin") {
-      return NextResponse.json({ error: "Нямате достъп" }, { status: 403 });
+    if (!prop) {
+      return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
+    }
+    if (!canViewProperty(session, prop)) {
+      return NextResponse.json({ error: "Нямате достъп до този имот" }, { status: 404 });
     }
 
     const body = await request.json();
@@ -94,4 +82,4 @@ export async function POST(
     console.error("POST plan error:", error);
     return NextResponse.json({ error: "Грешка при добавяне на пакет" }, { status: 500 });
   }
-}
+});

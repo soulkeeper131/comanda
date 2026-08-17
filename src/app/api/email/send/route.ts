@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 // POST /api/email/send — send an email with {to, subject, html}
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin"] }, async (request) => {
   try {
     const body = await request.json();
     const { to, subject, html } = body;
@@ -26,4 +27,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

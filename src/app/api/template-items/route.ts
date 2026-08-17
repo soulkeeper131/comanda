@@ -2,10 +2,11 @@ import { db } from "@/db";
 import { templateItems } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { withAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
+export const GET = withAuth({ role: ["admin"] }, async (request) => {
   try {
     const { searchParams } = new URL(request.url);
     const templateId = searchParams.get("template_id");
@@ -32,9 +33,9 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth({ role: ["admin"] }, async (request) => {
   try {
     const body = await request.json();
     const { template_id, zone_label, label, proof_type, required, sort } = body;
@@ -76,4 +77,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
+});

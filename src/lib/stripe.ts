@@ -13,11 +13,22 @@ export function getStripe(): Stripe {
       throw new Error("STRIPE_SECRET_KEY environment variable is not set");
     }
     _stripe = new Stripe(key, {
-      apiVersion: "2025-06-16.basil",
+      // Версията трябва да съвпада с тази, която инсталираният SDK очаква.
+      apiVersion: "2026-07-29.dahlia",
       typescript: true,
     });
   }
   return _stripe;
+}
+
+/**
+ * Като `getStripe()`, но връща `null` вместо да хвърля, когато ключът липсва.
+ * За routes, които трябва да отговорят с "плащанията не са настроени",
+ * а не да се сринат.
+ */
+export function getStripeOrNull(): Stripe | null {
+  if (!process.env.STRIPE_SECRET_KEY) return null;
+  return getStripe();
 }
 
 /**
