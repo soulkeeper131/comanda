@@ -32,6 +32,22 @@ export const PATCH = withAuth({ role: ["admin", "inspector"] }, async (request, 
       return NextResponse.json({ error: "Нямате права за тази стъпка" }, { status: 403 });
     }
 
+    // Стъпки се пипат само докато обходът тече. Отказана или завършена задача
+    // е приключила — иначе "отказан обход" не е наистина спрян и историята му
+    // може да се дописва след факта.
+    if (job.status !== "in_progress") {
+      const label =
+        job.status === "cancelled"
+          ? "отказана"
+          : job.status === "completed"
+            ? "завършена"
+            : "нестартирана";
+      return NextResponse.json(
+        { error: `Задачата е ${label} — стъпките ѝ не могат да се променят.` },
+        { status: 400 },
+      );
+    }
+
     // Размаркирането (done: false) не твърди, че работата е свършена — не
     // изисква снимка и не се одитира. Проверката важи само при отмятане.
     if (done) {
