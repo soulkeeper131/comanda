@@ -17,6 +17,7 @@ import PlanSelector from "@/components/PlanSelector";
 import PaymentPanel from "@/components/PaymentPanel";
 import OnboardingPage from "./onboarding/page";
 import ClientHome from "@/features/client/ClientHome";
+import InspectorHome from "@/features/inspector/InspectorHome";
 
 type UserRole = "admin" | "client" | "inspector";
 
@@ -600,6 +601,17 @@ export default function DashboardPage() {
       <div className="flex flex-col h-[100dvh] md:max-w-3xl md:mx-auto md:shadow-xl md:border-x md:rounded-none bg-brand-bg" style={{ borderColor: "#e4e9f0" }}>
         <Topbar />
         <ClientHome />
+      </div>
+    );
+  }
+
+  // Инспекторът вижда седмичния си график, не таб-базирания dashboard
+  // (Task N1) — същият модел като клиента по-горе.
+  if (userRole === "inspector") {
+    return (
+      <div className="flex flex-col h-[100dvh] md:max-w-3xl md:mx-auto md:shadow-xl md:border-x md:rounded-none bg-brand-bg" style={{ borderColor: "#e4e9f0" }}>
+        <Topbar />
+        <InspectorHome />
       </div>
     );
   }
