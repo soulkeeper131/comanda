@@ -42,20 +42,30 @@ if (!isBuildPhase) {
       ).run(orgId, "КОМАНДА", "komanda");
 
       const seedUsers = [
-        { id: "u1", email: "admin@komanda.bg", role: "admin", name: "Админ", env: "SEED_ADMIN_PASSWORD", fallback: "admin1234" },
-        { id: "u2", email: "client@komanda.bg", role: "client", name: "Клиент", env: "SEED_CLIENT_PASSWORD", fallback: "client1234" },
-        { id: "u4", email: "inspector@komanda.bg", role: "inspector", name: "Инспектор", env: "SEED_INSPECTOR_PASSWORD", fallback: "inspector1234" },
+        { id: "u1", email: "admin@komanda.bg", role: "admin", name: "Админ", env: "SEED_ADMIN_PASSWORD" },
+        { id: "u2", email: "client@komanda.bg", role: "client", name: "Клиент", env: "SEED_CLIENT_PASSWORD" },
+        { id: "u4", email: "inspector@komanda.bg", role: "inspector", name: "Инспектор", env: "SEED_INSPECTOR_PASSWORD" },
       ];
 
-      for (const u of seedUsers) {
-        const password = process.env[u.env] || u.fallback;
-        const hash = bcrypt.hashSync(password, 10);
-        sqlite.prepare(
-          "INSERT OR IGNORE INTO users (id, org_id, email, password_hash, role, full_name, active) VALUES (?, ?, ?, ?, ?, ?, 1)"
-        ).run(u.id, orgId, u.email, hash, u.role, u.name);
+      // Без парола по подразбиране. По-рано тук стоеше fallback "admin1234" —
+      // ако променливата липсва на сървъра, продукцията тръгва с публично
+      // известна админска парола. Празната база е по-безопасна от слаба.
+      const missing = seedUsers.filter((u) => !process.env[u.env]);
+      if (missing.length > 0) {
+        console.error(
+          "[db] Seed при старт ПРОПУСНАТ: липсват " +
+            missing.map((u) => u.env).join(", ") +
+            ". Задайте ги и рестартирайте, или пуснете `npm run db:seed` локално."
+        );
+      } else {
+        for (const u of seedUsers) {
+          const hash = bcrypt.hashSync(process.env[u.env] as string, 10);
+          sqlite.prepare(
+            "INSERT OR IGNORE INTO users (id, org_id, email, password_hash, role, full_name, active) VALUES (?, ?, ?, ?, ?, ?, 1)"
+          ).run(u.id, orgId, u.email, hash, u.role, u.name);
+        }
+        console.log("[db] Seed при старт: създадени тестови потребители.");
       }
-
-      console.log("[db] Seed при старт: създадени тестови потребители (admin@komanda.bg, client@komanda.bg, inspector@komanda.bg).");
     }
   } catch (e) {
     console.error("[db] Seed при старт се провали:", e);
