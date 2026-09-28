@@ -33,25 +33,36 @@ export type PropertyFormData = {
 export default function PropertyForm({
   onAdd,
   onClose,
+  initial,
+  title = "Нов имот",
+  submitLabel = "Добави",
 }: {
   onAdd: (data: PropertyFormData) => void | string | Promise<void | string>;
   onClose: () => void;
+  /** Попълнена форма — за поправка на имот, който чака или е отказан. */
+  initial?: PropertyFormData;
+  title?: string;
+  submitLabel?: string;
 }) {
-  const [data, setData] = useState<PropertyFormData>({
-    name: "",
-    city: "",
-    addr: "",
-    type: "apartment",
-    access: "",
-    contact_name: "",
-    contact_phone: "",
-  });
+  const [data, setData] = useState<PropertyFormData>(
+    initial ?? {
+      name: "",
+      city: "",
+      addr: "",
+      type: "apartment",
+      access: "",
+      contact_name: "",
+      contact_phone: "",
+    },
+  );
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initial?.addr ?? "");
   const [suggestions, setSuggestions] = useState<AddressHit[]>([]);
   const [searching, setSearching] = useState(false);
-  const [picked, setPicked] = useState<AddressHit | null>(null);
+  const [picked, setPicked] = useState<AddressHit | null>(
+    initial?.lat && initial?.lng ? { lat: initial.lat, lng: initial.lng, label: initial.addr, display_name: initial.addr } : null,
+  );
   const [searchError, setSearchError] = useState("");
 
   // Търси докато потребителят пише, но изчаква да спре — иначе всяка буква
@@ -141,8 +152,8 @@ export default function PropertyForm({
   return (
     <Sheet open onClose={onClose} placement="center" className="max-h-[90dvh] overflow-y-auto">
       <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-brand-dark">
-        <Icon name="plus" size={20} />
-        Нов имот
+        <Icon name={initial ? "edit" : "plus"} size={20} />
+        {title}
       </h3>
       <form onSubmit={handleSubmit} className="space-y-3">
         <Input
@@ -250,7 +261,7 @@ export default function PropertyForm({
         <div className="flex gap-2 pt-2">
           <Button type="button" variant="secondary" fullWidth onClick={onClose}>Отказ</Button>
           <Button type="submit" variant="primary" fullWidth disabled={submitting}>
-            {submitting ? "Запазване…" : "Добави"}
+            {submitting ? "Запазване…" : submitLabel}
           </Button>
         </div>
       </form>

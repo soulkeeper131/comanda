@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { fullAddress } from "@/lib/format";
 import PropertyEditorSheet, { APPROVAL } from "./PropertyEditorSheet";
 import NewPropertySheet from "./NewPropertySheet";
 import { Chips, EmptyState, SectionTitle, inputClass } from "./ui";
@@ -127,7 +128,7 @@ export default function PropertiesSection({
                   <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-semibold text-ink">{p.name}</div>
-                      <div className="truncate text-sm text-muted">{[p.address, p.city].filter(Boolean).join(", ")}</div>
+                      <div className="truncate text-sm text-muted">{fullAddress(p.city, p.address)}</div>
                       <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted">
                         <span>{p.owner_name}</span>
                         <span>{p.inspector_name ? `Инспектор: ${p.inspector_name}` : "Без инспектор"}</span>

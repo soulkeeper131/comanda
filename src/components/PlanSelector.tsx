@@ -53,7 +53,14 @@ export default function PlanSelector({
       .then((list) => {
         if (cancelled) return;
         setCatalog(list);
-        const first = list.find((p) => p.in_season);
+        // Пакетът, избран на началната страница преди регистрацията.
+        let preferred: string | null = null;
+        try {
+          preferred = localStorage.getItem("komanda_preferred_plan");
+        } catch {
+          /* private mode */
+        }
+        const first = list.find((p) => p.in_season && p.name === preferred) ?? list.find((p) => p.in_season);
         if (first) setSelectedId(first.id);
       })
       .catch((e: Error) => {
@@ -105,6 +112,11 @@ export default function PlanSelector({
           return;
         }
         if (d.bank) setBankPlan({ id: d.id, price: d.price });
+        try {
+          localStorage.removeItem("komanda_preferred_plan");
+        } catch {
+          /* private mode */
+        }
         setDone(true);
       } else {
         const d = await res.json().catch(() => ({}));

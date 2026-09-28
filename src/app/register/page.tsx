@@ -1,13 +1,25 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+const PLAN_NAMES: Record<string, string> = { year: "Пълен надзор", winter: "Зимен сезон", summer: "Летен сезон" };
+
 function RegisterForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const plan = searchParams.get("plan") || "";
+  // Пакетът от началната страница се помни до избора след одобрението на
+  // имота (цената идва от каталога тогава, не се показва тук твърдо).
+  const planName = PLAN_NAMES[plan] ?? "";
+  useEffect(() => {
+    if (!planName) return;
+    try {
+      localStorage.setItem("komanda_preferred_plan", planName);
+    } catch {
+      /* private mode */
+    }
+  }, [planName]);
   const [accountType, setAccountType] = useState<"individual" | "company">("individual");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -70,8 +82,8 @@ function RegisterForm() {
       } else if (data.verify_required) {
         setVerifySentTo(data.email || email);
       } else {
-        const target = plan ? `/register/property?plan=${encodeURIComponent(plan)}` : "/dashboard";
-        window.location.href = target;
+        // Стъпка 2 — имотът. Без него няма какво да се одобри и избере.
+        window.location.href = "/register/property";
       }
     } catch {
       setError("Възникна грешка. Опитай отново.");
@@ -103,13 +115,16 @@ function RegisterForm() {
             alt="КОМАНДА"
             className="h-14 mx-auto mb-4"
           />
-          {plan && (
+          {planName && (
             <div className="inline-block px-4 py-2 rounded-full text-sm font-semibold mb-3" style={{ background: "#e0f2fe", color: "#1b98e0" }}>
-              {plan === "year" ? "Пълен надзор · 60€/мес" : plan === "winter" ? "Зимен сезон · 40€/мес" : "Летен сезон · 50€/мес"}
+              Избран пакет: {planName}
             </div>
           )}
           <p className="text-sm mt-2" style={{ color: "#247ba0" }}>
             Стъпка 1 от 3 — Създай своя профил
+          </p>
+          <p className="text-xs mt-1" style={{ color: "#64748b" }}>
+            След това: имотът → одобрение и избор на пакет
           </p>
         </div>
 

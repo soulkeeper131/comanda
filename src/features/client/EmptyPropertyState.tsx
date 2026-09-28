@@ -17,22 +17,8 @@ export default function EmptyPropertyState({ onCreated }: { onCreated: () => voi
   const [created, setCreated] = useState(false);
 
   const handleAdd = async (data: PropertyFormData): Promise<string | void> => {
-    if (!data.lat || !data.lng) return "Моля, изберете адрес от предложенията.";
-    const res = await api("/api/properties", {
-      method: "POST",
-      body: {
-        name: data.name,
-        city: data.city,
-        address: data.addr,
-        lat: data.lat,
-        lng: data.lng,
-        kind: data.type,
-        access_notes: data.access || undefined,
-        contact_name: data.contact_name || undefined,
-        contact_phone: data.contact_phone || undefined,
-      },
-    });
-    if (!res.ok) return res.error;
+    const err = await createProperty(data);
+    if (err) return err;
     setCreated(true);
   };
 
@@ -96,4 +82,24 @@ export default function EmptyPropertyState({ onCreated }: { onCreated: () => voi
       {showForm && <PropertyForm onAdd={handleAdd} onClose={() => setShowForm(false)} />}
     </div>
   );
+}
+
+/** Нов имот от формата — общо за първия и за всеки следващ. */
+export async function createProperty(data: PropertyFormData): Promise<string | void> {
+  if (!data.lat || !data.lng) return "Моля, изберете адрес от предложенията.";
+  const res = await api("/api/properties", {
+    method: "POST",
+    body: {
+      name: data.name,
+      city: data.city,
+      address: data.addr,
+      lat: data.lat,
+      lng: data.lng,
+      kind: data.type,
+      access_notes: data.access || undefined,
+      contact_name: data.contact_name || undefined,
+      contact_phone: data.contact_phone || undefined,
+    },
+  });
+  if (!res.ok) return res.error;
 }

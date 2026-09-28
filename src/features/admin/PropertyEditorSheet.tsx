@@ -148,7 +148,7 @@ export default function PropertyEditorSheet({
               <Icon name="pin" size={16} /> Провери точката на картата
             </a>
 
-            <Field label="Инспектор на имота" hint="Важи за новите обходи; вече създадените не се пренаписват.">
+            <Field label="Инспектор на имота" hint="Поема и вече насрочените бъдещи обходи (без изпълнител или на предишния инспектор).">
               <select className={inputClass} value={form.assigned_inspector_id} onChange={set("assigned_inspector_id")}>
                 <option value="">— без инспектор —</option>
                 {inspectors.map((u) => (

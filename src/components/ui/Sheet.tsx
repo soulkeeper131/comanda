@@ -49,21 +49,26 @@ export function Sheet({ open, onClose, children, placement = "center", className
               {children}
             </motion.div>
           ) : (
-            <motion.div
-              className={[
-                "fixed inset-x-4 bottom-1/2 translate-y-1/2 z-50 max-w-md mx-auto",
-                "rounded-lg bg-white shadow-card-3 p-6 safe-bottom",
-                className,
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              transition={{ duration: 0.15 }}
-            >
-              {children}
-            </motion.div>
+            // Центрира flex обвивка, не translate: Framer Motion пише своя
+            // transform (scale) и изтриваше translate-y — горната част на
+            // висока форма излизаше извън екрана на телефон.
+            <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                className={[
+                  "pointer-events-auto w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto",
+                  "rounded-lg bg-white shadow-card-3 p-6 safe-bottom",
+                  className,
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.15 }}
+              >
+                {children}
+              </motion.div>
+            </div>
           )}
         </>
       )}

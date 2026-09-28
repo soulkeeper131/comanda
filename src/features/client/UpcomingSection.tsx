@@ -1,17 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Sheet } from "@/components/ui/Sheet";
 import { Icon } from "@/components/ui/Icon";
 import { Notice, Section } from "./Section";
-import { api } from "./api";
-import { addDaysKey, formatDateOnly, formatDay, formatWhen, todayKey } from "./format";
+import { api, getOr } from "./api";
+import { formatDateOnly, formatDay, formatWhen } from "./format";
 import type { ClientJob } from "./types";
 
-const MAX_DAYS = 14;
 
 /** „Предстои" — следващите три обхода; планираните може да се местят. */
 export default function UpcomingSection({
@@ -87,12 +86,22 @@ function RescheduleSheet({
   onClose: () => void;
   onDone: (date: string) => void;
 }) {
-  const today = todayKey();
-  const max = addDaysKey(today, MAX_DAYS);
   const current = job.planned_at.slice(0, 10);
-  const [date, setDate] = useState(current >= today && current <= max ? current : today);
+  // Прозорецът идва от сървъра — същите правила като проверката там:
+  // от утре, до 14 дни след първоначалната дата, преди следващия обход.
+  const [range, setRange] = useState<{ min: string; max: string } | null | undefined>(undefined);
+  const [date, setDate] = useState(current);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    getOr<{ window: { min: string; max: string } | null }>(`/api/jobs/${job.id}/reschedule`, { window: null }).then((d) => {
+      setRange(d.window);
+      if (d.window && (current < d.window.min || current > d.window.max)) setDate(d.window.min);
+    });
+  }, [job.id, current]);
+  const min = range?.min ?? "";
+  const max = range?.max ?? "";
 
   const submit = async () => {
     setSaving(true);
@@ -107,8 +116,12 @@ function RescheduleSheet({
     <Sheet open onClose={onClose} placement="bottom" className="mx-auto max-w-lg p-5">
       <h3 className="text-lg font-bold text-ink">Преместване на обход</h3>
       <p className="mt-1 text-sm text-muted">
-        Сега: {formatDateOnly(job.planned_at)}. Изберете нов ден — от днес до {MAX_DAYS} дни напред.
-        Обходът е за целия ден; инспекторът ще бъде уведомен.
+        Сега: {formatDateOnly(job.planned_at)}.{" "}
+        {range
+          ? `Нов ден между ${formatDateOnly(range.min)} и ${formatDateOnly(range.max)}. Обходът е за целия ден; инспекторът ще бъде уведомен.`
+          : range === null
+            ? "Този обход не може да се мести повече — обадете ни се, ако е спешно."
+            : "Зареждане…"}
       </p>
       <label className="mt-4 block text-sm font-semibold text-ink" htmlFor="reschedule-date">
         Нова дата
@@ -116,8 +129,9 @@ function RescheduleSheet({
       <Input
         id="reschedule-date"
         type="date"
-        min={today}
+        min={min}
         max={max}
+        disabled={!range}
         value={date}
         onChange={(e) => setDate(e.target.value)}
         className="mt-1"
@@ -131,7 +145,7 @@ function RescheduleSheet({
         <Button variant="secondary" fullWidth onClick={onClose}>
           Отказ
         </Button>
-        <Button fullWidth onClick={submit} disabled={saving || !date || date < today || date > max}>
+        <Button fullWidth onClick={submit} disabled={saving || !range || !date || date === current || date < min || date > max}>
           {saving ? "Запазване…" : "Премести"}
         </Button>
       </div>

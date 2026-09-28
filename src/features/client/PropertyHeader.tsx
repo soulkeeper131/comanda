@@ -9,6 +9,8 @@ import { Icon } from "@/components/ui/Icon";
 import { Notice } from "./Section";
 import { api } from "./api";
 import type { ApprovalStatus, ClientProperty } from "./types";
+import { fullAddress } from "@/lib/format";
+import PropertyForm, { type PropertyFormData } from "@/components/PropertyForm";
 
 export const APPROVAL: Record<ApprovalStatus, { text: string; tone: "ok" | "warning" | "danger" }> = {
   pending: { text: "Чака одобрение", tone: "warning" },
@@ -26,6 +28,28 @@ export default function PropertyHeader({
   onSaved: (msg: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [fixing, setFixing] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState("");
+  const canFix = property.approval_status === "pending" || property.approval_status === "rejected";
+
+  const saveFix = async (d: PropertyFormData): Promise<string | void> => {
+    const res = await api(`/api/properties/${property.id}`, {
+      method: "PATCH",
+      body: { name: d.name, city: d.city, address: d.addr, kind: d.type, lat: d.lat, lng: d.lng },
+    });
+    if (!res.ok) return res.error;
+    setFixing(false);
+    onSaved(property.approval_status === "rejected" ? "Имотът е изпратен отново за одобрение." : "Адресът е поправен.");
+  };
+
+  const remove = async () => {
+    setRemoveError("");
+    const res = await api(`/api/properties/${property.id}`, { method: "PATCH", body: { archived: true } });
+    if (!res.ok) return setRemoveError(res.error);
+    setRemoving(false);
+    onSaved("Имотът е премахнат.");
+  };
   const approval = APPROVAL[property.approval_status] ?? APPROVAL.pending;
 
   return (
@@ -42,7 +66,7 @@ export default function PropertyHeader({
           <h1 className="text-xl font-bold text-ink">{property.name}</h1>
           <p className="flex items-center gap-1 text-sm text-muted">
             <Icon name="pin" size={14} />
-            <span className="truncate">{[property.city, property.address].filter(Boolean).join(", ")}</span>
+            <span className="truncate">{fullAddress(property.city, property.address)}</span>
           </p>
         </div>
         {property.approval_status !== "active" && (
@@ -52,10 +76,24 @@ export default function PropertyHeader({
         )}
       </div>
 
-      <Button variant="secondary" size="sm" className="min-h-touch" onClick={() => setEditing(true)}>
-        <Icon name="edit" size={16} />
-        Данни за достъп
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" size="sm" className="min-h-touch" onClick={() => setEditing(true)}>
+          <Icon name="edit" size={16} />
+          Данни за достъп
+        </Button>
+        {canFix && (
+          <Button variant="secondary" size="sm" className="min-h-touch" onClick={() => setFixing(true)}>
+            <Icon name="pin" size={16} />
+            {property.approval_status === "rejected" ? "Поправи и изпрати отново" : "Поправи адреса"}
+          </Button>
+        )}
+        {property.approval_status !== "active" && (
+          <Button variant="ghost" size="sm" className="min-h-touch text-state-danger" onClick={() => setRemoving(true)}>
+            <Icon name="trash" size={16} />
+            Премахни
+          </Button>
+        )}
+      </div>
 
       {property.approval_status === "pending" && (
         <Notice tone="warning">
@@ -69,6 +107,44 @@ export default function PropertyHeader({
           {property.rejection_reason ? ` Причина: ${property.rejection_reason}` : ""}
         </Notice>
       )}
+
+      {fixing && (
+        <PropertyForm
+          title={property.approval_status === "rejected" ? "Поправка и ново одобрение" : "Поправка на адреса"}
+          submitLabel={property.approval_status === "rejected" ? "Изпрати отново" : "Запази"}
+          initial={{
+            name: property.name,
+            city: property.city ?? "",
+            addr: property.address ?? "",
+            type: property.kind ?? "apartment",
+            access: property.access_notes ?? "",
+            contact_name: property.contact_name ?? "",
+            contact_phone: property.contact_phone ?? "",
+            lat: property.lat ?? undefined,
+            lng: property.lng ?? undefined,
+          }}
+          onAdd={saveFix}
+          onClose={() => setFixing(false)}
+        />
+      )}
+
+      <Sheet open={removing} onClose={() => setRemoving(false)} placement="bottom" className="mx-auto max-w-lg p-5">
+        <h3 className="text-lg font-bold text-ink">Премахване на имота?</h3>
+        <p className="mt-2 text-sm text-muted">Имотът ще изчезне от профила ви. Можете да добавите нов по всяко време.</p>
+        {removeError && (
+          <div className="mt-3">
+            <Notice tone="danger">{removeError}</Notice>
+          </div>
+        )}
+        <div className="mt-4 flex gap-2">
+          <Button variant="secondary" fullWidth onClick={() => setRemoving(false)}>
+            Откажи
+          </Button>
+          <Button variant="danger" fullWidth onClick={remove}>
+            Премахни
+          </Button>
+        </div>
+      </Sheet>
 
       {editing && (
         <AccessSheet

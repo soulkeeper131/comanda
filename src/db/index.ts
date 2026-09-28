@@ -118,21 +118,21 @@ if (!isBuildPhase) {
         "INSERT OR IGNORE INTO organizations (id, name, slug) VALUES (?, ?, ?)"
       ).run(orgId, "КОМАНДА", "komanda");
 
+      // Админът е задължителен. Тестовият клиент и инспектор се създават само
+      // ако паролите им са зададени — в продукция не се задават и няма
+      // фалшив клиент в базата.
       const seedUsers = [
-        { id: "u1", email: "admin@komanda.bg", role: "admin", name: "Админ", env: "SEED_ADMIN_PASSWORD" },
+        { id: "u1", email: process.env.SEED_ADMIN_EMAIL || "admin@komanda.bg", role: "admin", name: "Админ", env: "SEED_ADMIN_PASSWORD" },
         { id: "u2", email: "client@komanda.bg", role: "client", name: "Клиент", env: "SEED_CLIENT_PASSWORD" },
         { id: "u4", email: "inspector@komanda.bg", role: "inspector", name: "Инспектор", env: "SEED_INSPECTOR_PASSWORD" },
-      ];
+      ].filter((u) => u.role === "admin" || process.env[u.env]);
 
       // Без парола по подразбиране. По-рано тук стоеше fallback "admin1234" —
       // ако променливата липсва на сървъра, продукцията тръгва с публично
       // известна админска парола. Празната база е по-безопасна от слаба.
-      const missing = seedUsers.filter((u) => !process.env[u.env]);
-      if (missing.length > 0) {
+      if (!process.env.SEED_ADMIN_PASSWORD) {
         console.error(
-          "[db] Seed при старт ПРОПУСНАТ: липсват " +
-            missing.map((u) => u.env).join(", ") +
-            ". Задайте ги и рестартирайте, или пуснете `npm run db:seed` локално."
+          "[db] Seed при старт ПРОПУСНАТ: липсва SEED_ADMIN_PASSWORD. Задайте я и рестартирайте, или пуснете `npm run db:seed` локално."
         );
       } else {
         for (const u of seedUsers) {
@@ -141,7 +141,7 @@ if (!isBuildPhase) {
             "INSERT OR IGNORE INTO users (id, org_id, email, password_hash, role, full_name, active, email_verified_at) VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'))"
           ).run(u.id, orgId, u.email, hash, u.role, u.name);
         }
-        console.log("[db] Seed при старт: създадени тестови потребители.");
+        console.log(`[db] Seed при старт: ${seedUsers.map((u) => u.email).join(", ")}.`);
       }
     }
   } catch (e) {

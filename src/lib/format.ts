@@ -115,3 +115,10 @@ export function paymentReference(p: { offer_id?: string | null; order_id?: strin
   if (p.plan_id) return bankReference("plan", p.plan_id);
   return null;
 }
+
+/** "София, ул. X" — без двоен град, когато адресът вече го съдържа. */
+export function fullAddress(city: string | null | undefined, address: string | null | undefined): string {
+  if (!address) return city ?? "";
+  if (!city || address.toLowerCase().includes(city.toLowerCase())) return address;
+  return `${city}, ${address}`;
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { fullAddress } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
@@ -28,9 +29,11 @@ function statusOf(p: ClientProperty): { text: string; tone: Tone } {
 export default function PropertyList({
   properties,
   onSelect,
+  footer,
 }: {
   properties: ClientProperty[];
   onSelect: (id: string) => void;
+  footer?: React.ReactNode;
 }) {
   return (
     <div className="mx-auto w-full max-w-2xl flex-1 overflow-y-auto px-4 py-4">
@@ -47,7 +50,7 @@ export default function PropertyList({
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold text-ink">{p.name}</div>
                   <div className="truncate text-sm text-muted">
-                    {[p.city, p.address].filter(Boolean).join(", ") || "Няма въведен адрес"}
+                    {fullAddress(p.city, p.address) || "Няма въведен адрес"}
                   </div>
                 </div>
                 <Badge tone={status.tone} className="shrink-0">
@@ -59,6 +62,7 @@ export default function PropertyList({
           );
         })}
       </div>
+      {footer && <div className="mt-4">{footer}</div>}
     </div>
   );
 }

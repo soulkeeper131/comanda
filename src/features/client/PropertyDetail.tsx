@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type React from "react";
 import ExtraServicesSection from "./ExtraServicesSection";
 import PlanSelector from "@/components/PlanSelector";
 import { isLivePlan } from "@/lib/domain/plans";
@@ -15,6 +16,8 @@ import { parseDate, todayKey } from "./format";
 import type { ClientFinding, ClientJob, ClientOffer, ClientPayment, ClientPlan, ClientProperty } from "./types";
 
 type Props = {
+  /** Под последната секция — напр. „Добави още имот". */
+  footer?: React.ReactNode;
   property: ClientProperty;
   /** Когато клиентът има няколко имота — бутон "назад към списъка". */
   onBack?: () => void;
@@ -29,7 +32,7 @@ const time = (v: string | null | undefined) => parseDate(v)?.getTime() ?? 0;
  * какво е видяно последно (със снимки) → какво предстои → какво чака мен →
  * какъв е абонаментът → какво е правено досега.
  */
-export default function PropertyDetail({ property, onBack, onPropertyChanged }: Props) {
+export default function PropertyDetail({ property, onBack, onPropertyChanged, footer }: Props) {
   const propertyId = property.id;
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<ClientJob[]>([]);
@@ -166,6 +169,7 @@ export default function PropertyDetail({ property, onBack, onPropertyChanged }: 
       />
 
       <HistorySection jobs={completed.slice(1)} propertyId={propertyId} canReport={completed.length > 0} />
+      {footer}
 
       {showPlanSelector && (
         <PlanSelector
