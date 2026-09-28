@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { offers, findings, properties, offerPhotos } from "@/db/schema";
-import { and, eq, inArray, lte, type SQL } from "drizzle-orm";
+import { and, eq, inArray, type SQL } from "drizzle-orm";
+import { expireOffers } from "@/lib/periodic";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
 import { notifyOwner } from "@/lib/notifications";
@@ -19,33 +20,12 @@ export const dynamic = "force-dynamic";
 /** Отворените оферти — докато някоя от тях е жива, нова не се издава. */
 const LIVE: OfferDecision[] = ["pending", "accepted", "paid", "in_progress"];
 
-/**
- * Маркира изтеклите оферти още при четене — клиентът не бива да вижда
- * „Приемам" на оферта, която вече не важи, само защото cron-ът още не е минал.
- */
-function expireStale() {
-  const now = new Date().toISOString();
-  const stale = db
-    .select({ id: offers.id, finding_id: offers.finding_id })
-    .from(offers)
-    .where(and(eq(offers.decision, "pending"), lte(offers.expires_at, now)))
-    .all();
-  if (stale.length === 0) return;
-  db.update(offers)
-    .set({ decision: "expired" })
-    .where(inArray(offers.id, stale.map((o) => o.id)))
-    .run();
-  // Констатацията се връща в състояние, от което може да се поиска нова оферта.
-  db.update(findings)
-    .set({ status: "open" })
-    .where(and(inArray(findings.id, stale.map((o) => o.finding_id)), eq(findings.status, "quoted")))
-    .run();
-}
-
 // GET /api/offers?finding_id=X&decision=pending
 export const GET = withAuth({}, async (request, { session }) => {
   try {
-    expireStale();
+    // Изтеклите се маркират още при четене — клиентът не бива да вижда
+    // „Приемам" на оферта, която вече не важи, само защото cron-ът не е минал.
+    expireOffers();
 
     const { searchParams } = new URL(request.url);
     const findingId = searchParams.get("finding_id");

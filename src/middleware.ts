@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   "/api/inquiries",
   "/api/stripe/webhook",
   "/api/push/vapid-public-key",
+  "/api/cron",
 ];
 
 const STATIC_PATTERN =

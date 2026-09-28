@@ -134,6 +134,22 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
       );
     }
 
+    const property = db.select().from(properties).where(eq(properties.id, property_id)).get();
+    if (!property || property.archived) {
+      return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
+    }
+    if (property.status !== "active") {
+      return NextResponse.json({ error: "Имотът още не е одобрен" }, { status: 409 });
+    }
+    if (assignee_id) {
+      const person = db.select().from(users).where(eq(users.id, assignee_id)).get();
+      if (!person || person.role !== "inspector" || person.active === false) {
+        return NextResponse.json({ error: "Изберете активен инспектор" }, { status: 400 });
+      }
+    }
+    // Без изрично избран изпълнител — инспекторът на имота (въпрос 10).
+    const assigneeId: string | null = assignee_id || property.assigned_inspector_id || null;
+
     let jobTitle = bodyTitle || null;
     let durationMin: number | null = null;
 
@@ -171,7 +187,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
       .values({
         org_id: session.org_id,
         property_id,
-        assignee_id: assignee_id || null,
+        assignee_id: assigneeId,
         template_id: template_id || null,
         title: jobTitle,
         duration_min: durationMin,
@@ -182,10 +198,10 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
       .all();
 
     // Notify assignee (worker) about new job
-    if (assignee_id) {
-      const prop = db.select({ name: properties.name }).from(properties).where(eq(properties.id, property_id)).get();
+    if (assigneeId) {
+      const prop = property;
       createNotification(
-        assignee_id,
+        assigneeId,
         "job_started",
         "Възложен нов обход",
         `${jobTitle} — ${prop?.name || "Имот"}`,

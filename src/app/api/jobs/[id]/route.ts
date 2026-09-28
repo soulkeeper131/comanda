@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { jobs, jobItems, properties, users, evidence } from "@/db/schema";
+import { jobs, jobItems, properties, users, evidence, jobReschedules } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth, canViewProperty } from "@/lib/auth";
@@ -28,6 +28,12 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
         org_id: jobs.org_id,
         property_name: properties.name,
         property_address: properties.address,
+        property_lat: properties.lat,
+        property_lng: properties.lng,
+        access_notes: properties.access_notes,
+        contact_name: properties.contact_name,
+        contact_phone: properties.contact_phone,
+        rescheduled_from: jobs.rescheduled_from,
         assignee_name: users.full_name,
       })
       .from(jobs)
@@ -127,5 +133,30 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
   } catch (error) {
     console.error("GET /api/jobs/[id] error:", error);
     return NextResponse.json({ error: "Грешка при зареждане на задача" }, { status: 500 });
+  }
+});
+
+/**
+ * DELETE /api/jobs/[id] — само грешно създаден, още нестартиран обход.
+ * Стартиран или завършен е история — той се отказва (/cancel), не се трие.
+ */
+export const DELETE = withAuth({ role: ["admin"] }, async (_request, { params }) => {
+  try {
+    const job = db.select().from(jobs).where(eq(jobs.id, params.id)).get();
+    if (!job) return NextResponse.json({ error: "Задачата не е намерена" }, { status: 404 });
+    if (job.status !== "planned") {
+      return NextResponse.json(
+        { error: "Изтрива се само планирана задача. Стартираната се отказва." },
+        { status: 400 },
+      );
+    }
+    db.transaction((tx) => {
+      tx.delete(jobReschedules).where(eq(jobReschedules.job_id, job.id)).run();
+      tx.delete(jobs).where(eq(jobs.id, job.id)).run();
+    });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("DELETE /api/jobs/[id] error:", error);
+    return NextResponse.json({ error: "Грешка при изтриване" }, { status: 500 });
   }
 });

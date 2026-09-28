@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { jobs, properties, serviceTemplates } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
 
@@ -46,60 +46,43 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
 
     const createdJobIds: string[] = [];
 
+    const skipped: string[] = [];
     for (const property_id of property_ids) {
-      let jobTitle = bodyTitle || null;
-      let durationMin: number | null = null;
-
-      if (templateData) {
-        durationMin = templateData.duration_min ?? null;
-        if (!jobTitle) {
-          const property = db
-            .select()
-            .from(properties)
-            .where(eq(properties.id, property_id))
-            .get();
-          jobTitle = `${templateData.name} - ${property?.name || "Имот"}`;
-        }
+      const property = db.select().from(properties).where(eq(properties.id, property_id)).get();
+      // Неодобрен или архивиран имот не получава обходи — пропуска се, не
+      // проваля цялото възлагане.
+      if (!property || property.archived || property.status !== "active") {
+        skipped.push(property_id);
+        continue;
       }
+      const jobTitle =
+        bodyTitle ||
+        (templateData ? `${templateData.name} — ${property.name}` : `Обход — ${property.name}`);
 
-      if (!jobTitle) {
-        const property = db
-          .select()
-          .from(properties)
-          .where(eq(properties.id, property_id))
-          .get();
-        jobTitle = `Обход - ${property?.name || "Имот"}`;
-      }
-
-      db.insert(jobs)
+      // RETURNING — не „последния по created_at", който в една секунда
+      // връща чужд ред.
+      const [job] = db
+        .insert(jobs)
         .values({
           org_id: session.org_id,
           property_id,
-          assignee_id: assignee_id || null,
+          assignee_id: assignee_id || property.assigned_inspector_id || null,
           template_id: template_id || null,
           title: jobTitle,
-          duration_min: durationMin,
+          duration_min: templateData?.duration_min ?? null,
           planned_at,
           status: "planned",
         })
-        .run();
-
-      // Fetch last inserted job for this batch
-      const [lastJob] = db
-        .select()
-        .from(jobs)
-        .orderBy(desc(jobs.created_at))
-        .limit(1)
+        .returning()
         .all();
-      if (lastJob) {
-        createdJobIds.push(lastJob.id);
-      }
+      createdJobIds.push(job.id);
     }
 
     return NextResponse.json(
       {
         created: createdJobIds.length,
         job_ids: createdJobIds,
+        skipped,
       },
       { status: 201 }
     );
