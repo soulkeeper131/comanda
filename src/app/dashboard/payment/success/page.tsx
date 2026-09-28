@@ -82,7 +82,7 @@ function SuccessContent() {
               )}
               <div className="flex justify-between items-center">
                 <span className="text-xs font-semibold" style={{ color: "#247ba0" }}>Метод</span>
-                <span className="text-sm font-bold" style={{ color: "#006494" }}>💳 Карта (Stripe)</span>
+                <span className="text-sm font-bold" style={{ color: "#006494" }}>Карта (Stripe)</span>
               </div>
             </div>
           )}
@@ -100,7 +100,7 @@ function SuccessContent() {
             className="w-full min-h-[44px] py-3 rounded-xl text-sm font-semibold border mt-3 transition hover:bg-gray-50"
             style={{ borderColor: "#e4e9f0", color: "#247ba0" }}
           >
-            ⬅️ Обратно
+            Обратно
           </button>
         </div>
       </div>

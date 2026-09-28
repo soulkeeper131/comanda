@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { packages, packageItems, serviceTemplates, templateItems } from "@/db/schema";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { getDefaultOrgId } from "@/lib/org";
-import { inSeason } from "@/lib/domain/schedule";
+import { addDays, inSeason } from "@/lib/domain/schedule";
 import { todaySofia } from "@/lib/jobs-generator";
 
 export type CatalogItem = {
@@ -48,7 +48,9 @@ export function loadCatalog(opts: { includeArchived?: boolean } = {}): CatalogPa
   const today = todaySofia();
   return rows.map((p) => ({
     ...p,
-    in_season: inSeason(today, p.active_from, p.active_to),
+    // Сезонен пакет се заявява и до 30 дни преди сезона — генераторът и без
+    // това създава обходи само в сезона.
+    in_season: inSeason(today, p.active_from, p.active_to) || inSeason(addDays(today, 30), p.active_from, p.active_to),
     items: items
       .filter((i) => i.item.package_id === p.id)
       .map(({ item, template }) => ({
@@ -155,19 +157,36 @@ export function ensureDefaultCatalog() {
     ],
   });
 
+  // Същите пакети и цени като на публичната страница (src/app/page.tsx) —
+  // клиентът не бива да види една цена там и друга след регистрация.
   const defs = [
-    { name: "Базов", description: "Един обход месечно със снимков отчет", per_month: 1, price: 25, list_price: 25, sort: 1 },
-    { name: "Стандарт", description: "Обход на всеки две седмици", per_month: 2, price: 45, list_price: 50, sort: 2 },
-    { name: "Премиум", description: "Седмичен обход — за имоти, които не бива да остават без око", per_month: 4, price: 80, list_price: 100, sort: 3 },
+    {
+      name: "Пълен надзор",
+      description: "12 месеца грижа, чек-листът следва сезона",
+      per_month: 2,
+      price: 60,
+      list_price: null,
+      sort: 1,
+    },
     {
       name: "Зимен сезон",
       description: "Октомври – април: защита от влага, студ и спукани тръби",
       per_month: 2,
       price: 40,
-      list_price: 50,
-      sort: 4,
+      list_price: null,
+      sort: 2,
       active_from: "10-01",
       active_to: "04-30",
+    },
+    {
+      name: "Летен сезон",
+      description: "Май – септември: проверки след бури и жега, двор и тераса",
+      per_month: 2,
+      price: 50,
+      list_price: null,
+      sort: 3,
+      active_from: "05-01",
+      active_to: "09-30",
     },
   ];
 

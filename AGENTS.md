@@ -5,7 +5,7 @@
 ## Идентичност
 - **Име:** Ко Манда (Ko Manda)
 - **Продукт:** Платформа за управление на имоти — почистване, обходи, инспекции, ремонти
-- **Домейн:** comanda.blv.bg
+- **Домейн:** comanda.bg
 - **GitHub:** soulkeeper131/comanda
 
 ## Стек
@@ -24,20 +24,24 @@
 | dark | #006494 | brand-dark |
 | accent | #a663cc | brand-accent |
 
-## База данни (14 таблици)
+## База данни
 organizations, users, properties, zones, service_templates,
-template_items, plans, jobs, job_items, evidence, findings,
-finding_photos, offers, inquiries
+template_items, packages, package_items, plans, jobs, job_items,
+job_reschedules, evidence, findings, finding_photos, offers,
+offer_photos, inquiries, notifications, push_subscriptions,
+payments, invoices, settings, overrides
 
 ## Файлова структура
 ```
 src/
-  app/          — Next.js App Router pages
-  components/   — React components (ui/, features/)
+  app/          — Next.js App Router pages + API routes
+  features/     — екраните по роля: client/, inspector/, admin/
+  components/   — споделени компоненти; ui/ — примитиви и Icon
   db/
-    schema.ts   — Drizzle schema (14 tables)
-    index.ts    — DB connection
-  lib/          — utilities, auth, store
+    schema.ts   — Drizzle schema
+    index.ts    — DB connection + auto-migrate
+  lib/          — auth, email, периодични задачи
+  lib/domain/   — чиста бизнес логика с тестове
 data/           — SQLite DB (local dev, gitignored)
 ```
 
@@ -45,18 +49,21 @@ data/           — SQLite DB (local dev, gitignored)
 ```bash
 npm run dev       # старт с hot reload
 npm run build     # production build
-npx drizzle-kit generate  # нова миграция
-npx drizzle-kit push      # приложи миграция
+npx drizzle-kit generate  # нова миграция (прилага се сама при старт)
+npm test                  # vitest
 ```
 
 ## Coolify
 - App UUID: bgrs9g4j5wbpup5qj6za39ph
 - Project: Chisto (xrqax7jm5vwj)
 - Persistent storage: /app/data
-- Domain: comanda.blv.bg (custom_labels за Traefik)
+- Domain: comanda.bg (custom_labels за Traefik)
+- Scheduled Tasks: бекъп и `node /app/scripts/cron.mjs` — виж docs/DEPLOY.md
 
 ## Правила
 - Mobile-first: 16px inputs, 44px touch targets, safe-area insets
+- Без emoji в UI — `Icon` от components/ui; цени в евро (`lib/format.ts`)
+- Всеки API route с `withAuth` (тестът route-coverage го проверява)
 - Single-page client experience с Framer Motion
 - Всички API routes с `export const dynamic = 'force-dynamic'`
 - Снимки → local filesystem (data/photos/)

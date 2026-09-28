@@ -29,8 +29,8 @@ export async function POST(request: Request) {
   if (!email) {
     return NextResponse.json({ error: "Имейлът е задължителен" }, { status: 400 });
   }
-  if (!password || password.length < 6) {
-    return NextResponse.json({ error: "Паролата трябва да е поне 6 символа" }, { status: 400 });
+  if (!password || password.length < 8) {
+    return NextResponse.json({ error: "Паролата трябва да е поне 8 символа" }, { status: 400 });
   }
   if (!name) {
     return NextResponse.json({ error: "Името е задължително" }, { status: 400 });

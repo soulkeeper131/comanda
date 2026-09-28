@@ -23,7 +23,7 @@ function RegisterForm() {
   const validate = (): string | null => {
     if (!name.trim()) return "Името е задължително";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Невалиден имейл адрес";
-    if (password.length < 6) return "Паролата трябва да е поне 6 символа";
+    if (password.length < 8) return "Паролата трябва да е поне 8 символа";
     if (password !== confirmPassword) return "Паролите не съвпадат";
     if (accountType === "company") {
       if (!companyName.trim()) return "Името на фирмата е задължително";
@@ -85,7 +85,7 @@ function RegisterForm() {
           />
           {plan && (
             <div className="inline-block px-4 py-2 rounded-full text-sm font-semibold mb-3" style={{ background: "#e0f2fe", color: "#1b98e0" }}>
-              {plan === "year" ? "🔄 Пълен надзор · 60€/мес" : plan === "winter" ? "❄️ Зимен сезон · 40€/мес" : "☀️ Летен сезон · 50€/мес"}
+              {plan === "year" ? "Пълен надзор · 60€/мес" : plan === "winter" ? "Зимен сезон · 40€/мес" : "Летен сезон · 50€/мес"}
             </div>
           )}
           <p className="text-sm mt-2" style={{ color: "#247ba0" }}>
@@ -120,7 +120,7 @@ function RegisterForm() {
                   onChange={() => setAccountType("individual")}
                   className="sr-only"
                 />
-                👤 Физическо лице
+                Физическо лице
               </label>
               <label
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border cursor-pointer transition text-sm font-semibold ${
@@ -138,7 +138,7 @@ function RegisterForm() {
                   onChange={() => setAccountType("company")}
                   className="sr-only"
                 />
-                🏢 Фирма
+                Фирма
               </label>
             </div>
           </div>

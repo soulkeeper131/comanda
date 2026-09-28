@@ -1,6 +1,22 @@
 "use client";
 
-import { Icon } from "@/components/ui/Icon";
+import { Icon, type IconName } from "@/components/ui/Icon";
+
+// В базата `icon` пази стари emoji — показваме икона по категорията.
+const CATEGORY_ICON: Record<string, IconName> = {
+  inspection: "search",
+  cleaning: "home",
+  repair: "wrench",
+  conservation: "shield",
+  custom: "clipboard",
+};
+const CATEGORY_LABEL: Record<string, string> = {
+  inspection: "Обход",
+  cleaning: "Почистване",
+  repair: "Ремонт",
+  conservation: "Консервация",
+  custom: "Друго",
+};
 
 import { useState, useEffect, useCallback } from "react";
 
@@ -263,13 +279,15 @@ export default function TemplateManager() {
                 onClick={() => handleExpand(tpl.id)}
                 className="w-full flex items-center gap-3 p-4 text-left transition"
               >
-                <span className="text-xl">{tpl.icon}</span>
+                <span className="text-brand-secondary">
+                  <Icon name={CATEGORY_ICON[tpl.category] ?? "clipboard"} size={20} />
+                </span>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-bold" style={{ color: "#006494" }}>
                     {tpl.name}
                   </div>
                   <div className="text-xs" style={{ color: "#247ba0" }}>
-                    {tpl.category} · {tpl.duration_min} мин
+                    {CATEGORY_LABEL[tpl.category] ?? tpl.category} · {tpl.duration_min} мин
                   </div>
                 </div>
                 <span
