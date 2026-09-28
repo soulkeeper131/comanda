@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 export type SheetProps = {
   open: boolean;
@@ -14,7 +15,13 @@ export type SheetProps = {
 };
 
 export function Sheet({ open, onClose, children, placement = "center", className = "" }: SheetProps) {
-  return (
+  // Портал към body: родител с transform/backdrop-filter (напр. Topbar с
+  // backdrop-blur) става containing block за `fixed` и листът се отрязваше.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -60,6 +67,7 @@ export function Sheet({ open, onClose, children, placement = "center", className
           )}
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

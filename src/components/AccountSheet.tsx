@@ -209,7 +209,94 @@ export default function AccountSheet({ open, onClose }: { open: boolean; onClose
             ))}
           </div>
         )}
+
+        {isClient && <PrivacyBlock />}
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * Лични данни (GDPR): изтегляне на всичко и изтриване на профила.
+ * Изтриването иска паролата — отворена сесия на чуждо устройство не стига.
+ */
+function PrivacyBlock() {
+  const [confirming, setConfirming] = useState(false);
+  const [password, setPassword] = useState("");
+  const [blocker, setBlocker] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const start = async () => {
+    setError("");
+    const d = await fetch("/api/me/delete").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    setBlocker(d?.blocker ?? null);
+    setConfirming(true);
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    setError("");
+    const res = await fetch("/api/me/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    }).catch(() => null);
+    const d = res ? await res.json().catch(() => ({})) : {};
+    if (!res?.ok) {
+      setBusy(false);
+      return setError(d.error || "Няма връзка със сървъра");
+    }
+    try {
+      indexedDB.deleteDatabase("komanda-offline");
+    } catch {
+      /* няма IndexedDB */
+    }
+    navigator.serviceWorker?.controller?.postMessage("logout");
+    window.location.href = "/?deleted=1";
+  };
+
+  return (
+    <div className="space-y-2 border-t border-line pt-4">
+      <p className="text-sm font-semibold text-ink-2">Лични данни</p>
+      <a
+        href="/api/me/export"
+        className="flex min-h-touch items-center justify-between gap-2 rounded-card border border-line px-3 text-sm text-ink"
+      >
+        Изтегли всичките ми данни (JSON)
+        <Icon name="download" size={18} className="text-brand-primary" />
+      </a>
+      {!confirming ? (
+        <Button variant="ghost" fullWidth className="text-state-danger" onClick={start}>
+          <Icon name="trash" size={16} /> Изтрий профила
+        </Button>
+      ) : blocker ? (
+        <p className="rounded-card bg-state-warning/10 px-3 py-2 text-sm text-ink">{blocker}</p>
+      ) : (
+        <div className="space-y-2 rounded-card border border-state-danger/40 p-3">
+          <p className="text-sm text-ink">
+            Абонаментите спират веднага, без връщане на платения месец. Имейлът, телефонът, адресите и снимките се
+            изтриват. Фактурите се пазят 10 години по закон. Действието е необратимо.
+          </p>
+          <input
+            className={input}
+            type="password"
+            autoComplete="current-password"
+            placeholder="Паролата ви за потвърждение"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          {error && <p className="text-sm text-state-danger">{error}</p>}
+          <div className="flex gap-2">
+            <Button variant="secondary" fullWidth disabled={busy} onClick={() => setConfirming(false)}>
+              Откажи
+            </Button>
+            <Button variant="danger" fullWidth disabled={busy || !password} onClick={remove}>
+              Изтрий завинаги
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

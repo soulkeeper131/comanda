@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * същите, които клиентът вижда след регистрация. Ако пакетът липсва в
  * каталога, остава цената от текста.
  */
-export default function Home() {
+export default function Home({ searchParams }: { searchParams?: { deleted?: string } }) {
   let catalog: { name: string; price: number }[] = [];
   try {
     catalog = loadCatalog();
@@ -44,6 +44,11 @@ export default function Home() {
         </div>
       </nav>
 
+      {searchParams?.deleted === "1" && (
+        <p role="status" style={{ background: "#e8f1f2", color: "#006494", textAlign: "center", padding: "12px 16px", fontSize: 15 }}>
+          Профилът ви е изтрит. Благодарим, че бяхте с нас.
+        </p>
+      )}
       <HeroSection prices={Object.fromEntries(catalog.map((c) => [c.name, c.price]))} />
 
       {/* ============ ЗАЩО ============ */}
