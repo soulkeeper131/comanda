@@ -7,18 +7,22 @@ import fs from "fs";
 import bcrypt from "bcryptjs";
 
 const dbDir = path.join(process.cwd(), "data");
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
-const sqlite = new Database(path.join(dbDir, "sqlite.db"));
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
+// При `next build` (page data collection) НЕ трябва да отваряме реалния
+// SQLite файл — паралелните worker-и се заключват един друг (`database is
+// locked`). По време на build ползваме in-memory база; реалната база се
+// отваря само в runtime (node server.js).
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+
+if (!isBuildPhase && !fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+
+const sqlite = new Database(isBuildPhase ? ":memory:" : path.join(dbDir, "sqlite.db"));
+if (!isBuildPhase) {
+  sqlite.pragma("journal_mode = WAL");
+  sqlite.pragma("foreign_keys = ON");
+}
 
 export const db = drizzle(sqlite, { schema });
-
-// Миграция и seed се изпълняват САМО в runtime (node server.js), НЕ при
-// `next build` (page data collection). При build паралелни worker-и биха
-// писали едновременно в SQLite → `database is locked` (SQLITE_BUSY).
-const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
 
 if (!isBuildPhase) {
   // Auto-migrate при старт: прилага drizzle/ миграциите, ако още не са приложени.
