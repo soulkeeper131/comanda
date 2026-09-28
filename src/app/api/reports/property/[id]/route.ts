@@ -46,7 +46,9 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
       .leftJoin(users, eq(jobs.assignee_id, users.id))
       .where(eq(jobs.property_id, propertyId))
       .orderBy(desc(jobs.planned_at))
-      .all();
+      .all()
+      // Отчетът е за случилото се — предстоящите обходи не са история.
+      .filter((j) => !(j.status === "planned" && j.planned_at && j.planned_at > new Date().toISOString()));
 
     // Fetch all findings for this property
     const propertyFindings = db

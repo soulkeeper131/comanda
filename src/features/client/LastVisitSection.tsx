@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/ui/Icon";
 import { Section } from "./Section";
 import { JobPhotosByStep, countPhotos, useJobDetail } from "./JobPhotos";
 import { formatWhen } from "./format";
@@ -34,6 +35,14 @@ export default function LastVisitSection({ job }: { job: ClientJob | null }) {
             )}
           </div>
           <JobPhotosByStep state={detail} />
+          <a
+            href={`/api/reports/job/${job.id}`}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex min-h-touch items-center gap-1.5 text-sm font-semibold text-brand-primary"
+          >
+            <Icon name="download" size={16} /> Отчет за обхода (PDF)
+          </a>
         </div>
       )}
     </Section>

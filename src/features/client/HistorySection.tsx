@@ -10,12 +10,27 @@ import type { ClientJob } from "./types";
 const PAGE = 5;
 
 /** Предишните завършени обходи — докосване разгъва снимките по стъпки. */
-export default function HistorySection({ jobs }: { jobs: ClientJob[] }) {
+export default function HistorySection({ jobs, propertyId, canReport }: { jobs: ClientJob[]; propertyId: string; canReport: boolean }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [shown, setShown] = useState(PAGE);
 
   return (
-    <Section title="История" icon="list">
+    <Section
+      title="История"
+      icon="list"
+      action={
+        canReport && (
+          <a
+            href={`/api/reports/property/${propertyId}`}
+            target="_blank"
+            rel="noopener"
+            className="flex min-h-touch items-center gap-1.5 text-sm font-semibold text-brand-primary"
+          >
+            <Icon name="download" size={16} /> Отчет PDF
+          </a>
+        )
+      }
+    >
       {jobs.length === 0 ? (
         <p className="text-sm text-muted">Тук ще се натрупват предишните обходи.</p>
       ) : (
@@ -46,6 +61,14 @@ export default function HistorySection({ jobs }: { jobs: ClientJob[] }) {
                 {open && (
                   <div className="pb-3">
                     <HistoryDetail jobId={job.id} />
+                    <a
+                      href={`/api/reports/job/${job.id}`}
+                      target="_blank"
+                      rel="noopener"
+                      className="mt-2 inline-flex min-h-touch items-center gap-1.5 text-sm font-semibold text-brand-primary"
+                    >
+                      <Icon name="download" size={16} /> Отчет за обхода (PDF)
+                    </a>
                   </div>
                 )}
               </li>

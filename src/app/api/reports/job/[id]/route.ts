@@ -63,11 +63,16 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
       .all()
       .map((p) => {
         const filename = p.storage_path.split("/").pop() || p.storage_path;
+        const step = items.find((i) => i.id === p.job_item_id);
         return {
           url: `/api/photos/${filename}`,
           taken_at: p.taken_at,
+          zone_label: step?.zone_label ?? null,
+          label: step?.label ?? null,
+          sort: step?.sort ?? Number.MAX_SAFE_INTEGER,
         };
-      });
+      })
+      .sort((a, b) => a.sort - b.sort);
 
     const pdfBuffer = await generateJobReport({
       ...job,

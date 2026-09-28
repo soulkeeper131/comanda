@@ -164,7 +164,7 @@ export default function PropertyDetail({ property, onBack, onPropertyChanged }: 
         }}
       />
 
-      <HistorySection jobs={completed.slice(1)} />
+      <HistorySection jobs={completed.slice(1)} propertyId={propertyId} canReport={completed.length > 0} />
 
       {showPlanSelector && (
         <PlanSelector

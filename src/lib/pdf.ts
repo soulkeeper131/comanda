@@ -6,6 +6,14 @@ import path from "path";
 
 const PHOTOS_DIR = path.join(process.cwd(), "data", "photos");
 
+const KIND_LABEL: Record<string, string> = {
+  apartment: "Апартамент",
+  house: "Къща",
+  villa: "Вила",
+  office: "Офис",
+  other: "Друго",
+};
+
 const MIME_BY_EXT: Record<string, string> = {
   ".png": "image/png",
   ".webp": "image/webp",
@@ -82,7 +90,8 @@ export async function generateJobReport(job: any): Promise<Buffer> {
   doc.text(`Адрес: ${address}`, 14, y);
   y += 7;
 
-  const plannedAt = job.planned_at || job.date;
+  // Реалният час на посещението, не планираната дата (тя е без час).
+  const plannedAt = job.check_in || job.planned_at || job.date;
   const dateStr = plannedAt
     ? new Date(plannedAt).toLocaleDateString("bg-BG", {
         day: "2-digit",
@@ -101,10 +110,10 @@ export async function generateJobReport(job: any): Promise<Buffer> {
 
   // Status
   const statusMap: Record<string, string> = {
-    planned: "📅 Предстои",
-    in_progress: "🔄 В процес",
-    completed: "✅ Завършен",
-    cancelled: "❌ Отказан",
+    planned: "Предстои",
+    in_progress: "В процес",
+    completed: "Завършен",
+    cancelled: "Отказан",
   };
   const statusLabel = statusMap[job.status] || job.status || "—";
   doc.text(`Статус: ${statusLabel}`, 14, y);
@@ -137,7 +146,7 @@ export async function generateJobReport(job: any): Promise<Buffer> {
     const tableData = job.items.map((item: any) => [
       item.zone_label || "—",
       item.label || "—",
-      item.done ? "✅" : "❌",
+      item.done ? "Проверено" : "Не е проверено",
       item.note || "",
     ]);
 
@@ -172,57 +181,45 @@ export async function generateJobReport(job: any): Promise<Buffer> {
     doc.text(`Снимки (${job.photos.length})`, 14, y);
     y += 8;
 
-    const photoSize = 50;
+    // Две снимки на ред, пропорциите се запазват в клетка 85×64 mm.
+    const cellW = 85;
+    const cellH = 64;
     const margin = 14;
-    let x = margin;
+    const pageH = doc.internal.pageSize.getHeight();
+    let col = 0;
 
-    for (let i = 0; i < job.photos.length; i++) {
-      const photo = job.photos[i];
-
-      // Check if we need a new page
-      if (y + photoSize + 10 > doc.internal.pageSize.getHeight() - 10) {
+    for (const photo of job.photos) {
+      const imgData = photoToDataUri(typeof photo === "string" ? photo : photo.url);
+      if (!imgData) continue;
+      if (y + cellH + 8 > pageH - 15) {
         doc.addPage();
         y = 15;
-        x = margin;
+        col = 0;
       }
-
+      const x = margin + col * (cellW + 12);
       try {
-        const imgData = photoToDataUri(photo);
-        if (!imgData) continue;
-
-        // Position: 2 per row
-        if (i % 2 === 0 && i > 0) {
-          x = margin;
-          y += photoSize + 12;
-        }
-
-        if (y + photoSize + 10 > doc.internal.pageSize.getHeight() - 10) {
-          doc.addPage();
-          y = 15;
-          x = margin;
-        }
-
-        doc.addImage(imgData, "JPEG", x, y, photoSize, photoSize);
-
-        // Label
+        const format = imgData.startsWith("data:image/png") ? "PNG" : imgData.startsWith("data:image/webp") ? "WEBP" : "JPEG";
+        const props = doc.getImageProperties(imgData);
+        const scale = Math.min(cellW / props.width, cellH / props.height);
+        const w = props.width * scale;
+        const h = props.height * scale;
+        doc.addImage(imgData, format, x + (cellW - w) / 2, y + (cellH - h) / 2, w, h);
+        const label = [photo.zone_label, photo.label].filter(Boolean).join(" — ");
         doc.setFontSize(8);
         doc.setTextColor(100, 116, 139);
-        doc.text(
-          photo.taken_at
-            ? new Date(photo.taken_at).toLocaleDateString("bg-BG")
-            : "",
-          x,
-          y + photoSize + 5,
-          { align: "center", maxWidth: photoSize }
-        );
-
-        x += photoSize + 10;
+        if (label) doc.text(label, x + cellW / 2, y + cellH + 4, { align: "center", maxWidth: cellW });
       } catch (err) {
         console.error("Error adding photo to PDF:", err);
+        continue;
+      }
+      col++;
+      if (col === 2) {
+        col = 0;
+        y += cellH + 10;
       }
     }
-
-    y += photoSize + 15;
+    if (col !== 0) y += cellH + 10;
+    y += 4;
   }
 
   // Notes
@@ -291,9 +288,10 @@ export async function generateFindingsReport(findings: any[]): Promise<Buffer> {
   }
 
   const statusMap: Record<string, string> = {
-    open: "🔴 Отворен",
-    in_progress: "🟡 В процес",
-    resolved: "🟢 Решен",
+    open: "Отворена",
+    quote_requested: "Иска оферта",
+    quoted: "Има оферта",
+    closed: "Затворена",
   };
 
   for (let i = 0; i < findings.length; i++) {
@@ -449,7 +447,7 @@ export async function generatePropertyReport(
     y + 16
   );
   doc.text(
-    `Тип: ${property.kind || "—"} | Обходи: ${jobs.length} | Констатации: ${findings.length}`,
+    `Тип: ${KIND_LABEL[property.kind] || property.kind || "—"} | Обходи: ${jobs.length} | Констатации: ${findings.length}`,
     18,
     y + 22
   );
@@ -533,9 +531,10 @@ export async function generatePropertyReport(
   } else {
     const findingRows = findings.map((f) => {
       const statusMap: Record<string, string> = {
-        open: "Отворен",
-        in_progress: "В процес",
-        resolved: "Решен",
+        open: "Отворена",
+        quote_requested: "Иска оферта",
+        quoted: "Има оферта",
+        closed: "Затворена",
       };
       const date = f.created_at
         ? new Date(f.created_at).toLocaleDateString("bg-BG")
