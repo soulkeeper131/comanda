@@ -90,6 +90,8 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
         role,
         password_hash: await bcrypt.hash(password, 10),
         active: true,
+        // Админът създава акаунта лично — адресът е проверен от него.
+        email_verified_at: new Date().toISOString(),
       })
       .returning()
       .all();

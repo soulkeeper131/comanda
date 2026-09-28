@@ -1,6 +1,9 @@
 import { validateUser, setSession } from "@/lib/auth";
 import { getDefaultOrgId } from "@/lib/org";
 import { NextResponse } from "next/server";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +27,14 @@ export async function POST(request: Request) {
   if (!user) {
     console.log("[LOGIN] Неуспешен опит за вход");
     return NextResponse.json({ error: "Грешен имейл или парола" }, { status: 401 });
+  }
+
+  const row = db.select({ verified: users.email_verified_at }).from(users).where(eq(users.id, user.id)).get();
+  if (!row?.verified) {
+    return NextResponse.json(
+      { error: "Потвърдете имейла си — изпратихме ви линк при регистрацията.", verify_required: true },
+      { status: 403 },
+    );
   }
 
   await setSession({ uid: user.id, role: user.role, org_id: user.org_id ?? getDefaultOrgId() });

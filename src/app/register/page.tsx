@@ -19,12 +19,15 @@ function RegisterForm() {
   const [vatNumber, setVatNumber] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [verifySentTo, setVerifySentTo] = useState<string | null>(null);
 
   const validate = (): string | null => {
     if (!name.trim()) return "Името е задължително";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Невалиден имейл адрес";
     if (password.length < 8) return "Паролата трябва да е поне 8 символа";
     if (password !== confirmPassword) return "Паролите не съвпадат";
+    if (!acceptTerms) return "Необходимо е съгласие с Общите условия и Политиката за поверителност";
     if (accountType === "company") {
       if (!companyName.trim()) return "Името на фирмата е задължително";
       if (!eik.trim()) return "ЕИК е задължително";
@@ -57,12 +60,15 @@ function RegisterForm() {
           company_name: accountType === "company" ? companyName.trim() : undefined,
           eik: accountType === "company" ? eik.trim() : undefined,
           vat_number: accountType === "company" ? vatNumber.trim() || undefined : undefined,
+          accept_terms: acceptTerms,
         }),
       });
 
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json();
         setError(data.error || "Грешка при регистрация");
+      } else if (data.verify_required) {
+        setVerifySentTo(data.email || email);
       } else {
         const target = plan ? `/register/property?plan=${encodeURIComponent(plan)}` : "/dashboard";
         window.location.href = target;
@@ -73,6 +79,20 @@ function RegisterForm() {
       setLoading(false);
     }
   };
+
+  if (verifySentTo) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center p-6" style={{ backgroundColor: "#e8f1f2" }}>
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-lg">
+          <h1 className="mb-3 text-xl font-bold" style={{ color: "#006494" }}>Проверете пощата си</h1>
+          <p className="text-sm" style={{ color: "#334155" }}>
+            Изпратихме линк за потвърждение на <strong>{verifySentTo}</strong>. Отворете го, за да продължите с
+            добавянето на имота. Ако не го виждате — проверете папка „Спам“.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[100dvh] flex items-center justify-center p-6" style={{ backgroundColor: "#e8f1f2" }}>
@@ -252,6 +272,25 @@ function RegisterForm() {
               style={{ fontSize: "16px", minHeight: "44px" }}
             />
           </div>
+
+          <label className="mb-5 flex items-start gap-3 text-sm" style={{ color: "#334155" }}>
+            <input
+              type="checkbox"
+              checked={acceptTerms}
+              onChange={(e) => setAcceptTerms(e.target.checked)}
+              className="mt-0.5 h-5 w-5 flex-shrink-0"
+            />
+            <span>
+              Съгласен съм с{" "}
+              <a href="/terms" target="_blank" className="font-semibold underline" style={{ color: "#1b98e0" }}>
+                Общите условия
+              </a>{" "}
+              и{" "}
+              <a href="/privacy" target="_blank" className="font-semibold underline" style={{ color: "#1b98e0" }}>
+                Политиката за поверителност
+              </a>
+            </span>
+          </label>
 
           <button
             type="submit"

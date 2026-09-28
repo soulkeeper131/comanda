@@ -138,7 +138,7 @@ if (!isBuildPhase) {
         for (const u of seedUsers) {
           const hash = bcrypt.hashSync(process.env[u.env] as string, 10);
           sqlite.prepare(
-            "INSERT OR IGNORE INTO users (id, org_id, email, password_hash, role, full_name, active) VALUES (?, ?, ?, ?, ?, ?, 1)"
+            "INSERT OR IGNORE INTO users (id, org_id, email, password_hash, role, full_name, active, email_verified_at) VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'))"
           ).run(u.id, orgId, u.email, hash, u.role, u.name);
         }
         console.log("[db] Seed при старт: създадени тестови потребители.");

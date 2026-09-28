@@ -165,6 +165,11 @@ function render(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || `{{${key}}}`);
 }
 
+/** Настроен ли е SMTP — без него потвърждение по имейл е невъзможно. */
+export async function isEmailConfigured(): Promise<boolean> {
+  return (await getSmtpConfig()) !== null;
+}
+
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }): Promise<void> {
   const config = await getSmtpConfig();
   if (!config) { console.log(`[email] SMTP not configured. Skip: ${subject}`); return; }

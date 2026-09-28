@@ -40,6 +40,7 @@ async function main() {
       role: u.role,
       full_name: u.name,
       active: true,
+      email_verified_at: new Date().toISOString(),
     }).run();
     console.log(`✓ ${u.email}${generated ? ` — парола: ${value}` : ""}`);
   }
