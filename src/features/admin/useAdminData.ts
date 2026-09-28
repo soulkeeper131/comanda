@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
-import type { AdminFinding, AdminJob, AdminOffer, AdminPlan, AdminProperty, AdminUser } from "./types";
+import type { AdminFinding, AdminJob, AdminOffer, AdminPayment, AdminPlan, AdminProperty, AdminUser, Inquiry } from "./types";
 
 export type AdminData = {
   properties: AdminProperty[];
@@ -11,6 +11,8 @@ export type AdminData = {
   offers: AdminOffer[];
   plans: AdminPlan[];
   users: AdminUser[];
+  payments: AdminPayment[];
+  inquiries: Inquiry[];
 };
 
 export type Resource = keyof AdminData;
@@ -22,9 +24,11 @@ const URLS: Record<Resource, string> = {
   offers: "/api/offers",
   plans: "/api/plans",
   users: "/api/users?all=1",
+  payments: "/api/payments",
+  inquiries: "/api/inquiries",
 };
 
-const EMPTY: AdminData = { properties: [], jobs: [], findings: [], offers: [], plans: [], users: [] };
+const EMPTY: AdminData = { properties: [], jobs: [], findings: [], offers: [], plans: [], users: [], payments: [], inquiries: [] };
 
 /**
  * Данните на админския панел на едно място. Опашките на таблото стъпват на
@@ -60,7 +64,7 @@ export function useAdminData() {
     // Опашките се опресняват сами — друг админ или инспектор може да е
     // променил нещо (2–3 админи с еднакви права, въпрос 29).
     const t = setInterval(() => {
-      if (document.visibilityState === "visible") reload("jobs", "findings", "offers", "plans", "properties");
+      if (document.visibilityState === "visible") reload("jobs", "findings", "offers", "plans", "properties", "payments", "inquiries");
     }, 60_000);
     return () => clearInterval(t);
   }, [reload]);

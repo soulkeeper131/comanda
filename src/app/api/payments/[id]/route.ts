@@ -25,14 +25,14 @@ export const PATCH = withAuth({ role: ["admin"] }, async (request, { session, pa
   const body = await request.json().catch(() => ({}));
   const { status } = body;
 
-  if (!status || !["pending", "paid", "cancelled"].includes(status)) {
-    return NextResponse.json({ error: "Статусът трябва да е 'pending', 'paid' или 'cancelled'" }, { status: 400 });
+  // "Платено" минава само през /api/payments/confirm (оферта, фактура,
+  // известия). Тук — отказ на чакащ превод или отбелязване, че сумата е
+  // върната на клиента (след Refund в Stripe).
+  const allowed: Record<string, string[]> = { cancelled: ["pending"], refunded: ["refund_needed", "paid"] };
+  if (!allowed[status]?.includes(payment.status)) {
+    return NextResponse.json({ error: "Тази промяна не е позволена" }, { status: 400 });
   }
-
   const updates: Record<string, unknown> = { status };
-  if (status === "paid") {
-    updates.paid_at = new Date().toISOString();
-  }
 
   db.update(payments).set(updates).where(eq(payments.id, id)).run();
 

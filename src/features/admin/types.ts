@@ -161,3 +161,32 @@ export type ServiceTemplate = {
   category: string;
   archived: boolean | null;
 };
+
+export type AdminPayment = {
+  id: string;
+  user_id: string;
+  user_name: string | null;
+  user_email: string | null;
+  offer_id: string | null;
+  amount: number;
+  status: "pending" | "paid" | "cancelled" | "refund_needed" | "refunded" | "failed";
+  method: string;
+  description: string;
+  invoice_id: string | null;
+  invoice_number: string | null;
+  paid_at: string | null;
+  created_at: string | null;
+};
+
+export type Inquiry = {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  city: string | null;
+  property_kind: string | null;
+  service: string | null;
+  message: string | null;
+  status: "new" | "contacted" | "converted" | "closed";
+  created_at: string | null;
+};

@@ -20,7 +20,7 @@ const NAV: { id: Section; label: string; icon: IconName }[] = [
   { id: "jobs", label: "Обходи", icon: "calendar" },
   { id: "properties", label: "Имоти", icon: "home" },
   { id: "issues", label: "Проблеми", icon: "alert" },
-  { id: "plans", label: "Абонаменти", icon: "package" },
+  { id: "plans", label: "Пари", icon: "package" },
   { id: "settings", label: "Настройки", icon: "settings" },
 ];
 
@@ -62,7 +62,9 @@ export default function AdminHome() {
     today:
       data.properties.filter((p) => p.approval_status === "pending").length +
       data.plans.filter((p) => p.status === "requested").length +
-      data.findings.filter((f) => f.status === "quote_requested" || (f.severity === "urgent" && f.status === "open")).length,
+      data.findings.filter((f) => f.status === "quote_requested" || (f.severity === "urgent" && f.status === "open")).length +
+      data.payments.filter((p) => p.status === "refund_needed" || (p.status === "pending" && p.method !== "card")).length +
+      data.inquiries.filter((i) => i.status === "new").length,
   };
 
   const onFocused = useCallback(() => setFocusProperty(null), []);

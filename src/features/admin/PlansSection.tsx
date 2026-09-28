@@ -8,12 +8,14 @@ import { Icon } from "@/components/ui/Icon";
 import { formatDateOnly, formatMoney, perMonthLabel } from "@/lib/format";
 import { api } from "./api";
 import PackageEditorSheet from "./PackageEditorSheet";
+import PaymentsList from "./PaymentsList";
+import InquiriesList from "./InquiriesList";
 import SchedulePlanSheet from "./SchedulePlanSheet";
 import { Chips, EmptyState, SectionTitle } from "./ui";
 import type { AdminData, Resource } from "./useAdminData";
 import type { AdminPlan, CatalogPackage, ServiceTemplate } from "./types";
 
-type Filter = "pending_payment" | "requested" | "active" | "cancelled" | "catalog";
+type Filter = "pending_payment" | "requested" | "active" | "cancelled" | "catalog" | "payments" | "inquiries";
 
 const PLAN_STATUS: Record<AdminPlan["status"], { text: string; tone: "warning" | "ok" | "neutral" | "info" }> = {
   pending_payment: { text: "Чака плащане", tone: "info" },
@@ -52,7 +54,7 @@ export default function PlansSection({
     loadCatalog();
   }, [loadCatalog]);
 
-  const plans = useMemo(() => data.plans.filter((p) => filter !== "catalog" && p.status === filter), [data.plans, filter]);
+  const plans = useMemo(() => data.plans.filter((p) => p.status === filter), [data.plans, filter]);
   const count = (s: AdminPlan["status"]) => data.plans.filter((p) => p.status === s).length;
   const optionNames = (p: AdminPlan) => {
     const ids: string[] = (() => {
@@ -98,7 +100,7 @@ export default function PlansSection({
           ) : undefined
         }
       >
-        Абонаменти
+        Абонаменти и плащания
       </SectionTitle>
       <Chips
         value={filter}
@@ -109,10 +111,22 @@ export default function PlansSection({
           { value: "active", label: "Активни", count: count("active") },
           { value: "cancelled", label: "Прекратени" },
           { value: "catalog", label: "Каталог с пакети" },
+          { value: "payments", label: "Плащания" },
+          { value: "inquiries", label: "Запитвания", count: data.inquiries.filter((i) => i.status === "new").length },
         ]}
       />
 
-      {filter === "catalog" ? (
+      {filter === "payments" ? (
+        <PaymentsList payments={data.payments} />
+      ) : filter === "inquiries" ? (
+        <InquiriesList
+          inquiries={data.inquiries}
+          onChanged={(m, tone) => {
+            toast(m, tone);
+            reload("inquiries");
+          }}
+        />
+      ) : filter === "catalog" ? (
         <div className="space-y-2">
           {catalog.map((pkg) => (
             <button

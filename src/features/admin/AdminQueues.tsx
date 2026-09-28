@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { formatDay, formatMoney, formatWhen, perMonthLabel, todayKey } from "@/lib/format";
 import OfferSheet from "./OfferSheet";
+import { api } from "./api";
 import SchedulePlanSheet from "./SchedulePlanSheet";
 import type { AdminData, Resource } from "./useAdminData";
 import type { AdminFinding, AdminPlan } from "./types";
@@ -29,6 +30,23 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
   const [offerFor, setOfferFor] = useState<AdminFinding | null>(null);
   const [scheduling, setScheduling] = useState<AdminPlan | null>(null);
   const today = todayKey();
+
+  const confirmBank = async (paymentId: string) => {
+    if (!confirm("Сумата е постъпила по сметката?")) return;
+    const res = await api<{ invoice: string | null }>("/api/payments/confirm", { body: { paymentId } });
+    toast(res.ok ? `Потвърдено${res.data.invoice ? ` — фактура ${res.data.invoice}` : ""}` : res.error, res.ok ? "ok" : "error");
+    reload("payments", "offers", "findings");
+  };
+  const paymentAction = async (id: string, status: string, message: string) => {
+    const res = await api(`/api/payments/${id}`, { method: "PATCH", body: { status } });
+    toast(res.ok ? message : res.error, res.ok ? "ok" : "error");
+    reload("payments");
+  };
+  const inquiryAction = async (id: string, status: string) => {
+    const res = await api(`/api/inquiries/${id}`, { method: "PATCH", body: { status } });
+    if (!res.ok) toast(res.error, "error");
+    reload("inquiries");
+  };
   const inspectors = data.users.filter((u) => u.role === "inspector" && u.active);
 
   const q = useMemo(() => {
@@ -49,6 +67,9 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
       noInspector: data.properties.filter(
         (p) => p.approval_status === "active" && !p.assigned_inspector_id && livePlanProps.has(p.id),
       ),
+      bankPending: data.payments.filter((p) => p.status === "pending" && p.method !== "card"),
+      refunds: data.payments.filter((p) => p.status === "refund_needed"),
+      inquiries: data.inquiries.filter((i) => i.status === "new"),
       today: data.jobs.filter((j) => j.planned_at.slice(0, 10) === today && j.status !== "cancelled"),
       running: data.jobs.filter((j) => j.status === "in_progress"),
     };
@@ -61,7 +82,10 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
     q.quoteRequests.length +
     q.overdue.length +
     q.unpaid.length +
-    q.noInspector.length;
+    q.noInspector.length +
+    q.bankPending.length +
+    q.refunds.length +
+    q.inquiries.length;
 
   return (
     <div className="space-y-4">
@@ -88,6 +112,58 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
             title={f.title}
             sub={`${f.property_name} · ${formatWhen(f.created_at)}`}
             action={<Button size="sm" variant="danger" onClick={() => setOfferFor(f)}>Оферта</Button>}
+          />
+        )}
+      </Queue>
+
+      <Queue title="Суми за връщане" icon="card" tone="danger" items={q.refunds}>
+        {(p) => (
+          <Row
+            key={p.id}
+            title={`${p.user_name || p.user_email} — ${formatMoney(p.amount)}`}
+            sub={`${p.description} · върнете от таблото на Stripe, после отбележете`}
+            action={
+              <Button size="sm" variant="secondary" onClick={() => paymentAction(p.id, "refunded", "Отбелязано като върнато")}>
+                Върнато
+              </Button>
+            }
+          />
+        )}
+      </Queue>
+
+      <Queue title="Преводи за потвърждение" icon="bank" items={q.bankPending}>
+        {(p) => (
+          <Row
+            key={p.id}
+            title={`${p.user_name || p.user_email} — ${formatMoney(p.amount)}`}
+            sub={`${p.description} · заявен ${formatWhen(p.created_at)}`}
+            action={
+              <Button size="sm" onClick={() => confirmBank(p.id)}>
+                Получен
+              </Button>
+            }
+          />
+        )}
+      </Queue>
+
+      <Queue title="Нови запитвания от сайта" icon="mail" items={q.inquiries}>
+        {(i) => (
+          <Row
+            key={i.id}
+            title={`${i.full_name}${i.city ? ` · ${i.city}` : ""}`}
+            sub={[i.phone, i.email, i.service, i.message].filter(Boolean).join(" · ")}
+            action={
+              <div className="flex gap-1">
+                {i.phone && (
+                  <a href={`tel:${i.phone}`} className="flex h-9 w-9 items-center justify-center rounded-card text-brand-primary hover:bg-brand-bg" aria-label="Обади се">
+                    <Icon name="phone" size={18} />
+                  </a>
+                )}
+                <Button size="sm" variant="secondary" onClick={() => inquiryAction(i.id, "contacted")}>
+                  Свързах се
+                </Button>
+              </div>
+            }
           />
         )}
       </Queue>

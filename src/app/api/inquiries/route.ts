@@ -1,5 +1,7 @@
 import { db } from "@/db";
 import { inquiries } from "@/db/schema";
+import { desc } from "drizzle-orm";
+import { withAuth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
 import { emailLayout } from "@/lib/mail-layout";
@@ -11,6 +13,18 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { full_name, phone, email, city, property_kind, service, message } = body;
+
+    // Скрито поле срещу ботове: човек не го вижда, бот го попълва.
+    if (body.website) return NextResponse.json({ success: true }, { status: 201 });
+    const tooLong = [full_name, phone, email, city, property_kind, service].some(
+      (v) => typeof v === "string" && v.length > 200,
+    );
+    if (tooLong || (typeof message === "string" && message.length > 3000)) {
+      return NextResponse.json({ error: "Твърде дълъг текст" }, { status: 400 });
+    }
+    if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return NextResponse.json({ error: "Невалиден имейл" }, { status: 400 });
+    }
 
     if (!full_name || !full_name.trim()) {
       return NextResponse.json({ error: "Името е задължително" }, { status: 400 });
@@ -57,3 +71,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Грешка при изпращане на запитване" }, { status: 500 });
   }
 }
+
+/** GET /api/inquiries — запитванията от сайта (само админ). */
+export const GET = withAuth({ role: ["admin"] }, async () => {
+  const rows = db.select().from(inquiries).orderBy(desc(inquiries.created_at)).limit(300).all();
+  return NextResponse.json(rows);
+});
