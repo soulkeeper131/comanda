@@ -29,6 +29,7 @@ export type ClientJob = {
   title: string | null;
   status: JobStatus;
   /** Често само дата "YYYY-MM-DD" — обходът е за деня, без час. */
+  plan_id?: string | null;
   planned_at: string;
   property_id: string;
   property_name?: string;
@@ -178,6 +179,7 @@ export type ClientOffer = {
 export type ClientPayment = {
   id: string;
   offer_id: string | null;
+  plan_id?: string | null;
   amount: number;
   method: string;
   status: string;

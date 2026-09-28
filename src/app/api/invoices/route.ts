@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { invoices } from "@/db/schema";
+import { invoices, settings, users } from "@/db/schema";
 import { withAuth, isAdmin } from "@/lib/auth";
 import { eq, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -21,25 +21,39 @@ export const GET = withAuth({}, async (_request, { session }) => {
 });
 
 // POST /api/invoices — ръчна фактура. Само админ — фактурите иначе се
-// създават автоматично при потвърдено плащане.
+// създават автоматично при потвърдено плащане. Номерът е винаги следващият
+// поред (законът не допуска пропуски и повторения), не се въвежда ръчно.
 export const POST = withAuth({ role: ["admin"] }, async (request, { session }) => {
   const body = await request.json().catch(() => ({}));
-  const { payment_id, number, amount, description } = body;
+  const { payment_id, amount, description } = body;
+  const userId = typeof body.user_id === "string" ? body.user_id : session.uid;
 
-  if (!number) {
-    return NextResponse.json({ error: "Номер на фактура е задължителен" }, { status: 400 });
+  if (payment_id) {
+    const existing = db.select().from(invoices).where(eq(invoices.payment_id, payment_id)).get();
+    if (existing) return NextResponse.json({ error: `Плащането вече има фактура ${existing.number}` }, { status: 409 });
   }
-
-  const id = crypto.randomUUID();
-  db.insert(invoices).values({
-    id,
-    user_id: typeof body.user_id === "string" ? body.user_id : session.uid,
-    payment_id: payment_id || null,
-    number,
-    amount: amount ?? null,
-    description: description ?? null,
-  }).run();
-
-  const invoice = db.select().from(invoices).where(eq(invoices.id, id)).get();
+  const buyer = db.select().from(users).where(eq(users.id, userId)).get();
+  const invoice = db.transaction((tx) => {
+    const row = tx.select().from(settings).where(eq(settings.key, "invoice_seq")).get();
+    const next = (row ? Number(row.value) : 0) + 1;
+    if (row) tx.update(settings).set({ value: String(next) }).where(eq(settings.key, "invoice_seq")).run();
+    else tx.insert(settings).values({ key: "invoice_seq", value: String(next) }).run();
+    return tx
+      .insert(invoices)
+      .values({
+        user_id: userId,
+        payment_id: payment_id || null,
+        number: String(next).padStart(10, "0"),
+        amount: typeof amount === "number" ? amount : null,
+        description: typeof description === "string" ? description : null,
+        buyer_name: buyer?.full_name ?? null,
+        buyer_email: buyer?.email ?? null,
+        buyer_company: buyer?.company_name ?? null,
+        buyer_eik: buyer?.eik ?? null,
+        buyer_vat: buyer?.vat_number ?? null,
+      })
+      .returning()
+      .get();
+  });
   return NextResponse.json(invoice, { status: 201 });
 });

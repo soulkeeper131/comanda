@@ -5,6 +5,7 @@ import { payments } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ensureInvoice, settleOfferPayment } from "@/lib/payments";
 import { settleServiceOrder } from "@/lib/service-orders";
+import { settlePlanPayment } from "@/lib/subscriptions";
 
 export const dynamic = "force-dynamic";
 
@@ -35,12 +36,18 @@ export const POST = withAuth({ role: ["admin"] }, async (request) => {
 
     if (payment.order_id) {
       const res = await settleServiceOrder({ orderId: payment.order_id, paymentId: payment.id, method: "bank" });
-      if (!res.ok) return NextResponse.json({ error: "Заявката е отказана" }, { status: 409 });
-      return NextResponse.json({ success: true });
+      if (!res.ok) return NextResponse.json({ error: "Заявката е оттеглена — плащането е маркирано за връщане" }, { status: 409 });
+      return NextResponse.json({ success: true, invoice: res.invoiceNumber ?? null });
+    }
+
+    if (payment.plan_id) {
+      const res = await settlePlanPayment(payment.id);
+      if (!res.ok) return NextResponse.json({ error: res.error }, { status: 409 });
+      return NextResponse.json({ success: true, invoice: res.invoiceNumber });
     }
 
     db.update(payments).set({ status: "paid", paid_at: new Date().toISOString() }).where(eq(payments.id, payment.id)).run();
-    const invoice = ensureInvoice(payment.id, "Плащане по банков път");
+    const invoice = ensureInvoice(payment.id);
     return NextResponse.json({ success: true, invoice: invoice?.number ?? null });
   } catch (error) {
     console.error("[payments/confirm] Error:", error);

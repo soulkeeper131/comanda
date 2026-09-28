@@ -29,6 +29,13 @@
       "when": 1790624626963,
       "tag": "0003_service_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790627346714,
+      "tag": "0004_money_integrity",
+      "breakpoints": true
     }
   ]
 }

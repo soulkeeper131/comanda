@@ -27,14 +27,19 @@ export default function FindingsSection({
   onChanged: (msg: string) => void;
 }) {
   const [showClosed, setShowClosed] = useState(false);
-  const rank = (f: ClientFinding) => (f.severity === "urgent" ? 0 : 1);
-  const active = findings.filter((f) => f.status !== "closed").sort((a, b) => rank(a) - rank(b));
-  const closed = findings.filter((f) => f.status === "closed");
-
   const offerFor = (f: ClientFinding): ClientOffer | null =>
     offers.find((o) => o.id === f.offer?.id) ?? offers.find((o) => o.finding_id === f.id) ?? null;
+  // Завършен ремонт, който чака плащане, не е „приключен" за клиента —
+  // остава горе, иначе бутонът за плащане се губи в свитата група.
+  const open = (f: ClientFinding) => f.status !== "closed" || !!offerFor(f)?.awaits_payment;
+  const rank = (f: ClientFinding) => (offerFor(f)?.awaits_payment ? -1 : f.severity === "urgent" ? 0 : 1);
+  const active = findings.filter(open).sort((a, b) => rank(a) - rank(b));
+  const closed = findings.filter((f) => !open(f));
+
+  // Само заявен превод е „чака потвърждение"; недовършено плащане с карта
+  // не е — клиентът може да опита пак.
   const pendingPaymentFor = (offerId: string) =>
-    payments.find((p) => p.offer_id === offerId && p.status === "pending") ?? null;
+    payments.find((p) => p.offer_id === offerId && p.status === "pending" && p.method === "bank") ?? null;
 
   const card = (f: ClientFinding) => (
     <FindingCard
@@ -57,7 +62,7 @@ export default function FindingsSection({
       {active.length === 0 ? (
         <p className="flex items-center gap-2 text-sm text-muted">
           <Icon name="shield" size={18} className="text-state-ok" />
-          Няма открити проблеми по имота.
+          {closed.length > 0 ? "Няма отворени проблеми по имота." : "Няма открити проблеми по имота."}
         </p>
       ) : (
         <div className="space-y-3">{active.map(card)}</div>

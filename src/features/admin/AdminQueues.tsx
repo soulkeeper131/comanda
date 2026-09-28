@@ -42,6 +42,12 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
     toast(res.ok ? message : res.error, res.ok ? "ok" : "error");
     reload("payments");
   };
+  const markPlanPaid = async (planId: string) => {
+    if (!confirm("Преводът за следващия месец е получен?")) return;
+    const res = await api<{ invoice?: string | null }>(`/api/plans/${planId}`, { method: "PATCH", body: { action: "mark_paid" } });
+    toast(res.ok ? `Платено${res.data.invoice ? ` — фактура ${res.data.invoice}` : ""}` : res.error, res.ok ? "ok" : "error");
+    reload("plans", "payments");
+  };
   const inquiryAction = async (id: string, status: string) => {
     const res = await api(`/api/inquiries/${id}`, { method: "PATCH", body: { status } });
     if (!res.ok) toast(res.error, "error");
@@ -68,6 +74,24 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
         (p) => p.approval_status === "active" && !p.assigned_inspector_id && livePlanProps.has(p.id),
       ),
       bankPending: data.payments.filter((p) => p.status === "pending" && p.method !== "card"),
+      // Абонамент без карта, чийто платен период е изтекъл (или никога не е
+      // платен) — обходите вървят, а парите не са дошли.
+      unpaidPlans: data.plans.filter(
+        (p) =>
+          (p.status === "active" || p.status === "requested") &&
+          !p.stripe_subscription_id &&
+          (!p.paid_until || p.paid_until < today),
+      ),
+      // Приет ремонт, който може да започне: плащане след ремонта — веднага;
+      // с предплащане — щом е платено.
+      readyRepairs: data.offers.filter(
+        (o) => (o.decision === "accepted" && !o.requires_prepayment) || o.decision === "paid",
+      ),
+      // Обход, започнат преди повече от 12 часа и незавършен — телефонът е
+      // изгубен, инспекторът е забравил; клиентът чака отчет.
+      stuck: data.jobs.filter(
+        (j) => j.status === "in_progress" && !!j.check_in && Date.now() - new Date(j.check_in).getTime() > 12 * 3600_000,
+      ),
       refunds: data.payments.filter((p) => p.status === "refund_needed"),
       inquiries: data.inquiries.filter((i) => i.status === "new"),
       today: data.jobs.filter((j) => j.planned_at.slice(0, 10) === today && j.status !== "cancelled"),
@@ -85,7 +109,11 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
     q.noInspector.length +
     q.bankPending.length +
     q.refunds.length +
-    q.inquiries.length;
+    q.inquiries.length +
+    q.unpaidPlans.length +
+    q.readyRepairs.length +
+    q.stuck.length +
+    q.unassigned.length;
 
   return (
     <div className="space-y-4">
@@ -95,7 +123,7 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
         <Stat label="Чакат вас" value={totalWaiting} icon="inbox" highlight={totalWaiting > 0} />
       </div>
 
-      {totalWaiting === 0 && q.unassigned.length === 0 && q.awaitingPrepay.length === 0 && (
+      {totalWaiting === 0 && q.awaitingPrepay.length === 0 && (
         <Card className="flex items-center gap-3">
           <Icon name="check-circle" size={28} className="text-state-ok" />
           <div>
@@ -121,10 +149,17 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
           <Row
             key={p.id}
             title={`${p.user_name || p.user_email} — ${formatMoney(p.amount)}`}
-            sub={`${p.description} · върнете от таблото на Stripe, после отбележете`}
+            sub={`${p.description} · ${p.method === "card" ? "връща се автоматично в картата" : "преведете сумата, после отбележете"}`}
             action={
-              <Button size="sm" variant="secondary" onClick={() => paymentAction(p.id, "refunded", "Отбелязано като върнато")}>
-                Върнато
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  if (!confirm(p.method === "card" ? `Да върнем ${formatMoney(p.amount)} в картата на клиента?` : "Сумата е преведена обратно на клиента?")) return;
+                  paymentAction(p.id, "refunded", p.method === "card" ? "Върнато в картата — издадено кредитно известие" : "Отбелязано като върнато — издадено кредитно известие");
+                }}
+              >
+                {p.method === "card" ? "Върни" : "Върнато"}
               </Button>
             }
           />
@@ -136,12 +171,48 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
           <Row
             key={p.id}
             title={`${p.user_name || p.user_email} — ${formatMoney(p.amount)}`}
-            sub={`${p.description} · заявен ${formatWhen(p.created_at)}`}
+            sub={`${p.reference ? `„${p.reference}“ · ` : ""}${p.description} · заявен ${formatWhen(p.created_at)}`}
             action={
               <Button size="sm" onClick={() => confirmBank(p.id)}>
                 Получен
               </Button>
             }
+          />
+        )}
+      </Queue>
+
+      <Queue title="Абонаменти без плащане" icon="bank" tone="warning" items={q.unpaidPlans}>
+        {(p) => (
+          <Row
+            key={p.id}
+            title={`${p.property_name} — ${formatMoney(p.price)}/месец`}
+            sub={`${p.owner_name ?? p.owner_email} · ${p.paid_until ? `платено до ${formatDay(p.paid_until)}` : "не е плащан"}`}
+            action={
+              <Button size="sm" variant="secondary" onClick={() => markPlanPaid(p.id)}>
+                Платен
+              </Button>
+            }
+          />
+        )}
+      </Queue>
+
+      <Queue title="Обходи, започнати и незавършени" icon="clock" tone="warning" items={q.stuck} onMore={() => goTo("jobs")}>
+        {(j) => (
+          <Row
+            key={j.id}
+            title={j.property_name ?? "Обход"}
+            sub={`${j.assignee_name ?? "без изпълнител"} · започнат ${formatWhen(j.check_in)}`}
+          />
+        )}
+      </Queue>
+
+      <Queue title="Приети ремонти — за започване" icon="wrench" items={q.readyRepairs} onMore={() => goTo("issues")}>
+        {(o) => (
+          <Row
+            key={o.id}
+            title={`${o.finding.property_name} — ${formatMoney(o.price)}`}
+            sub={`${o.finding.title} · ${o.decision === "paid" ? "платен предварително" : "плащане след ремонта"}`}
+            action={<Button size="sm" variant="secondary" onClick={() => goTo("issues")}>Отвори</Button>}
           />
         )}
       </Queue>

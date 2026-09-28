@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { db } from "@/db";
-import { payments } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { payments, serviceOrders } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { getWebhookSecret, eurToCents } from "@/lib/stripe";
-import { settleOfferPayment } from "@/lib/payments";
+import { ensureInvoice, settleOfferPayment } from "@/lib/payments";
+import { onChargeRefunded } from "@/lib/refunds";
+import { notifyAdmins } from "@/lib/notifications";
 import { settleServiceOrder } from "@/lib/service-orders";
 import {
   onInvoicePaid,
@@ -19,7 +21,8 @@ export const dynamic = "force-dynamic";
  * POST /api/stripe/webhook — събитията от Stripe.
  *
  *   checkout.session.completed    плащане по оферта / първо плащане по абонамент
- *   checkout.session.expired      изоставено плащане по оферта
+ *   checkout.session.expired      изоставено плащане по оферта / услуга
+ *   charge.refunded               върнато от таблото на Stripe → кредитно известие
  *   invoice.paid                  месечно теглене → плащане + фактура
  *   invoice.payment_failed        неуспешно теглене → предупреждение
  *   customer.subscription.updated отказ до края на периода / оттеглен отказ
@@ -60,10 +63,23 @@ export async function POST(request: Request) {
         const session = event.data.object as Stripe.Checkout.Session;
         const paymentId = session.client_reference_id || session.metadata?.payment_id;
         if (session.mode === "payment" && paymentId) {
-          db.update(payments).set({ status: "cancelled" }).where(eq(payments.id, paymentId)).run();
+          const payment = db.select().from(payments).where(eq(payments.id, paymentId)).get();
+          if (payment?.status === "pending") {
+            db.update(payments).set({ status: "cancelled" }).where(eq(payments.id, paymentId)).run();
+            // Изоставена услуга не виси „чака плащане" завинаги — клиентът я заявява пак.
+            if (payment.order_id) {
+              db.update(serviceOrders)
+                .set({ status: "cancelled" })
+                .where(and(eq(serviceOrders.id, payment.order_id), eq(serviceOrders.status, "pending_payment")))
+                .run();
+            }
+          }
         }
         break;
       }
+      case "charge.refunded":
+        onChargeRefunded(event.data.object as Stripe.Charge);
+        break;
       case "invoice.paid":
         await onInvoicePaid(event.data.object as Stripe.Invoice);
         break;
@@ -92,15 +108,27 @@ async function onOfferCheckoutCompleted(session: Stripe.Checkout.Session) {
   const paymentId = session.client_reference_id || session.metadata?.payment_id;
   if (!paymentId) return;
   const payment = db.select().from(payments).where(eq(payments.id, paymentId)).get();
-  if (!payment || payment.status === "paid" || (!payment.offer_id && !payment.order_id)) return;
-
-  if (session.payment_status !== "paid") return;
-  if (session.amount_total !== eurToCents(payment.amount)) {
-    console.error(`[stripe/webhook] Amount mismatch for payment ${paymentId}: ${session.amount_total} vs ${eurToCents(payment.amount)}`);
+  if (!payment || (!payment.offer_id && !payment.order_id)) return;
+  if (payment.status === "paid") {
+    // Повторено събитие — само фактурата, ако първия път не е станала.
+    ensureInvoice(payment.id);
     return;
   }
 
+  if (session.payment_status !== "paid") return;
   const paymentIntent = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? null;
+  if (session.amount_total !== eurToCents(payment.amount)) {
+    // Взети са пари, но не колкото трябва — не се приема тихо.
+    console.error(`[stripe/webhook] Amount mismatch for payment ${paymentId}: ${session.amount_total} vs ${eurToCents(payment.amount)}`);
+    db.update(payments)
+      .set({ status: "refund_needed", stripe_session_id: session.id, stripe_payment_intent_id: paymentIntent })
+      .where(eq(payments.id, payment.id))
+      .run();
+    notifyAdmins("offer_decided", "Плащане с грешна сума — върнете го", `Взети ${(session.amount_total ?? 0) / 100} € вместо ${payment.amount} €`, "/dashboard");
+    return;
+  }
+
+
   if (payment.order_id) {
     await settleServiceOrder({
       orderId: payment.order_id,

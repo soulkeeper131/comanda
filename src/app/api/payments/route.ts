@@ -1,5 +1,7 @@
 import { db } from "@/db";
-import { payments, offers, findings, properties, users, invoices, serviceOrders, serviceTemplates } from "@/db/schema";
+import { payments, offers, findings, properties, users, invoices, serviceOrders, serviceTemplates, plans } from "@/db/schema";
+import { expireCheckoutSession } from "@/lib/stripe";
+import { paymentReference } from "@/lib/format";
 import { withAuth, isAdmin } from "@/lib/auth";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { awaitsPayment, offerPrepay, type OfferDecision } from "@/lib/domain/offers";
@@ -18,6 +20,7 @@ export const GET = withAuth({}, async (_request, { session }) => {
       user_email: users.email,
       finding_title: findings.title,
       order_service: serviceTemplates.name,
+      plan_name: plans.name,
       invoice_id: invoices.id,
       invoice_number: invoices.number,
       invoice_description: invoices.description,
@@ -29,6 +32,7 @@ export const GET = withAuth({}, async (_request, { session }) => {
     .leftJoin(invoices, eq(invoices.payment_id, payments.id))
     .leftJoin(serviceOrders, eq(payments.order_id, serviceOrders.id))
     .leftJoin(serviceTemplates, eq(serviceOrders.template_id, serviceTemplates.id))
+    .leftJoin(plans, eq(payments.plan_id, plans.id))
     .where(isAdmin(session) ? undefined : eq(payments.user_id, session.uid))
     .orderBy(desc(payments.created_at))
     .limit(500)
@@ -41,9 +45,11 @@ export const GET = withAuth({}, async (_request, { session }) => {
       user_email: isAdmin(session) ? r.user_email : undefined,
       description:
         r.invoice_description ??
-        (r.finding_title ? `Ремонт: ${r.finding_title}` : r.order_service ? `Услуга: ${r.order_service}` : "Абонамент"),
+        (r.finding_title ? `Ремонт: ${r.finding_title}` : r.order_service ? `Услуга: ${r.order_service}` : r.plan_name ? `Абонамент: ${r.plan_name}` : "Абонамент"),
       invoice_id: r.invoice_id,
       invoice_number: r.invoice_number,
+      // Основанието, с което клиентът превежда — по него админът намира превода.
+      reference: paymentReference(r.payment),
     })),
   );
 });
@@ -77,11 +83,18 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session }) 
   if (!awaitsPayment(row.offer.decision as OfferDecision, offerPrepay(row.offer, getPrepayThreshold()))) {
     return NextResponse.json({ error: "Тази оферта не чака плащане" }, { status: 409 });
   }
-  const duplicate = db
-    .select({ id: payments.id })
+  const live = db
+    .select()
     .from(payments)
     .where(and(eq(payments.offer_id, offerId), inArray(payments.status, ["pending", "paid"])))
-    .get();
+    .all();
+  // Изоставено плащане с карта не пречи да се избере превод — страницата му
+  // в Stripe се затваря, за да не се плати два пъти.
+  for (const p of live.filter((x) => x.method === "card" && x.status === "pending")) {
+    await expireCheckoutSession(p.stripe_session_id);
+    db.update(payments).set({ status: "cancelled" }).where(eq(payments.id, p.id)).run();
+  }
+  const duplicate = live.find((x) => x.method !== "card" || x.status === "paid");
   if (duplicate) {
     return NextResponse.json({ error: "Вече има плащане по тази оферта — очаква потвърждение" }, { status: 409 });
   }

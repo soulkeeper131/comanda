@@ -5,6 +5,8 @@ import { ensureInvoice } from "@/lib/payments";
 import { createNotification, notifyAdmins } from "@/lib/notifications";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
 import { emailLayout, formatEur } from "@/lib/mail-layout";
+import { todaySofia } from "@/lib/jobs-generator";
+import { addDays } from "@/lib/domain/plans";
 
 /**
  * Еднократна допълнителна услуга (уточнение 6б). Плаща се предварително;
@@ -16,13 +18,25 @@ export async function settleServiceOrder(opts: {
   paymentId?: string;
   method: "card" | "bank";
   stripe?: { session_id?: string | null; payment_intent_id?: string | null };
-}): Promise<{ ok: boolean; jobId?: string }> {
+}): Promise<{ ok: boolean; jobId?: string; invoiceNumber?: string | null }> {
   const order = db.select().from(serviceOrders).where(eq(serviceOrders.id, opts.orderId)).get();
   if (!order) return { ok: false };
-  if (order.status === "paid") return { ok: true, jobId: order.job_id ?? undefined };
-  if (order.status === "cancelled") return { ok: false };
+  if (order.status === "paid") {
+    // Повторен webhook — фактурата се довършва, ако първия път не е станала.
+    const paid = opts.paymentId ? db.select().from(payments).where(eq(payments.id, opts.paymentId)).get() : undefined;
+    if (paid && paid.status !== "paid") markForRefund(paid.id, opts, "Двойно плащане за допълнителна услуга");
+    else if (paid) ensureInvoice(paid.id);
+    return { ok: true, jobId: order.job_id ?? undefined };
+  }
 
   const property = db.select().from(properties).where(eq(properties.id, order.property_id)).get();
+  if (order.status === "cancelled") {
+    // Оттеглена заявка, платена после от стар таб — парите са взети без
+    // услуга: за връщане, и екипът знае.
+    if (opts.paymentId) markForRefund(opts.paymentId, opts, `Платена оттеглена услуга — ${property?.name ?? ""}`);
+    return { ok: false };
+  }
+
   const template = db.select().from(serviceTemplates).where(eq(serviceTemplates.id, order.template_id)).get();
   if (!property || !template) return { ok: false };
   const inspector = property.assigned_inspector_id
@@ -30,6 +44,9 @@ export async function settleServiceOrder(opts: {
     : undefined;
   const assignee = inspector && inspector.active !== false ? inspector.id : null;
   const now = new Date().toISOString();
+  // Превод, потвърден след заявената дата — обходът е утре, не в миналото.
+  const tomorrow = addDays(todaySofia(), 1);
+  const plannedAt = order.requested_date < tomorrow ? tomorrow : order.requested_date;
 
   const { jobId, paymentId } = db.transaction((tx) => {
     let pid = opts.paymentId;
@@ -68,7 +85,7 @@ export async function settleServiceOrder(opts: {
         assignee_id: assignee,
         title: `${template.name} — ${property.name}`,
         duration_min: template.duration_min,
-        planned_at: order.requested_date,
+        planned_at: plannedAt,
         status: "planned",
         note: order.note ? `Заявка на клиента: ${order.note}` : null,
       })
@@ -79,7 +96,7 @@ export async function settleServiceOrder(opts: {
   });
 
   const invoice = ensureInvoice(paymentId, `Допълнителна услуга: ${template.name} — ${property.name}`);
-  const day = new Date(order.requested_date + "T12:00:00").toLocaleDateString("bg-BG");
+  const day = new Date(plannedAt + "T12:00:00").toLocaleDateString("bg-BG");
   createNotification(property.owner_id, "plan_scheduled", "Услугата е насрочена", `${template.name} — ${day}`, "/dashboard");
   if (assignee) createNotification(assignee, "job_started", "Нова допълнителна услуга", `${template.name} — ${property.name}, ${day}`, "/dashboard");
   else notifyAdmins("plan_requested", "Допълнителна услуга без инспектор", `${property.name} — ${template.name}, ${day}`, "/dashboard");
@@ -98,5 +115,23 @@ export async function settleServiceOrder(opts: {
   });
   const notify = await getNotifyEmail();
   if (notify) sendEmail({ to: notify, subject: `Допълнителна услуга: ${template.name} — ${property.name}`, html }).catch(() => {});
-  return { ok: true, jobId };
+  return { ok: true, jobId, invoiceNumber: invoice?.number ?? null };
+}
+
+function markForRefund(
+  paymentId: string,
+  opts: { stripe?: { session_id?: string | null; payment_intent_id?: string | null } },
+  title: string,
+) {
+  const payment = db.select().from(payments).where(eq(payments.id, paymentId)).get();
+  if (!payment || payment.status === "refund_needed" || payment.status === "refunded") return;
+  db.update(payments)
+    .set({
+      status: "refund_needed",
+      stripe_session_id: opts.stripe?.session_id ?? undefined,
+      stripe_payment_intent_id: opts.stripe?.payment_intent_id ?? undefined,
+    })
+    .where(eq(payments.id, paymentId))
+    .run();
+  notifyAdmins("offer_decided", "Нужно е връщане на сума", `${title}: ${formatEur(payment.amount)}`, "/dashboard");
 }

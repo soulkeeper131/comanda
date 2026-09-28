@@ -3,10 +3,10 @@ import { plans, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth, isAdmin } from "@/lib/auth";
-import { generateForPlan, removePlannedJobsAfter, todaySofia } from "@/lib/jobs-generator";
-import { createNotification, notifyAdmins } from "@/lib/notifications";
-import { endOfPaidPeriod } from "@/lib/domain/plans";
-import { cancelStripeSubscription } from "@/lib/subscriptions";
+import { generateForPlan, todaySofia } from "@/lib/jobs-generator";
+import { createNotification } from "@/lib/notifications";
+import { cancelPlan } from "@/lib/plan-cancel";
+import { requestPlanBankPayment, settlePlanPayment } from "@/lib/subscriptions";
 
 export const dynamic = "force-dynamic";
 
@@ -77,66 +77,19 @@ export const PATCH = withAuth({ role: ["admin", "client"] }, async (request, { s
       if (!isAdmin(session)) {
         return NextResponse.json({ error: "Само администратор" }, { status: 403 });
       }
-      if (plan.status !== "pending_payment") {
-        return NextResponse.json({ error: "Абонаментът не чака плащане" }, { status: 409 });
-      }
-      db.update(plans).set({ status: "requested" }).where(eq(plans.id, plan.id)).run();
-      return NextResponse.json(db.select().from(plans).where(eq(plans.id, plan.id)).get());
+      // Същият път като потвърден превод от опашката: плащане, период, фактура.
+      const pending = requestPlanBankPayment(plan.id);
+      if (!pending) return NextResponse.json({ error: "Абонаментът не е намерен" }, { status: 404 });
+      const res = await settlePlanPayment(pending.id);
+      if (!res.ok) return NextResponse.json({ error: res.error }, { status: 409 });
+      return NextResponse.json({ ...db.select().from(plans).where(eq(plans.id, plan.id)).get(), invoice: res.invoiceNumber });
     }
 
     if (body.action === "cancel") {
-      if (plan.status === "cancelled") {
-        return NextResponse.json({ error: "Абонаментът вече е отказан" }, { status: 409 });
-      }
-      const neverStarted = plan.status === "requested" || plan.status === "pending_payment";
-
-      // Карта: Stripe спира тегленето. Ненасрочен абонамент — веднага (и
-      // админът връща сумата от Stripe); насрочен — в края на платения месец.
-      let endsAt: string | null = null;
-      try {
-        endsAt = await cancelStripeSubscription(plan.id, neverStarted);
-      } catch (err) {
-        console.error("[plans] Stripe cancel failed:", err);
-        return NextResponse.json({ error: "Stripe не прие отказа — опитайте пак след малко" }, { status: 502 });
-      }
-      if (!endsAt) endsAt = endOfPaidPeriod(today);
-      if (isAdmin(session) && typeof body.ends_at === "string" && DATE.test(body.ends_at) && !plan.stripe_subscription_id) {
-        endsAt = body.ends_at < today ? today : body.ends_at;
-      }
-
-      const removed = db.transaction((tx) => {
-        tx.update(plans)
-          .set({
-            status: "cancelled",
-            cancelled_at: new Date().toISOString(),
-            // Никога не тръгнал абонамент не „важи до" никоя дата — имотът
-            // може веднага да заяви нов.
-            ends_at: neverStarted ? null : endsAt,
-          })
-          .where(eq(plans.id, plan.id))
-          .run();
-        return removePlannedJobsAfter(plan.id, neverStarted ? "0000-00-00" : endsAt!, tx);
-      });
-
-      if (neverStarted && plan.stripe_subscription_id) {
-        notifyAdmins(
-          "plan_requested",
-          "Отказан платен абонамент — върнете сумата",
-          `${property.name} — възстановете първото плащане от таблото на Stripe.`,
-          "/dashboard",
-        );
-      }
-      if (isAdmin(session)) {
-        createNotification(
-          property.owner_id,
-          "plan_scheduled",
-          "Абонаментът е прекратен",
-          neverStarted ? property.name : `${property.name} — важи до ${endsAt}`,
-          "/dashboard",
-        );
-      } else {
-        notifyAdmins("plan_requested", "Клиент отказа абонамент", `${property.name}${neverStarted ? "" : ` — важи до ${endsAt}`}`, "/dashboard");
-      }
+      const res = await cancelPlan(plan.id, { byAdmin: isAdmin(session), endsAt: typeof body.ends_at === "string" ? body.ends_at : undefined });
+      if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
+      const endsAt = res.endsAt;
+      const removed = res.removed;
       const updated = db.select().from(plans).where(eq(plans.id, plan.id)).get();
       return NextResponse.json({ ...updated, ends_at: updated?.ends_at ?? endsAt, jobs_removed: removed });
     }

@@ -33,6 +33,7 @@ export type AdminJob = {
   status: JobStatus;
   planned_at: string;
   property_id: string;
+  check_in?: string | null;
   property_name: string | null;
   property_address: string | null;
   assignee_id: string | null;
@@ -172,6 +173,8 @@ export type AdminPayment = {
   status: "pending" | "paid" | "cancelled" | "refund_needed" | "refunded" | "failed";
   method: string;
   description: string;
+  reference: string | null;
+  plan_id?: string | null;
   invoice_id: string | null;
   invoice_number: string | null;
   paid_at: string | null;

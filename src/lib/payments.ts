@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { payments, invoices, offers, findings, properties, users, settings } from "@/db/schema";
+import { payments, invoices, offers, findings, properties, users, settings, plans, serviceOrders, serviceTemplates } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { canTransition, offerPrepay, type OfferDecision } from "@/lib/domain/offers";
 import { getPrepayThreshold } from "@/lib/settings";
@@ -7,38 +7,127 @@ import { createNotification, notifyAdmins } from "@/lib/notifications";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
 import { emailLayout, formatEur } from "@/lib/mail-layout";
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /**
  * Поредният номер на фактура — 10 цифри, без пропуски (както го изисква
- * законът за фактурите). Брояч в settings, увеличаван атомарно.
+ * законът за фактурите). Брояч в settings, увеличаван в същата транзакция
+ * като самата фактура — неуспешен запис не оставя дупка в номерацията.
  */
-export function nextInvoiceNumber(): string {
-  return db.transaction((tx) => {
-    const row = tx.select().from(settings).where(eq(settings.key, "invoice_seq")).get();
-    const next = (row ? Number(row.value) : 0) + 1;
-    if (row) tx.update(settings).set({ value: String(next) }).where(eq(settings.key, "invoice_seq")).run();
-    else tx.insert(settings).values({ key: "invoice_seq", value: String(next) }).run();
-    return String(next).padStart(10, "0");
-  });
+function allocateInvoiceNumber(tx: Tx): string {
+  const row = tx.select().from(settings).where(eq(settings.key, "invoice_seq")).get();
+  const next = (row ? Number(row.value) : 0) + 1;
+  if (row) tx.update(settings).set({ value: String(next) }).where(eq(settings.key, "invoice_seq")).run();
+  else tx.insert(settings).values({ key: "invoice_seq", value: String(next) }).run();
+  return String(next).padStart(10, "0");
 }
 
-/** Фактура към плащане — най-много една на плащане. */
-export function ensureInvoice(paymentId: string, description: string) {
+export function nextInvoiceNumber(): string {
+  return db.transaction((tx) => allocateInvoiceNumber(tx));
+}
+
+/** Данните на купувача към момента — пазят се във фактурата. */
+function buyerSnapshot(userId: string) {
+  const u = db.select().from(users).where(eq(users.id, userId)).get();
+  return {
+    buyer_name: u?.full_name ?? null,
+    buyer_email: u?.email ?? null,
+    buyer_company: u?.company_name ?? null,
+    buyer_eik: u?.eik ?? null,
+    buyer_vat: u?.vat_number ?? null,
+  };
+}
+
+/** Основанието на плащане — за фактурата и за опашката на админа. */
+export function describePayment(paymentId: string): string {
+  const p = db.select().from(payments).where(eq(payments.id, paymentId)).get();
+  if (!p) return "Плащане";
+  if (p.offer_id) {
+    const r = db
+      .select({ title: findings.title, property: properties.name })
+      .from(offers)
+      .innerJoin(findings, eq(offers.finding_id, findings.id))
+      .innerJoin(properties, eq(findings.property_id, properties.id))
+      .where(eq(offers.id, p.offer_id))
+      .get();
+    return r ? `Ремонт: ${r.title} — ${r.property}` : "Ремонт";
+  }
+  if (p.order_id) {
+    const r = db
+      .select({ name: serviceTemplates.name, property: properties.name })
+      .from(serviceOrders)
+      .innerJoin(serviceTemplates, eq(serviceOrders.template_id, serviceTemplates.id))
+      .innerJoin(properties, eq(serviceOrders.property_id, properties.id))
+      .where(eq(serviceOrders.id, p.order_id))
+      .get();
+    return r ? `Допълнителна услуга: ${r.name} — ${r.property}` : "Допълнителна услуга";
+  }
+  if (p.plan_id) {
+    const r = db
+      .select({ name: plans.name, property: properties.name, paid_until: plans.paid_until })
+      .from(plans)
+      .innerJoin(properties, eq(plans.property_id, properties.id))
+      .where(eq(plans.id, p.plan_id))
+      .get();
+    return r ? `Абонамент ${r.name} — ${r.property}` : "Абонамент";
+  }
+  return "Плащане";
+}
+
+/**
+ * Фактура към плащане — най-много една на плащане (и уникален индекс в
+ * базата). Идемпотентна: повторно извикване връща съществуващата, така че
+ * всеки повторен webhook може спокойно да я поиска.
+ */
+export function ensureInvoice(paymentId: string, description?: string) {
   const existing = db.select().from(invoices).where(eq(invoices.payment_id, paymentId)).get();
   if (existing) return existing;
   const payment = db.select().from(payments).where(eq(payments.id, paymentId)).get();
-  if (!payment) return null;
-  const [inv] = db
-    .insert(invoices)
-    .values({
-      user_id: payment.user_id,
-      payment_id: paymentId,
-      number: nextInvoiceNumber(),
-      amount: payment.amount,
-      description,
-    })
-    .returning()
-    .all();
-  return inv;
+  if (!payment || payment.status !== "paid") return null;
+  const values = {
+    user_id: payment.user_id,
+    payment_id: paymentId,
+    amount: payment.amount,
+    description: description || describePayment(paymentId),
+    ...buyerSnapshot(payment.user_id),
+  };
+  try {
+    return db.transaction((tx) => tx.insert(invoices).values({ ...values, number: allocateInvoiceNumber(tx) }).returning().get());
+  } catch (err) {
+    // Паралелно извикване я е създало междувременно (уникален индекс).
+    const again = db.select().from(invoices).where(eq(invoices.payment_id, paymentId)).get();
+    if (again) return again;
+    throw err;
+  }
+}
+
+/**
+ * Кредитно известие при върнато плащане — сторнира фактурата с отрицателна
+ * сума и собствен пореден номер. Идемпотентно.
+ */
+export function issueCreditNote(paymentId: string) {
+  const original = db.select().from(invoices).where(eq(invoices.payment_id, paymentId)).get();
+  if (!original) return null;
+  const existing = db.select().from(invoices).where(eq(invoices.credit_for, original.id)).get();
+  if (existing) return existing;
+  return db.transaction((tx) =>
+    tx
+      .insert(invoices)
+      .values({
+        user_id: original.user_id,
+        number: allocateInvoiceNumber(tx),
+        amount: -(original.amount ?? 0),
+        description: `Кредитно известие към фактура ${original.number}: ${original.description ?? ""}`,
+        credit_for: original.id,
+        buyer_name: original.buyer_name,
+        buyer_email: original.buyer_email,
+        buyer_company: original.buyer_company,
+        buyer_eik: original.buyer_eik,
+        buyer_vat: original.buyer_vat,
+      })
+      .returning()
+      .get(),
+  );
 }
 
 /** Има ли вече плащане по офертата, което чака или е минало. */

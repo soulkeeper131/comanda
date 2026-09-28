@@ -18,6 +18,7 @@ type Order = {
   note: string | null;
   price: number;
   status: "pending_payment" | "paid" | "cancelled";
+  pay_method: "card" | "bank" | null;
 };
 
 const input =
@@ -122,7 +123,11 @@ export default function ExtraServicesSection({
               </span>
               <Badge tone="warning">Чака плащане</Badge>
             </div>
-            <BankDetails offerId={o.id} amount={o.price} findingTitle={o.template_name} />
+            {o.pay_method === "bank" ? (
+              <BankDetails kind="order" id={o.id} amount={o.price} label={o.template_name} />
+            ) : (
+              <p className="text-sm text-muted">Плащането с карта не е завършено. Оттеглете заявката и я направете отново.</p>
+            )}
             <Button size="sm" variant="ghost" className="text-state-danger" onClick={() => withdraw(o.id)}>
               Оттегли заявката
             </Button>

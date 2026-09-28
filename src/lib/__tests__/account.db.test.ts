@@ -75,7 +75,7 @@ describe("GDPR", () => {
     expect(p.archived).toBe(true);
     expect(db.select().from(s.plans).get()!.status).toBe("cancelled");
     expect(db.select().from(s.jobs).all().map((j) => j.id)).toEqual(["j1"]);
-    expect(db.select().from(s.notifications).all()).toHaveLength(0);
+    expect(db.select().from(s.notifications).where(eq(s.notifications.user_id, "c")).all()).toHaveLength(0);
     expect(db.select().from(s.inquiries).all()).toHaveLength(0);
     expect(db.select().from(s.invoices).all()).toHaveLength(1);
     expect(fs.existsSync(photo())).toBe(false);

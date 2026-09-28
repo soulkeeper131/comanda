@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { properties, serviceOrders, serviceTemplates, payments } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { withAuth, canViewProperty } from "@/lib/auth";
 import { getStripeOrNull, eurToCents, validateStripeAmount } from "@/lib/stripe";
 import { ensureStripeCustomer } from "@/lib/subscriptions";
@@ -26,7 +26,19 @@ export const GET = withAuth({ role: ["admin", "client"] }, async (_request, { se
     .where(eq(serviceOrders.property_id, property.id))
     .orderBy(desc(serviceOrders.created_at))
     .all();
-  return NextResponse.json(rows.map((r) => ({ ...r.order, template_name: r.template_name })));
+  const pendingMethod = (orderId: string) =>
+    db
+      .select({ method: payments.method })
+      .from(payments)
+      .where(and(eq(payments.order_id, orderId), eq(payments.status, "pending")))
+      .get()?.method ?? null;
+  return NextResponse.json(
+    rows.map((r) => ({
+      ...r.order,
+      template_name: r.template_name,
+      pay_method: r.order.status === "pending_payment" ? pendingMethod(r.order.id) : null,
+    })),
+  );
 });
 
 /**

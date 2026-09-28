@@ -8,7 +8,7 @@ import { liveOfferPayment, settleOfferPayment } from "@/lib/payments";
 import { appUrl as appBaseUrl } from "@/lib/mail-layout";
 import { getPrepayThreshold } from "@/lib/settings";
 import { eq } from "drizzle-orm";
-import { validateStripeAmount, eurToCents, getStripeOrNull } from "@/lib/stripe";
+import { validateStripeAmount, eurToCents, getStripeOrNull, expireCheckoutSession } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -48,11 +48,29 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session }) 
       );
     }
     // Заявен банков превод или вече платено — второ плащане не се отваря.
-    if (liveOfferPayment(offer.id).some((p) => p.method !== "card" || p.status === "paid")) {
+    const live = liveOfferPayment(offer.id);
+    if (live.some((p) => p.method !== "card" || p.status === "paid")) {
       return NextResponse.json(
         { error: "Вече има заявено плащане по тази оферта — очаква потвърждение" },
         { status: 409 },
       );
+    }
+    // Недовършено плащане с карта: същата страница, ако е още отворена;
+    // иначе старата се затваря и се прави нова (не две живи наведнъж).
+    const stripeForReuse = getStripeOrNull();
+    for (const p of live.filter((x) => x.method === "card" && x.status === "pending")) {
+      if (stripeForReuse && p.stripe_session_id) {
+        try {
+          const old = await stripeForReuse.checkout.sessions.retrieve(p.stripe_session_id);
+          if (old.status === "open" && old.url) {
+            return NextResponse.json({ url: old.url, sessionId: old.id, paymentId: p.id });
+          }
+        } catch {
+          /* изтекла — нова */
+        }
+      }
+      await expireCheckoutSession(p.stripe_session_id);
+      db.update(payments).set({ status: "cancelled" }).where(eq(payments.id, p.id)).run();
     }
 
     const amount = Number(offer.price ?? 0);

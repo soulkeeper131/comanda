@@ -151,7 +151,7 @@ export default function OfferPanel({
               <Notice tone="info">
                 Заявихте плащане по банков път. Администраторът ще го потвърди, щом преводът пристигне.
               </Notice>
-              <BankDetails offerId={offer.id} amount={offer.price} findingTitle={offer.finding?.title} />
+              <BankDetails kind="offer" id={offer.id} amount={offer.price} label={offer.finding?.title} />
             </>
           ) : null}
           {/* Заявен превод → без втори начин на плащане (иначе двойно плащане). */}

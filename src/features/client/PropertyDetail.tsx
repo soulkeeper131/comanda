@@ -147,6 +147,7 @@ export default function PropertyDetail({ property, onBack, onPropertyChanged }: 
         plan={livePlan}
         approval={property.approval_status}
         nextJob={nextPlanned}
+        served={!!livePlan && completed.some((j) => j.plan_id === livePlan.id)}
         onChoose={() => setShowPlanSelector(true)}
         onChanged={(msg) => {
           showToast(msg);

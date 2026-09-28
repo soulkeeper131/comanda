@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { serviceOrders, properties, payments } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { withAuth, isAdmin } from "@/lib/auth";
+import { expireCheckoutSession } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,10 @@ export const DELETE = withAuth({ role: ["admin", "client"] }, async (_request, {
   if (order.status !== "pending_payment") {
     return NextResponse.json({ error: "Платена услуга се отказва от администратор (като обход)" }, { status: 409 });
   }
+  // Отворената страница в Stripe се затваря — иначе стар таб може да бъде
+  // платен след оттеглянето.
+  const pending = db.select().from(payments).where(and(eq(payments.order_id, order.id), eq(payments.status, "pending"))).all();
+  for (const p of pending) await expireCheckoutSession(p.stripe_session_id);
   db.transaction((tx) => {
     tx.update(serviceOrders).set({ status: "cancelled" }).where(eq(serviceOrders.id, order.id)).run();
     tx.update(payments)

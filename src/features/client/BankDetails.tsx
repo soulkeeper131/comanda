@@ -2,20 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { bankReference, type PaymentKind } from "@/lib/format";
 import { getOr } from "./api";
 import { formatMoney } from "./format";
 
 type Details = { iban: string | null; recipient: string | null; bank: string | null };
 
-/** Данните за превод по оферта — получател, IBAN, банка, сума, основание. */
+/**
+ * Данните за превод — получател, IBAN, банка, сума, основание. Основанието
+ * казва за какво е преводът (ремонт, услуга, абонамент) и е уникално, за да
+ * го разпознае администраторът в извлечението.
+ */
 export default function BankDetails({
-  offerId,
+  kind,
+  id,
   amount,
-  findingTitle,
+  label,
 }: {
-  offerId: string;
+  kind: PaymentKind;
+  id: string;
   amount: number | null;
-  findingTitle: string | null | undefined;
+  label?: string | null;
 }) {
   const [details, setDetails] = useState<Details | null>(null);
   const [copied, setCopied] = useState(false);
@@ -36,7 +43,7 @@ export default function BankDetails({
   }
 
   const iban = details.iban;
-  const reference = `Оферта ${offerId.slice(0, 8)}${findingTitle ? ` — ${findingTitle}` : ""}`;
+  const reference = `${bankReference(kind, id)}${label ? ` — ${label}` : ""}`;
 
   const copy = async () => {
     try {

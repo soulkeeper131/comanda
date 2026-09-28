@@ -35,12 +35,12 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
     );
   }
 
-  // Вземи данни за клиента
-  const user = db
+  // Данните на купувача — от момента на издаване (снимка във фактурата).
+  // Стари фактури без снимка четат текущите данни на профила.
+  const live = db
     .select({
       full_name: users.full_name,
       email: users.email,
-      phone: users.phone,
       company_name: users.company_name,
       eik: users.eik,
       vat_number: users.vat_number,
@@ -48,6 +48,19 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
     .from(users)
     .where(eq(users.id, invoice.user_id))
     .get();
+  const snap = invoice.buyer_name !== null || invoice.buyer_email !== null;
+  const user = snap
+    ? {
+        full_name: invoice.buyer_name,
+        email: invoice.buyer_email,
+        company_name: invoice.buyer_company,
+        eik: invoice.buyer_eik,
+        vat_number: invoice.buyer_vat,
+      }
+    : live;
+  const credit = invoice.credit_for
+    ? db.select({ number: invoices.number, created_at: invoices.created_at }).from(invoices).where(eq(invoices.id, invoice.credit_for)).get()
+    : undefined;
 
   // Вземи плащане ако има
   let payment: any = null;
@@ -81,7 +94,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
 
   doc.setFontSize(14);
   doc.setTextColor(...brandPrimary);
-  doc.text(`Фактура \u2116${invoice.number}`, pageWidth / 2, y, {
+  doc.text(`${invoice.credit_for ? "Кредитно известие" : "Фактура"} \u2116${invoice.number}`, pageWidth / 2, y, {
     align: "center",
   });
   y += 12;
@@ -102,7 +115,12 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
 
   // Номер на фактура (отново като поле)
   doc.text(`Номер: ${invoice.number}`, 14, y);
-  y += 10;
+  y += 5;
+  if (credit) {
+    doc.text(`Към фактура № ${credit.number}${credit.created_at ? ` от ${new Date(credit.created_at).toLocaleDateString("bg-BG")}` : ""}`, 14, y);
+    y += 5;
+  }
+  y += 5;
 
   // --- Разделител ---
   doc.setDrawColor(228, 233, 240);
@@ -238,6 +256,22 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
     align: "right",
   });
   y += 25;
+
+  // --- ДДС: цените са с включен ДДС; регистриран доставчик показва
+  // данъчната основа и 20% ДДС отделно (чл. 114 ЗДДС). Нерегистриран —
+  // основанието за неначисляване.
+  doc.setFontSize(9);
+  doc.setTextColor(...brandSecondary);
+  if (company.vat) {
+    const base = Math.round((amount / 1.2) * 100) / 100;
+    const vat = Math.round((amount - base) * 100) / 100;
+    doc.text(`Данъчна основа: ${base.toFixed(2)} €`, pageWidth - 18, y - 4, { align: "right" });
+    doc.text(`ДДС 20%: ${vat.toFixed(2)} €`, pageWidth - 18, y + 1, { align: "right" });
+    y += 8;
+  } else {
+    doc.text("Не се начислява ДДС — доставчикът не е регистриран по ЗДДС.", 14, y - 4);
+    y += 4;
+  }
 
   // --- Плащане (ако има) ---
   if (payment) {

@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Sheet";
+import { Icon } from "@/components/ui/Icon";
 import { Notice, Section } from "./Section";
+import BankDetails from "./BankDetails";
 import { api, getOr } from "./api";
 import { formatDateOnly, formatDay, formatMoney, perMonthLabel } from "./format";
-import type { ApprovalStatus, CatalogPackage, ClientJob, ClientPlan } from "./types";
+import type { ApprovalStatus, CatalogPackage, ClientJob, ClientPayment, ClientPlan } from "./types";
 
 function parseOptions(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -24,6 +26,7 @@ export default function SubscriptionSection({
   plan,
   approval,
   nextJob,
+  served,
   onChoose,
   onChanged,
 }: {
@@ -31,6 +34,8 @@ export default function SubscriptionSection({
   plan: ClientPlan | null;
   approval: ApprovalStatus;
   nextJob: ClientJob | null;
+  /** Има ли вече завършен обход — без такъв отказът връща парите. */
+  served: boolean;
   onChoose: () => void;
   onChanged: (msg: string) => void;
 }) {
@@ -39,7 +44,17 @@ export default function SubscriptionSection({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const [payments, setPayments] = useState<ClientPayment[]>([]);
+  const [cardEnabled, setCardEnabled] = useState(false);
   const optionIds = useMemo(() => parseOptions(plan?.options), [plan?.options]);
+
+  useEffect(() => {
+    if (!plan) return;
+    getOr<ClientPayment[]>("/api/payments", []).then(setPayments);
+    getOr<{ card_enabled?: boolean }>("/api/payments/bank-details", {}).then((d) => setCardEnabled(Boolean(d.card_enabled)));
+  }, [plan?.id, plan?.status, plan?.paid_until]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const bankPending = plan ? payments.find((p) => p.plan_id === plan.id && p.status === "pending" && p.method === "bank") : undefined;
 
   useEffect(() => {
     if (optionIds.length === 0) return;
@@ -65,7 +80,11 @@ export default function SubscriptionSection({
     setBusy(false);
     if (res.ok) {
       setConfirming(false);
-      const until = res.data?.ends_at ? ` Обслужването продължава до ${formatDateOnly(res.data.ends_at)}.` : "";
+      const until = res.data?.ends_at
+        ? ` Обслужването продължава до ${formatDateOnly(res.data.ends_at)}.`
+        : plan.status !== "pending_payment"
+          ? " Ще ви върнем платеното."
+          : "";
       onChanged(`Абонаментът е прекратен.${until}`);
     } else setError(res.error);
   };
@@ -150,9 +169,36 @@ export default function SubscriptionSection({
           <Notice tone="danger">Последното месечно плащане не мина. Обновете картата, за да не спират обходите.</Notice>
         )}
         {error && !confirming && <Notice tone="danger">{error}</Notice>}
-        {plan.status === "pending_payment" && (
+        {bankPending && (
+          <div className="space-y-2">
+            <p className="text-sm text-ink">
+              {plan.status === "pending_payment"
+                ? "Очакваме превода за първия месец — щом пристигне, ще ви се обадим за първия обход."
+                : "Преведете сумата за следващия месец, за да продължат обходите без прекъсване."}
+            </p>
+            <BankDetails kind="plan" id={plan.id} amount={bankPending.amount} label={plan.package_name || plan.name} />
+          </div>
+        )}
+        {plan.status === "pending_payment" && cardEnabled && (
           <Button fullWidth disabled={busy} onClick={() => redirectTo(`/api/plans/${plan.id}/checkout`)}>
+            <Icon name="card" size={18} />
             {busy ? "Пренасочване…" : `Плати ${formatMoney(plan.price)} с карта`}
+          </Button>
+        )}
+        {plan.status === "pending_payment" && !bankPending && (
+          <Button
+            fullWidth
+            variant="secondary"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              const res = await api(`/api/plans/${plan.id}/bank`, { method: "POST" });
+              setBusy(false);
+              if (res.ok) setPayments(await getOr<ClientPayment[]>("/api/payments", []));
+              else setError(res.error);
+            }}
+          >
+            <Icon name="bank" size={18} /> Плащане по банков път
           </Button>
         )}
         {plan.stripe_subscription_id && plan.status !== "pending_payment" && (
@@ -161,7 +207,10 @@ export default function SubscriptionSection({
           </Button>
         )}
         {plan.paid_until && plan.status !== "cancelled" && (
-          <p className="text-xs text-muted">Платено до {formatDateOnly(plan.paid_until)}. Следващото плащане е автоматично.</p>
+          <p className="text-xs text-muted">
+            Платено до {formatDateOnly(plan.paid_until)}.{" "}
+            {plan.stripe_subscription_id ? "Следващото плащане е автоматично." : "Данните за следващия превод идват седмица преди това."}
+          </p>
         )}
 
         {plan.status !== "cancelled" && (
@@ -176,9 +225,9 @@ export default function SubscriptionSection({
         <p className="mt-2 text-sm text-muted">
           {plan.status === "pending_payment"
             ? "Заявката ще бъде оттеглена. Не сте платили нищо."
-            : plan.status === "requested"
-            ? "Заявката ви ще бъде оттеглена и няма да насрочваме обходи. Платената сума ще ви бъде върната."
-            : "Обслужването продължава до края на платения период. Обходите след това ще бъдат премахнати от графика."}
+            : !served
+            ? "Още не сме направили обход, затова абонаментът спира веднага и ви връщаме платеното."
+            : `Обслужването продължава до края на платения период${plan.paid_until ? ` (${formatDateOnly(plan.paid_until)})` : ""}. Обходите след това ще бъдат премахнати от графика.`}
         </p>
         {error && (
           <div className="mt-3">

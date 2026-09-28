@@ -8,11 +8,13 @@ import { Icon } from "./ui/Icon";
 import { formatMoney, perMonthLabel } from "@/lib/format";
 import { formatMonthDay } from "@/features/client/format";
 import type { CatalogPackage } from "@/features/client/types";
+import BankDetails from "@/features/client/BankDetails";
 
 /**
  * Избор на пакет от истинския каталог (/api/packages). Един пакет = ядро
  * (обходи 1/2/4 пъти месечно) + опционални добавки с допълнителна цена.
- * Заявката става "requested" — първият обход се уговаря по телефона.
+ * Плаща се при заявката — карта (Stripe) или банков превод; след плащането
+ * първият обход се уговаря по телефона.
  */
 export default function PlanSelector({
   propertyId,
@@ -30,6 +32,15 @@ export default function PlanSelector({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [bankPlan, setBankPlan] = useState<{ id: string; price: number } | null>(null);
+  const [cardEnabled, setCardEnabled] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/payments/bank-details")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setCardEnabled(Boolean(d?.card_enabled)))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,7 +87,7 @@ export default function PlanSelector({
   const toggle = (id: string) =>
     setOptions((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
-  const submit = async () => {
+  const submit = async (method: "card" | "bank") => {
     if (!selected) return;
     setSaving(true);
     setError("");
@@ -84,7 +95,7 @@ export default function PlanSelector({
       const res = await fetch(`/api/properties/${propertyId}/plans`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ package_id: selected.id, options }),
+        body: JSON.stringify({ package_id: selected.id, options, method }),
       });
       if (res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -93,6 +104,7 @@ export default function PlanSelector({
           window.location.href = d.checkout_url;
           return;
         }
+        if (d.bank) setBankPlan({ id: d.id, price: d.price });
         setDone(true);
       } else {
         const d = await res.json().catch(() => ({}));
@@ -128,8 +140,15 @@ export default function PlanSelector({
             <Icon name="check-circle" size={30} />
           </div>
           <p className="text-base text-ink">
-            Заявката е приета. Ще се свържем с вас, за да уговорим първия обход.
+            {bankPlan
+              ? "Заявката е приета. Преведете първия месец — щом преводът пристигне, ще ви се обадим за първия обход."
+              : "Заявката е приета. Ще се свържем с вас, за да уговорим първия обход."}
           </p>
+          {bankPlan && (
+            <div className="text-left">
+              <BankDetails kind="plan" id={bankPlan.id} amount={bankPlan.price} label={selected?.name} />
+            </div>
+          )}
           <Button fullWidth onClick={onDone}>
             Готово
           </Button>
@@ -157,11 +176,25 @@ export default function PlanSelector({
           </div>
 
           <div className="border-t border-line px-5 py-3">
-            <Button fullWidth size="lg" onClick={submit} disabled={!selected || saving}>
-              {saving ? "Изпращане…" : selected ? `Заявявам · ${formatMoney(total)} / месец` : "Изберете пакет"}
-            </Button>
+            {cardEnabled ? (
+              <div className="space-y-2">
+                <Button fullWidth size="lg" onClick={() => submit("card")} disabled={!selected || saving}>
+                  <Icon name="card" size={18} />
+                  {saving ? "Изпращане…" : selected ? `Плати с карта · ${formatMoney(total)} / месец` : "Изберете пакет"}
+                </Button>
+                <Button fullWidth variant="secondary" onClick={() => submit("bank")} disabled={!selected || saving}>
+                  <Icon name="bank" size={18} /> По банков път
+                </Button>
+              </div>
+            ) : (
+              <Button fullWidth size="lg" onClick={() => submit("bank")} disabled={!selected || saving}>
+                {saving ? "Изпращане…" : selected ? `Заявявам · ${formatMoney(total)} / месец` : "Изберете пакет"}
+              </Button>
+            )}
             <p className="mt-2 text-center text-xs text-muted">
-              Без плащане сега — ще ви се обадим, за да уговорим първия обход.
+              {cardEnabled
+                ? "Картата се таксува всеки месец автоматично; по банка — превеждате всеки месец. Можете да прекратите по всяко време."
+                : "Плащане по банков път всеки месец. Първият обход се уговаря, щом преводът пристигне."}
             </p>
           </div>
         </>

@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
-import { and, eq, gte, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   authTokens,
@@ -30,6 +30,8 @@ import { isLivePlan } from "@/lib/domain/plans";
 import { removePlannedJobsAfter, todaySofia } from "@/lib/jobs-generator";
 import { getStripeOrNull } from "@/lib/stripe";
 import { cancelStripeSubscription } from "@/lib/subscriptions";
+import { cancelPlan } from "@/lib/plan-cancel";
+import { expireCheckoutSession } from "@/lib/stripe";
 
 const PHOTOS_DIR = path.join(process.cwd(), "data", "photos");
 
@@ -151,6 +153,13 @@ export function deletionBlocker(userId: string): string | null {
     .where(and(eq(serviceOrders.requested_by, userId), eq(serviceOrders.status, "paid"), gte(serviceOrders.requested_date, todaySofia())))
     .get();
   if (paidAhead) return "Имате платена предстояща услуга. Пишете ни, за да я откажем и върнем сумата.";
+  const { offerRows } = ownData(userId);
+  if (offerRows.some((o) => o.decision === "accepted" || o.decision === "paid" || o.decision === "in_progress")) {
+    return "Имате приет ремонт, който още не е приключил. Изтриването е възможно след него.";
+  }
+  if (offerRows.some((o) => o.decision === "done")) {
+    return "Имате завършен ремонт, който още не е платен. Платете го или ни пишете.";
+  }
   return null;
 }
 
@@ -181,14 +190,27 @@ export async function deleteAccount(userId: string): Promise<{ ok: true } | { ok
   const livePlans = propIds.length
     ? db.select().from(plans).where(inArray(plans.property_id, propIds)).all().filter((p) => isLivePlan(p, today))
     : [];
+  // Същият път като бутона „Прекратяване": без обслужване → за връщане
+  // (админите са известени), иначе до края на платения период.
+  for (const plan of livePlans.filter((p) => p.status !== "cancelled")) {
+    const res = await cancelPlan(plan.id, { byAdmin: false });
+    if (!res.ok) return { ok: false, error: res.error };
+  }
+  // Спира веднага и тегленето за вече отказаните, които още тече периодът им.
   for (const plan of livePlans) {
     try {
       await cancelStripeSubscription(plan.id, true);
     } catch (err) {
       console.error("[account] Stripe cancel failed:", err);
-      return { ok: false, error: "Не успяхме да спрем абонамента в Stripe. Опитайте пак след малко." };
     }
   }
+  // Недовършени плащания с карта — страниците им в Stripe се затварят.
+  const openCard = db
+    .select()
+    .from(payments)
+    .where(and(eq(payments.user_id, userId), eq(payments.status, "pending")))
+    .all();
+  for (const p of openCard) await expireCheckoutSession(p.stripe_session_id);
   if (user.stripe_customer_id) {
     // Картите и контактите в Stripe; плащанията остават там за счетоводството.
     try {
@@ -215,7 +237,8 @@ export async function deleteAccount(userId: string): Promise<{ ok: true } | { ok
 
   db.transaction((tx) => {
     for (const plan of livePlans) {
-      tx.update(plans).set({ status: "cancelled", cancelled_at: now, ends_at: today }).where(eq(plans.id, plan.id)).run();
+      // Профилът изчезва — нито един бъдещ обход не остава.
+      tx.update(plans).set({ ends_at: today }).where(and(eq(plans.id, plan.id), eq(plans.status, "cancelled"), isNotNull(plans.ends_at))).run();
       removePlannedJobsAfter(plan.id, "0000-00-00", tx);
     }
     tx.update(serviceOrders)

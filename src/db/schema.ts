@@ -191,6 +191,9 @@ export const plans = sqliteTable("plans", {
   season_to: text("season_to"),
   // Stripe абонамент (N9)
   stripe_subscription_id: text("stripe_subscription_id"),
+  // Последната отворена страница за плащане — за да не се плати два пъти
+  // и да се затвори, щом планът бъде отказан или платен по банка.
+  stripe_checkout_session_id: text("stripe_checkout_session_id"),
   stripe_status: text("stripe_status"),
   paid_until: text("paid_until"),
   active: integer("active", { mode: "boolean" }).default(true),
@@ -466,6 +469,8 @@ export const payments = sqliteTable("payments", {
   user_id: text("user_id").references(() => users.id).notNull(),
   offer_id: text("offer_id").references(() => offers.id),
   order_id: text("order_id").references((): AnySQLiteColumn => serviceOrders.id),
+  // Месечно плащане по абонамент (карта през Stripe или банков превод)
+  plan_id: text("plan_id").references((): AnySQLiteColumn => plans.id),
   amount: real("amount").notNull(),
   status: text("status").notNull().default("pending"),
   method: text("method").notNull().default("card"),
@@ -487,16 +492,32 @@ export const settings = sqliteTable("settings", {
 // ============================================================
 // Фактури
 // ============================================================
-export const invoices = sqliteTable("invoices", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  user_id: text("user_id").references(() => users.id).notNull(),
-  payment_id: text("payment_id").references(() => payments.id),
-  number: text("number").notNull(),
-  amount: real("amount"),
-  description: text("description"),
-  pdf_path: text("pdf_path"),
-  created_at: text("created_at").default(sql`(datetime('now'))`),
-});
+export const invoices = sqliteTable(
+  "invoices",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    user_id: text("user_id").references(() => users.id).notNull(),
+    payment_id: text("payment_id").references(() => payments.id),
+    number: text("number").notNull(),
+    amount: real("amount"),
+    description: text("description"),
+    pdf_path: text("pdf_path"),
+    // Кредитно известие: сочи фактурата, която сторнира (сумата е отрицателна).
+    credit_for: text("credit_for"),
+    // Данните на купувача към датата на издаване — фактурата не се мени,
+    // ако клиентът после смени името си или изтрие профила.
+    buyer_name: text("buyer_name"),
+    buyer_email: text("buyer_email"),
+    buyer_company: text("buyer_company"),
+    buyer_eik: text("buyer_eik"),
+    buyer_vat: text("buyer_vat"),
+    created_at: text("created_at").default(sql`(datetime('now'))`),
+  },
+  (t) => ({
+    numberIdx: uniqueIndex("invoices_number_idx").on(t.number),
+    paymentIdx: uniqueIndex("invoices_payment_idx").on(t.payment_id),
+  }),
+);
 
 // ============================================================
 // Админски прескачания (override на геофенсинг / задължително доказателство)

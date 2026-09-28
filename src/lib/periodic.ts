@@ -1,3 +1,4 @@
+import { billBankPlans } from "@/lib/subscriptions";
 import { db } from "@/db";
 import { offers, findings, properties } from "@/db/schema";
 import { and, eq, inArray, lte } from "drizzle-orm";
@@ -109,15 +110,17 @@ export type PeriodicResult = {
   offers_expired: number;
   offer_reminders: number;
   payment_reminders: number;
+  plan_bank_payments: number;
 };
 
-/** Един скрипт, три задачи: генериране, изтичане, напомняния. */
+/** Един скрипт: генериране, изтичане, напомняния, преводи за абонаментите. */
 export async function runPeriodic(now = new Date()): Promise<PeriodicResult> {
   const today = todaySofia(now);
   const gen = generateAll(today);
   const expired = expireOffers(now);
   const offerReminders = remindPendingOffers(now);
   const paymentReminders = await remindUnpaidOffers(now);
+  const planBank = await billBankPlans(today);
   return {
     today,
     plans: gen.plans,
@@ -125,5 +128,6 @@ export async function runPeriodic(now = new Date()): Promise<PeriodicResult> {
     offers_expired: expired,
     offer_reminders: offerReminders,
     payment_reminders: paymentReminders,
+    plan_bank_payments: planBank,
   };
 }

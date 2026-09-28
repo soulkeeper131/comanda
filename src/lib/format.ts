@@ -67,7 +67,10 @@ export function formatDateOnly(value: string | null | undefined): string {
 /** Суми в евро (България е в еврозоната от 2026). */
 export function formatMoney(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
-  return `${value.toLocaleString("bg-BG", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} €`;
+  // Цяла сума без стотинки ("60 €"), иначе винаги две ("12,50 €") — еднакво в
+  // приложението, имейлите и PDF-ите.
+  const whole = Number.isInteger(Math.round(value * 100) / 100);
+  return `${value.toLocaleString("bg-BG", { minimumFractionDigits: whole ? 0 : 2, maximumFractionDigits: 2 })} €`;
 }
 
 /** Днешната дата като "YYYY-MM-DD" (местно време) — за <input type="date">. */
@@ -92,4 +95,23 @@ export function perMonthLabel(n: number | null | undefined): string {
 export function photoUrl(storagePath: string): string {
   const name = storagePath.split("/").pop() || storagePath;
   return `/api/photos/${name}`;
+}
+
+export type PaymentKind = "offer" | "order" | "plan";
+
+/**
+ * Основание за банков превод — различно за ремонт, услуга и абонамент и
+ * уникално по id, за да се разпознае кой превод за кое е.
+ */
+export function bankReference(kind: PaymentKind, id: string): string {
+  const label = kind === "offer" ? "Ремонт" : kind === "order" ? "Услуга" : "Абонамент";
+  return `${label} ${id.slice(0, 8).toUpperCase()}`;
+}
+
+/** Основанието на вече създадено плащане. */
+export function paymentReference(p: { offer_id?: string | null; order_id?: string | null; plan_id?: string | null }): string | null {
+  if (p.offer_id) return bankReference("offer", p.offer_id);
+  if (p.order_id) return bankReference("order", p.order_id);
+  if (p.plan_id) return bankReference("plan", p.plan_id);
+  return null;
 }

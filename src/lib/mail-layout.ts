@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/format";
 /**
  * Общ вид на известията по имейл + екраниране.
  *
@@ -28,9 +29,9 @@ export function appHost(): string {
   return appUrl().replace(/^https?:\/\//, "");
 }
 
+/** Същият формат като в приложението ("12,50 €"). */
 export function formatEur(amount: number | null | undefined): string {
-  const n = Number(amount ?? 0);
-  return `${n.toFixed(2).replace(/\.00$/, "")} €`;
+  return formatMoney(Number(amount ?? 0));
 }
 
 type Row = [label: string, value: string | number | null | undefined];
