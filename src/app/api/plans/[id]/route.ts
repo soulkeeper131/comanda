@@ -79,11 +79,13 @@ export const PATCH = withAuth({ role: ["admin", "client"] }, async (request, { s
       // Заявен, но още ненасрочен абонамент спира веднага.
       if (plan.status === "requested") endsAt = today;
 
-      db.update(plans)
-        .set({ status: "cancelled", cancelled_at: new Date().toISOString(), ends_at: endsAt })
-        .where(eq(plans.id, plan.id))
-        .run();
-      const removed = removePlannedJobsAfter(plan.id, endsAt);
+      const removed = db.transaction((tx) => {
+        tx.update(plans)
+          .set({ status: "cancelled", cancelled_at: new Date().toISOString(), ends_at: endsAt })
+          .where(eq(plans.id, plan.id))
+          .run();
+        return removePlannedJobsAfter(plan.id, endsAt, tx);
+      });
 
       if (isAdmin(session)) {
         createNotification(property.owner_id, "plan_scheduled", "Абонаментът е прекратен", `${property.name} — важи до ${endsAt}`, "/dashboard");

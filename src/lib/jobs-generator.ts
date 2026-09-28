@@ -1,8 +1,10 @@
 import { db } from "@/db";
-import { jobs, plans, properties, packages, packageItems, serviceTemplates } from "@/db/schema";
+import { jobs, jobReschedules, plans, properties, packages, packageItems, serviceTemplates } from "@/db/schema";
 import { and, eq, gt, inArray, isNotNull } from "drizzle-orm";
 import { scheduleVisits, genKey } from "@/lib/domain/schedule";
 import { createNotification } from "@/lib/notifications";
+
+type Tx = Pick<typeof db, "select" | "delete">;
 
 /** Днешната дата в България ("YYYY-MM-DD") — графикът е по местен ден. */
 export function todaySofia(now: Date = new Date()): string {
@@ -119,10 +121,15 @@ export function generateAll(today = todaySofia()): GenerateResult {
  * а вече генерираните задачи СЛЕД него се трият. Пипат се само `planned` —
  * започнатите и завършените са история.
  */
-export function removePlannedJobsAfter(planId: string, endsAt: string): number {
-  const res = db
-    .delete(jobs)
+export function removePlannedJobsAfter(planId: string, endsAt: string, tx: Tx = db): number {
+  const ids = tx
+    .select({ id: jobs.id })
+    .from(jobs)
     .where(and(eq(jobs.plan_id, planId), eq(jobs.status, "planned"), gt(jobs.planned_at, endsAt.slice(0, 10) + "T99")))
-    .run();
-  return res.changes;
+    .all()
+    .map((j) => j.id);
+  if (ids.length === 0) return 0;
+  // Историята на преместванията сочи към задачите — първо тя.
+  tx.delete(jobReschedules).where(inArray(jobReschedules.job_id, ids)).run();
+  return tx.delete(jobs).where(inArray(jobs.id, ids)).run().changes;
 }

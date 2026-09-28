@@ -86,6 +86,11 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session }) 
         })
         .run();
 
+      db.update(offers)
+        .set({ decision: "paid", paid_at: new Date().toISOString() })
+        .where(eq(offers.id, offer.id))
+        .run();
+
       return NextResponse.json({
         url: `${appUrl}/dashboard/payment/success?payment_id=${paymentId}&amount=${amount}`,
         sessionId: null,

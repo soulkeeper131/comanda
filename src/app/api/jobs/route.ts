@@ -42,7 +42,9 @@ export const GET = withAuth({}, async (request, { session }) => {
         template_id: jobs.template_id,
         plan_id: jobs.plan_id,
         org_id: jobs.org_id,
+        rescheduled_from: jobs.rescheduled_from,
         property_name: properties.name,
+        property_address: properties.address,
         assignee_name: users.full_name,
       })
       .from(jobs)
@@ -69,6 +71,12 @@ export const GET = withAuth({}, async (request, { session }) => {
         const property = propertiesById.get(row.property_id);
         return property ? canViewProperty(session, property) : false;
       });
+    }
+
+    // Инспекторът вижда своите обходи и невъзложените (може да ги поеме),
+    // не графика на колегите си.
+    if (session.role === "inspector") {
+      rows = rows.filter((row) => !row.assignee_id || row.assignee_id === session.uid);
     }
 
     // Compute itemsChecked / itemsTotal / photoCount per job с групови (агрегиращи)
