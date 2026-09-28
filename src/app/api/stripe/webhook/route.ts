@@ -5,6 +5,7 @@ import { payments } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getWebhookSecret, eurToCents } from "@/lib/stripe";
 import { settleOfferPayment } from "@/lib/payments";
+import { settleServiceOrder } from "@/lib/service-orders";
 import {
   onInvoicePaid,
   onInvoicePaymentFailed,
@@ -86,12 +87,12 @@ export async function POST(request: Request) {
   }
 }
 
-/** Плащане по оферта с карта. Сумата се сверява с тази, която Stripe е събрал. */
+/** Плащане с карта по оферта или за допълнителна услуга. Сумата се сверява с тази, която Stripe е събрал. */
 async function onOfferCheckoutCompleted(session: Stripe.Checkout.Session) {
   const paymentId = session.client_reference_id || session.metadata?.payment_id;
   if (!paymentId) return;
   const payment = db.select().from(payments).where(eq(payments.id, paymentId)).get();
-  if (!payment || payment.status === "paid" || !payment.offer_id) return;
+  if (!payment || payment.status === "paid" || (!payment.offer_id && !payment.order_id)) return;
 
   if (session.payment_status !== "paid") return;
   if (session.amount_total !== eurToCents(payment.amount)) {
@@ -100,8 +101,17 @@ async function onOfferCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   const paymentIntent = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? null;
+  if (payment.order_id) {
+    await settleServiceOrder({
+      orderId: payment.order_id,
+      paymentId: payment.id,
+      method: "card",
+      stripe: { session_id: session.id, payment_intent_id: paymentIntent },
+    });
+    return;
+  }
   await settleOfferPayment({
-    offerId: payment.offer_id,
+    offerId: payment.offer_id!,
     paymentId: payment.id,
     method: "card",
     stripe: { session_id: session.id, payment_intent_id: paymentIntent },

@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { payments, offers, findings, properties, users, invoices } from "@/db/schema";
+import { payments, offers, findings, properties, users, invoices, serviceOrders, serviceTemplates } from "@/db/schema";
 import { withAuth, isAdmin } from "@/lib/auth";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { awaitsPayment, offerPrepay, type OfferDecision } from "@/lib/domain/offers";
@@ -17,6 +17,7 @@ export const GET = withAuth({}, async (_request, { session }) => {
       user_name: users.full_name,
       user_email: users.email,
       finding_title: findings.title,
+      order_service: serviceTemplates.name,
       invoice_id: invoices.id,
       invoice_number: invoices.number,
       invoice_description: invoices.description,
@@ -26,6 +27,8 @@ export const GET = withAuth({}, async (_request, { session }) => {
     .leftJoin(offers, eq(payments.offer_id, offers.id))
     .leftJoin(findings, eq(offers.finding_id, findings.id))
     .leftJoin(invoices, eq(invoices.payment_id, payments.id))
+    .leftJoin(serviceOrders, eq(payments.order_id, serviceOrders.id))
+    .leftJoin(serviceTemplates, eq(serviceOrders.template_id, serviceTemplates.id))
     .where(isAdmin(session) ? undefined : eq(payments.user_id, session.uid))
     .orderBy(desc(payments.created_at))
     .limit(500)
@@ -36,7 +39,9 @@ export const GET = withAuth({}, async (_request, { session }) => {
       ...r.payment,
       user_name: isAdmin(session) ? r.user_name : undefined,
       user_email: isAdmin(session) ? r.user_email : undefined,
-      description: r.invoice_description ?? (r.finding_title ? `Ремонт: ${r.finding_title}` : "Абонамент"),
+      description:
+        r.invoice_description ??
+        (r.finding_title ? `Ремонт: ${r.finding_title}` : r.order_service ? `Услуга: ${r.order_service}` : "Абонамент"),
       invoice_id: r.invoice_id,
       invoice_number: r.invoice_number,
     })),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ExtraServicesSection from "./ExtraServicesSection";
 import PlanSelector from "@/components/PlanSelector";
 import { isLivePlan } from "@/lib/domain/plans";
 import PropertyHeader from "./PropertyHeader";
@@ -150,6 +151,15 @@ export default function PropertyDetail({ property, onBack, onPropertyChanged }: 
         onChanged={(msg) => {
           showToast(msg);
           loadPlans();
+          loadJobs();
+        }}
+      />
+
+      <ExtraServicesSection
+        propertyId={propertyId}
+        approved={property.approval_status === "active"}
+        onChanged={(msg) => {
+          showToast(msg);
           loadJobs();
         }}
       />

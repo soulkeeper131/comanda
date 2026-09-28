@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { payments } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ensureInvoice, settleOfferPayment } from "@/lib/payments";
+import { settleServiceOrder } from "@/lib/service-orders";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,12 @@ export const POST = withAuth({ role: ["admin"] }, async (request) => {
         );
       }
       return NextResponse.json({ success: true, invoice: res.invoiceNumber });
+    }
+
+    if (payment.order_id) {
+      const res = await settleServiceOrder({ orderId: payment.order_id, paymentId: payment.id, method: "bank" });
+      if (!res.ok) return NextResponse.json({ error: "Заявката е отказана" }, { status: 409 });
+      return NextResponse.json({ success: true });
     }
 
     db.update(payments).set({ status: "paid", paid_at: new Date().toISOString() }).where(eq(payments.id, payment.id)).run();

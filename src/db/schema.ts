@@ -371,6 +371,24 @@ export const offers = sqliteTable(
 );
 
 // ============================================================
+// Еднократни допълнителни услуги (уточнение 6б) — „този месец и
+// прозорците": заявява се веднъж, плаща се веднъж, става един обход.
+// ============================================================
+export const serviceOrders = sqliteTable("service_orders", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  property_id: text("property_id").references(() => properties.id).notNull(),
+  template_id: text("template_id").references(() => serviceTemplates.id).notNull(),
+  requested_by: text("requested_by").references(() => users.id).notNull(),
+  requested_date: text("requested_date").notNull(),
+  note: text("note"),
+  price: real("price").notNull(),
+  // pending_payment → paid (обходът е създаден) | cancelled
+  status: text("status").$type<"pending_payment" | "paid" | "cancelled">().default("pending_payment"),
+  job_id: text("job_id").references(() => jobs.id),
+  created_at: text("created_at").default(sql`(datetime('now'))`),
+});
+
+// ============================================================
 // Снимки към оферта (ремонт) — качва ги админът от майстора (въпрос 23)
 // ============================================================
 export const offerPhotos = sqliteTable("offer_photos", {
@@ -447,6 +465,7 @@ export const payments = sqliteTable("payments", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   user_id: text("user_id").references(() => users.id).notNull(),
   offer_id: text("offer_id").references(() => offers.id),
+  order_id: text("order_id").references((): AnySQLiteColumn => serviceOrders.id),
   amount: real("amount").notNull(),
   status: text("status").notNull().default("pending"),
   method: text("method").notNull().default("card"),
