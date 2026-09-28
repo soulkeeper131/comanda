@@ -260,7 +260,19 @@ Rate limiting-ът също е в паметта и работи само при
 curl -i https://comanda.bg/                 # 200
 curl -i https://comanda.bg/api/me           # 401 без сесия
 curl https://comanda.bg/robots.txt          # продукция: Allow; dev: Disallow: /
+curl https://comanda.bg/api/health          # {"ok":true,"env":"production","commit":"…"}
+curl -sI https://comanda.bg/ | grep -i strict-transport   # заглавките за сигурност са там
 ```
+
+`/api/health` проверява и базата (503 при проблем). Dockerfile-ът има
+`HEALTHCHECK` към него, така че Coolify показва контейнера като
+unhealthy и го рестартира. В Coolify → **Health Checks** може да се зададе
+същият път (`/api/health`, порт 3000) и за Traefik — тогава трафикът не
+отива към контейнер, който още не е готов. Същият адрес става и за външен
+монитор (UptimeRobot и подобни) — отговорът не съдържа лични данни.
+
+Неприхванатите грешки на сървъра се пишат в лога с час и тип
+(`[unhandledRejection]`) — Coolify → Logs.
 
 В лога трябва да пише:
 
