@@ -4,12 +4,13 @@ import { settleOfferPayment } from "@/lib/payments";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
-import { notifyOwner } from "@/lib/notifications";
+import { notifyAdmins, notifyOwner } from "@/lib/notifications";
 import { withAuth, canDecideOffer, isAdmin } from "@/lib/auth";
 import { emailLayout, formatEur } from "@/lib/mail-layout";
 import { getPrepayThreshold } from "@/lib/settings";
 import {
   canTransition,
+  requiresPrepayment,
   offerPrepay,
   allowedTransitions,
   isValidDecision,
@@ -130,6 +131,9 @@ export const PATCH = withAuth({}, async (request, { session, params }) => {
           return NextResponse.json({ error: "Невалидна цена" }, { status: 400 });
         }
         updates.price = price;
+        // Предплащането следва новата цена — 80 € → 800 € не бива да остане
+        // „плащане след ремонта".
+        updates.requires_prepayment = requiresPrepayment(price, getPrepayThreshold());
       }
       if (body.days !== undefined) updates.days = parseInt(body.days, 10) || existing.days;
     }
@@ -163,8 +167,15 @@ export const PATCH = withAuth({}, async (request, { session, params }) => {
       });
 
       if (to === "accepted" || to === "declined") {
-        // Решението на клиента — към екипа.
-        sendEmail({ to: (await getNotifyEmail()) || "", subject, html }).catch(() => {});
+        // Решението на клиента — към екипа (и в приложението, не само по имейл).
+        const notify = await getNotifyEmail();
+        if (notify) sendEmail({ to: notify, subject, html }).catch(() => {});
+        notifyAdmins(
+          "offer_decided",
+          to === "accepted" ? "Клиент прие оферта" : "Клиент отказа оферта",
+          `${property.name}: ${finding.title} — ${formatEur(existing.price)}`,
+          "/dashboard",
+        );
       } else {
         // Движение по ремонта — към клиента.
         const ownerEmail = ownerEmailFor(property.id);

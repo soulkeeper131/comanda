@@ -48,7 +48,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
     }
 
     const property = db.select().from(properties).where(eq(properties.id, job.property_id)).get();
-    const foreignForInspector = session.role === "inspector" && job.assignee_id && job.assignee_id !== session.uid;
+    const foreignForInspector = session.role === "inspector" && job.assignee_id !== session.uid;
     if (!property || !canViewProperty(session, property) || foreignForInspector) {
       // 404, не 403 — не издаваме, че задачата съществува
       return NextResponse.json({ error: "Задачата не е намерена" }, { status: 404 });

@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { jobs, templateItems, jobItems, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { todaySofia } from "@/lib/jobs-generator";
 import { notifyOwner } from "@/lib/notifications";
 import { withAuth, canOverride, isAdmin } from "@/lib/auth";
 import { distanceMeters } from "@/lib/geo";
@@ -28,11 +29,13 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
       );
     }
 
-    // Инспектор стартира само своя обход. Невъзложен обход се взема от
-    // инспектора, който го стартира — иначе остава in_progress без човек,
-    // който има право да отмята стъпките му.
-    if (job.assignee_id && job.assignee_id !== session.uid && !isAdmin(session)) {
-      return NextResponse.json({ error: "Обходът е възложен на друг инспектор" }, { status: 403 });
+    // Инспектор стартира само своя обход; невъзложен разпределя админът.
+    if (job.assignee_id !== session.uid && !isAdmin(session)) {
+      return NextResponse.json({ error: "Обходът не е възложен на вас" }, { status: 403 });
+    }
+    // Не и преди деня му — иначе обходите за месеца се „правят" наведнъж.
+    if (!isAdmin(session) && job.status === "planned" && job.planned_at.slice(0, 10) > todaySofia()) {
+      return NextResponse.json({ error: "Обходът е насрочен за по-късна дата" }, { status: 409 });
     }
 
     // Повторен старт от същия човек (изгубен отговор, офлайн опашка) е

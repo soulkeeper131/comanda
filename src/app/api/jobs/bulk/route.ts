@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { jobs, properties, serviceTemplates } from "@/db/schema";
+import { jobs, properties, serviceTemplates, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
@@ -33,6 +33,14 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
         { error: "Планирана дата е задължителна" },
         { status: 400 }
       );
+    }
+
+    // Изпълнителят — само активен инспектор (както при единичен обход).
+    if (assignee_id) {
+      const person = db.select().from(users).where(eq(users.id, assignee_id)).get();
+      if (!person || person.role !== "inspector" || person.active === false) {
+        return NextResponse.json({ error: "Изберете активен инспектор" }, { status: 400 });
+      }
     }
 
     let templateData = null;

@@ -76,7 +76,9 @@ export const GET = withAuth({}, async (request, { session }) => {
     // Инспекторът вижда своите обходи и невъзложените (може да ги поеме),
     // не графика на колегите си.
     if (session.role === "inspector") {
-      rows = rows.filter((row) => !row.assignee_id || row.assignee_id === session.uid);
+      // Само своите — невъзложеният обход носи кодове за вход и телефон на
+      // собственика; разпределя го админът (опашка „Обходи без изпълнител").
+      rows = rows.filter((row) => row.assignee_id === session.uid);
     }
 
     // Compute itemsChecked / itemsTotal / photoCount per job с групови (агрегиращи)

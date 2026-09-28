@@ -192,7 +192,8 @@ Coolify → **Scheduled Tasks** → нова задача:
    - URL: `https://comanda.bg/api/stripe/webhook` (за теста — `https://dev.comanda.bg/api/stripe/webhook`)
    - Събития: `checkout.session.completed`, `checkout.session.expired`,
      `invoice.paid`, `invoice.payment_failed`,
-     `customer.subscription.updated`, `customer.subscription.deleted`
+     `customer.subscription.updated`, `customer.subscription.deleted`,
+     `charge.refunded`
    - *Signing secret* (`whsec_…`) → `STRIPE_WEBHOOK_SECRET`
 4. **Портал за клиенти:** Settings → Billing → *Customer portal* →
    разрешете смяна на карта и история на фактурите; **изключете**
@@ -221,6 +222,23 @@ Coolify → **Scheduled Tasks** → нова задача:
   маркира „за връщане" и админите се уведомяват.
 
 ---
+
+## 3б. Плащане по банков път
+
+Без Stripe (или ако клиентът избере „По банков път") всичко минава през
+превод, който админът потвърждава от **Табло → Преводи за потвърждение**:
+
+- **Абонамент:** при заявката клиентът вижда IBAN, сума и основание
+  „Абонамент XXXXXXXX". След потвърждение — фактура, платено за месец
+  напред, заявката отива за насрочване. 7 дни преди края на платения
+  месец cron създава превода за следващия и праща на клиента данните.
+  Неплатените излизат в **Абонаменти без плащане**.
+- **Ремонт / услуга:** основание „Ремонт XXXXXXXX" / „Услуга XXXXXXXX".
+- **Връщане:** опашка **Суми за връщане**. За карта бутонът „Върни" връща
+  парите през Stripe; за превод — преведете и натиснете „Върнато". И в
+  двата случая се издава кредитно известие.
+
+IBAN и получателят се въвеждат в **Настройки → Плащания**.
 
 ## 4. Една инстанция
 

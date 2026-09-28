@@ -54,6 +54,8 @@ export default function JobDetailSheet({
   const [busy, setBusy] = useState(false);
   const [newDate, setNewDate] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
+  // Прескачане с причина (записва се в overrides): старт без GPS, стъпка без снимка.
+  const [override, setOverride] = useState<{ kind: "start" } | { kind: "item"; id: string; label: string } | null>(null);
   const [viewer, setViewer] = useState<string | null>(null);
 
   useEffect(() => {
@@ -88,7 +90,7 @@ export default function JobDetailSheet({
 
   return (
     <>
-      <Sheet open={!!job && !cancelOpen} onClose={onClose} placement="bottom" className="max-h-[92dvh] overflow-y-auto p-5">
+      <Sheet open={!!job && !cancelOpen && !override} onClose={onClose} placement="bottom" className="max-h-[92dvh] overflow-y-auto p-5">
         {job && status && (
           <div className="space-y-4">
             <div className="flex items-start gap-3">
@@ -204,6 +206,14 @@ export default function JobDetailSheet({
                             </div>
                           )}
                           <PhotoStrip urls={item.photos.map((p) => photoUrl(p.storage_path))} onOpen={setViewer} />
+                          {job.status === "in_progress" && !item.done && (
+                            <button
+                              className="mt-1 min-h-touch text-xs font-semibold text-brand-primary"
+                              onClick={() => setOverride({ kind: "item", id: item.id, label: item.label })}
+                            >
+                              Отметни без снимка…
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -219,6 +229,11 @@ export default function JobDetailSheet({
             {error && <p className="rounded-card bg-state-danger/10 px-3 py-2 text-sm text-state-danger">{error}</p>}
 
             <div className="flex flex-wrap gap-2 pb-2">
+              {job.status === "planned" && (
+                <Button variant="secondary" onClick={() => setOverride({ kind: "start" })} disabled={busy}>
+                  <Icon name="play" size={16} /> Започни без GPS…
+                </Button>
+              )}
               {(job.status === "planned" || job.status === "in_progress") && (
                 <Button variant="secondary" onClick={() => setCancelOpen(true)} disabled={busy}>
                   Откажи обхода
@@ -261,6 +276,27 @@ export default function JobDetailSheet({
           }
           setCancelOpen(false);
           onChanged("Обходът е отказан");
+        }}
+      />
+      <ReasonSheet
+        open={!!override}
+        title={override?.kind === "start" ? "Старт без проверка на местоположението" : `Без снимка: ${override?.kind === "item" ? override.label : ""}`}
+        description={
+          override?.kind === "start"
+            ? "За грешен пин на имота или телефон без GPS. Инспекторът продължава обхода от своя телефон. Причината остава в историята."
+            : "Напр. счупена камера. Стъпката се отбелязва като проверена; причината остава в историята и се вижда в отчета."
+        }
+        confirmLabel={override?.kind === "start" ? "Започни" : "Отметни"}
+        onClose={() => setOverride(null)}
+        onConfirm={async (reason) => {
+          if (!job || !override) return;
+          const res =
+            override.kind === "start"
+              ? await api(`/api/jobs/${job.id}/start`, { body: { override_reason: reason } })
+              : await api(`/api/job-items/${override.id}`, { method: "PATCH", body: { done: true, override_reason: reason } });
+          setOverride(null);
+          if (!res.ok) return setError(res.error);
+          onChanged(override.kind === "start" ? "Обходът е започнат без GPS" : "Стъпката е отметната без снимка");
         }}
       />
       <PhotoViewer url={viewer} onClose={() => setViewer(null)} />

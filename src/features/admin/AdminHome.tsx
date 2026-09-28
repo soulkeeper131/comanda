@@ -64,7 +64,9 @@ export default function AdminHome() {
       data.plans.filter((p) => p.status === "requested").length +
       data.findings.filter((f) => f.status === "quote_requested" || (f.severity === "urgent" && f.status === "open")).length +
       data.payments.filter((p) => p.status === "refund_needed" || (p.status === "pending" && p.method !== "card")).length +
-      data.inquiries.filter((i) => i.status === "new").length,
+      data.inquiries.filter((i) => i.status === "new").length +
+      data.offers.filter((o) => (o.decision === "accepted" && !o.requires_prepayment) || o.decision === "paid").length +
+      data.jobs.filter((j) => j.status === "planned" && !j.assignee_id).length,
   };
 
   const onFocused = useCallback(() => setFocusProperty(null), []);

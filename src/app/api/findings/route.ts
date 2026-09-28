@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { findings, findingPhotos, properties, users, jobItems, jobs, offers } from "@/db/schema";
-import { eq, desc, inArray, and, type SQL } from "drizzle-orm";
+import { eq, desc, inArray, and, or, type SQL } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
 import { notifyOwner, notifyAdmins } from "@/lib/notifications";
@@ -29,6 +29,10 @@ export const GET = withAuth({}, async (request, { session }) => {
     if (propertyIdFilter) conditions.push(eq(findings.property_id, propertyIdFilter));
     // Клиентът вижда само констатациите по своите имоти
     if (session.role === "client") conditions.push(eq(properties.owner_id, session.uid));
+    // Инспекторът — само по имотите, които обслужва, и докладваните от него.
+    if (session.role === "inspector") {
+      conditions.push(or(eq(properties.assigned_inspector_id, session.uid), eq(findings.reported_by, session.uid))!);
+    }
 
     const rows = db
       .select({
@@ -90,7 +94,8 @@ export const GET = withAuth({}, async (request, { session }) => {
         photos: allPhotos.filter((p) => p.finding_id === row.id).map(photoView),
         job_item: row.job_item_id ? items.find((i) => i.id === row.job_item_id) ?? null : null,
         // Последната оферта — клиентският екран показва нея, не историята.
-        offer: own[0] ?? null,
+        // Инспекторът не вижда цени и оферти.
+        offer: session.role === "inspector" ? null : own[0] ?? null,
       };
     });
 
@@ -139,6 +144,11 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
       : undefined;
     if (!property) {
       return NextResponse.json({ error: "Изберете имот" }, { status: 400 });
+    }
+    // Без обход инспекторът докладва само за имот, който обслужва — иначе
+    // спешен сигнал отива до чужд собственик.
+    if (!job_id && session.role === "inspector" && property.assigned_inspector_id !== session.uid) {
+      return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
     }
 
     const photos: string[] = Array.isArray(photo_ids)
