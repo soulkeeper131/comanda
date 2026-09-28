@@ -109,7 +109,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request) => {
     createNotification(
       payment.user_id,
       "offer_decided",
-      "✅ Плащането е потвърдено",
+      "Плащането е потвърдено",
       `Плащане от ${payment.amount.toFixed(2)}€ е потвърдено. Фактура: ${invoiceNumber}`,
       "/dashboard"
     );

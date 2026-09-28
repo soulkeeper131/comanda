@@ -1,32 +1,37 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-
-const PLAN_NAMES: Record<string, { icon: string; name: string; price: string }> = {
-  year: { icon: "🔄", name: "Пълен надзор", price: "60€/мес" },
-  winter: { icon: "❄️", name: "Зимен сезон", price: "40€/мес" },
-  summer: { icon: "☀️", name: "Летен сезон", price: "50€/мес" },
-};
+import { useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Icon } from "@/components/ui/Icon";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 
 const PROPERTY_KINDS = [
-  { value: "apartment", label: "🏢 Апартамент" },
-  { value: "house", label: "🏠 Къща" },
-  { value: "villa", label: "🏡 Вила" },
-  { value: "office", label: "🏬 Офис" },
-  { value: "other", label: "📌 Друго" },
+  { value: "apartment", label: "Апартамент" },
+  { value: "house", label: "Къща" },
+  { value: "villa", label: "Вила" },
+  { value: "office", label: "Офис" },
+  { value: "other", label: "Друго" },
 ];
 
-function PropertyForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const plan = searchParams.get("plan") || "";
-  const planInfo = PLAN_NAMES[plan] || null;
+function Field({ label, optional, children }: { label: string; optional?: boolean; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-semibold text-brand-dark">
+        {label} {optional && <span className="font-normal text-muted">(по желание)</span>}
+      </span>
+      {children}
+    </label>
+  );
+}
 
+export default function PropertyPage() {
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
   const [kind, setKind] = useState("apartment");
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [accessNotes, setAccessNotes] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,21 +40,11 @@ function PropertyForm() {
     e.preventDefault();
     setError("");
 
-    if (!name.trim()) {
-      setError("Името на обекта е задължително");
-      return;
-    }
-    if (!city.trim()) {
-      setError("Градът е задължителен");
-      return;
-    }
-    if (!address.trim()) {
-      setError("Адресът е задължителен");
-      return;
-    }
+    if (!name.trim()) return setError("Името на имота е задължително");
+    if (!city.trim()) return setError("Градът е задължителен");
+    if (!address.trim()) return setError("Адресът е задължителен");
 
     setLoading(true);
-
     try {
       const res = await fetch("/api/properties", {
         method: "POST",
@@ -60,163 +55,120 @@ function PropertyForm() {
           address: address.trim(),
           kind,
           access_notes: accessNotes.trim() || undefined,
+          contact_name: contactName.trim() || undefined,
+          contact_phone: contactPhone.trim() || undefined,
         }),
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Грешка при създаване на обект");
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Грешка при добавяне на имота");
+        setLoading(false);
       } else {
-        // Redirect to onboarding — onboarding complete with role-specific walkthrough
         window.location.href = "/dashboard/onboarding";
       }
     } catch {
-      setError("Възникна грешка. Опитай отново.");
-    } finally {
+      setError("Възникна грешка. Опитайте отново.");
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center p-6" style={{ backgroundColor: "#e8f1f2" }}>
+    <div className="flex min-h-[100dvh] items-center justify-center bg-brand-bg p-4 sm:p-6">
       <div className="w-full max-w-md">
-        <div className="text-center mb-10">
-          <img
-            src="/logo.png"
-            alt="КОМАНДА"
-            className="h-14 mx-auto mb-4"
-          />
-          <p className="text-sm" style={{ color: "#247ba0" }}>
-            Стъпка 2 от 3 — Добави своя обект
+        <div className="mb-8 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="КОМАНДА" className="mx-auto mb-4 h-14" />
+          <p className="text-sm text-brand-secondary">Стъпка 2 от 3 — Добавете своя имот</p>
+        </div>
+
+        <div className="mb-6 flex items-center gap-2 px-2">
+          <div className="h-1.5 flex-1 rounded-full bg-brand-primary" />
+          <div className="h-1.5 flex-1 rounded-full bg-brand-primary" />
+          <div className="h-1.5 flex-1 rounded-full bg-line" />
+        </div>
+
+        <Card padding="md" shadow="none" className="mb-6 bg-white/80 text-sm text-brand-dark">
+          <p className="mb-2 flex items-center gap-2 font-semibold">
+            <Icon name="shield" size={18} />
+            Какво следва?
           </p>
-        </div>
+          <p>
+            Ще проверим адреса и ще ви се обадим, за да одобрим имота. След това избирате пакет и
+            започваме обходите — всеки със снимков отчет.
+          </p>
+        </Card>
 
-        {/* Onboarding progress */}
-        <div className="flex items-center gap-2 mb-8 px-2">
-          <div className="flex-1 h-1.5 rounded-full" style={{ background: "#1b98e0" }} />
-          <div className="flex-1 h-1.5 rounded-full" style={{ background: "#1b98e0" }} />
-          <div className="flex-1 h-1.5 rounded-full bg-gray-200" />
-        </div>
+        <Card padding="lg" shadow="md">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="rounded-card bg-state-danger/10 px-3 py-2 text-sm font-medium text-state-danger">
+                {error}
+              </div>
+            )}
 
-        <div className="mb-6 p-4 rounded-xl bg-white/80 border border-gray-100 text-sm" style={{ color: "#006494" }}>
-          <p className="font-semibold mb-2">💡 Какво се случва?</p>
-          <p>След като добавиш обекта си, ние ще знаем къде да ходим. Можеш да добавиш още обекти по-късно от таблото.</p>
-          <p className="mt-2">Всеки обект получава свой график и история на обходите.</p>
-        </div>
+            <Field label="Име на имота">
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Напр. Апартамент София, Вила Боровец"
+                required
+              />
+            </Field>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
-          {error && (
-            <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-100 text-red-700 text-sm font-medium">
-              {error}
-            </div>
-          )}
+            <Field label="Град">
+              <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="София, Варна, Боровец…" required />
+            </Field>
 
-          {/* Име на обект */}
-          <div className="mb-5">
-            <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Име на обекта</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Напр. Апартамент София, Вила Боровец"
-              required
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
-              style={{ fontSize: "16px", minHeight: "44px" }}
-            />
-          </div>
+            <Field label="Адрес">
+              <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="ул. Примерна №1" required />
+            </Field>
 
-          {/* Град */}
-          <div className="mb-5">
-            <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Град</label>
-            <input
-              type="text"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="София, Варна, Боровец..."
-              required
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
-              style={{ fontSize: "16px", minHeight: "44px" }}
-            />
-          </div>
+            <Field label="Тип на имота">
+              <Select value={kind} onChange={(e) => setKind(e.target.value)} className="text-brand-dark">
+                {PROPERTY_KINDS.map((k) => (
+                  <option key={k.value} value={k.value}>
+                    {k.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
 
-          {/* Адрес */}
-          <div className="mb-5">
-            <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Адрес</label>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="ул. Примерна №1"
-              required
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
-              style={{ fontSize: "16px", minHeight: "44px" }}
-            />
-          </div>
+            <Field label="Контакт за достъп (име)" optional>
+              <Input
+                value={contactName}
+                onChange={(e) => setContactName(e.target.value)}
+                placeholder="Кого да търси инспекторът на място"
+                autoComplete="name"
+              />
+            </Field>
 
-          {/* Тип имот */}
-          <div className="mb-5">
-            <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Тип на имота</label>
-            <select
-              value={kind}
-              onChange={(e) => setKind(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition appearance-none"
-              style={{ fontSize: "16px", minHeight: "44px", color: "#006494" }}
-            >
-              {PROPERTY_KINDS.map((k) => (
-                <option key={k.value} value={k.value}>{k.label}</option>
-              ))}
-            </select>
-          </div>
+            <Field label="Телефон" optional>
+              <Input
+                type="tel"
+                inputMode="tel"
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+                placeholder="08X XXX XXXX"
+                autoComplete="tel"
+              />
+            </Field>
 
-          {/* Бележки за достъп */}
-          <div className="mb-6">
-            <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>
-              Бележки за достъп <span className="font-normal text-gray-400">(по желание)</span>
-            </label>
-            <textarea
-              value={accessNotes}
-              onChange={(e) => setAccessNotes(e.target.value)}
-              placeholder="Код на вход, етаж, инструкции..."
-              rows={2}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition resize-none"
-              style={{ fontSize: "16px" }}
-            />
-          </div>
+            <Field label="Бележки за достъп" optional>
+              <Textarea
+                value={accessNotes}
+                onChange={(e) => setAccessNotes(e.target.value)}
+                placeholder="Код на входа, етаж, ключове…"
+                rows={2}
+              />
+            </Field>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 rounded-xl text-white font-semibold text-base transition-all disabled:opacity-60"
-            style={{
-              background: "linear-gradient(140deg, #1b98e0, #006494)",
-              boxShadow: "0 4px 14px rgba(0,100,148,0.25)",
-              minHeight: "44px",
-            }}
-          >
-            {loading ? "Запазване..." : "Добави обекта и продължи"}
-          </button>
-        </form>
-
-        {/* Plan summary at bottom */}
-        {planInfo && (
-          <div className="mt-4 p-4 rounded-xl text-center" style={{ background: "rgba(27,152,224,0.08)" }}>
-            <p className="text-sm" style={{ color: "#247ba0" }}>
-              Избран пакет: <span className="font-semibold">{planInfo.icon} {planInfo.name} · {planInfo.price}</span>
-            </p>
-            <p className="text-xs mt-1" style={{ color: "#6b9eb3" }}>
-              Ще го потвърдиш в следващата стъпка
-            </p>
-          </div>
-        )}
+            <Button type="submit" fullWidth size="lg" disabled={loading}>
+              {loading ? "Запазване…" : "Добавете имота и продължете"}
+            </Button>
+          </form>
+        </Card>
       </div>
     </div>
-  );
-}
-
-export default function PropertyPage() {
-  return (
-    <Suspense fallback={<div className="min-h-[100dvh] flex items-center justify-center" style={{ backgroundColor: "#e8f1f2" }}><p>Зареждане...</p></div>}>
-      <PropertyForm />
-    </Suspense>
   );
 }

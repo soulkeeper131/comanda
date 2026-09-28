@@ -4,6 +4,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
 import { notifyOwner } from "@/lib/notifications";
+import { emailLayout } from "@/lib/mail-layout";
 import { withAuth, canCompleteJobItem } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -121,17 +122,18 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, 
     // Send email notification
     const [prop] = db.select({ name: properties.name }).from(properties).where(eq(properties.id, job.property_id)).all();
     const propertyName = prop?.name || "Имот";
-    const completeEmailSubject = `✅ Обходът на ${propertyName} е завършен`;
-    const completeEmailHtml = `
-        <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
-          <h2 style="color: #16a34a;">✅ Обходът е завършен</h2>
-          <p style="color: #247ba0;"><strong>Имот:</strong> ${propertyName}</p>
-          <p style="color: #247ba0;"><strong>Задача:</strong> ${job.title || "Обход"}</p>
-          <p style="color: #247ba0;"><strong>Завършен на:</strong> ${new Date().toLocaleString("bg-BG")}</p>
-          <hr style="border: none; border-top: 1px solid #e4e9f0; margin: 20px 0;" />
-          <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.bg</p>
-        </div>
-      `;
+    const completeEmailSubject = `Обходът на ${propertyName} е завършен`;
+    const completeEmailHtml = emailLayout({
+      title: "Обходът е завършен",
+      color: "#16a34a",
+      intro: "Снимките от обхода са в приложението.",
+      rows: [
+        ["Имот", propertyName],
+        ["Задача", job.title || "Обход"],
+        ["Завършен на", new Date().toLocaleString("bg-BG", { timeZone: "Europe/Sofia" })],
+      ],
+      cta: { label: "Виж снимките" },
+    });
 
     // Вътрешният адрес получава известие както досега.
     sendEmail({
@@ -149,6 +151,9 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, 
         html: completeEmailHtml,
       }).catch(() => {});
     }
+
+    // In-app + push: снимките са видими веднага (обещанието на продукта).
+    notifyOwner(job.property_id, "job_done", "Обходът е завършен", `${propertyName} — вижте снимките`, "/dashboard");
 
     return NextResponse.json({ ...updatedJob, items });
   } catch (error) {

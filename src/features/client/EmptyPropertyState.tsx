@@ -3,107 +3,97 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import PropertyForm from "@/components/PropertyForm";
-import PlanSelector from "@/components/PlanSelector";
+import { Icon } from "@/components/ui/Icon";
+import PropertyForm, { type PropertyFormData } from "@/components/PropertyForm";
+import { api } from "./api";
 
 /**
- * Клиент с 0 имота. Основният случай за нов потребител — не бележка под
- * линия, а първото нещо, което вижда след регистрация. Кани го да добави
- * имота си, обяснява какво следва, без да го праща в табове.
+ * Клиент с 0 имота. Основният случай за нов потребител — първото нещо,
+ * което вижда след регистрация. Кани го да добави имота си и обяснява
+ * какво следва: одобрение → пакет → обходи със снимки.
  */
 export default function EmptyPropertyState({ onCreated }: { onCreated: () => void }) {
   const [showForm, setShowForm] = useState(false);
-  const [newPropertyId, setNewPropertyId] = useState<string | null>(null);
-  const [error, setError] = useState("");
+  const [created, setCreated] = useState(false);
 
-  const handleAdd = async (data: {
-    name: string;
-    city: string;
-    addr: string;
-    type: string;
-    access: string;
-    lat?: number;
-    lng?: number;
-  }) => {
-    if (!data.lat || !data.lng) {
-      setError("Моля, изберете адрес от предложенията.");
-      return;
-    }
-    setError("");
-    try {
-      const res = await fetch("/api/properties", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: data.name,
-          city: data.city,
-          address: data.addr,
-          lat: data.lat,
-          lng: data.lng,
-          kind: data.type,
-        }),
-      });
-      if (res.ok) {
-        const prop = await res.json();
-        setShowForm(false);
-        setNewPropertyId(prop.id);
-      } else {
-        setError("Грешка при добавяне на имота. Опитайте отново.");
-      }
-    } catch {
-      setError("Грешка при добавяне на имота. Проверете връзката.");
-    }
+  const handleAdd = async (data: PropertyFormData): Promise<string | void> => {
+    if (!data.lat || !data.lng) return "Моля, изберете адрес от предложенията.";
+    const res = await api("/api/properties", {
+      method: "POST",
+      body: {
+        name: data.name,
+        city: data.city,
+        address: data.addr,
+        lat: data.lat,
+        lng: data.lng,
+        kind: data.type,
+        access_notes: data.access || undefined,
+        contact_name: data.contact_name || undefined,
+        contact_phone: data.contact_phone || undefined,
+      },
+    });
+    if (!res.ok) return res.error;
+    setCreated(true);
   };
+
+  if (created) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+        <Card padding="lg" shadow="md" className="w-full max-w-md space-y-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-state-ok/10 text-state-ok">
+            <Icon name="check-circle" size={32} />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-bold text-ink">Имотът чака одобрение</h2>
+            <p className="text-sm text-muted">
+              Ще проверим адреса и ще ви се обадим. След одобрението ще можете да изберете пакет за
+              обслужване.
+            </p>
+          </div>
+          <Button fullWidth size="lg" onClick={onCreated}>
+            Към имота
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
-      <Card padding="lg" shadow="md" className="max-w-md w-full space-y-4">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-bg text-3xl">
-          🏠
+      <Card padding="lg" shadow="md" className="w-full max-w-md space-y-4">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-bg text-brand-primary">
+          <Icon name="home" size={32} />
         </div>
         <div className="space-y-1.5">
           <h2 className="text-lg font-bold text-ink">Все още нямате добавен имот</h2>
           <p className="text-sm text-muted">
-            Добавете адреса му и ще видите тук какво предстои, какво е свършено
-            и снимките от всеки обход — на едно място.
+            Добавете адреса му и ще видите тук какво предстои, какво е свършено и снимките от всеки
+            обход — на едно място.
           </p>
         </div>
 
-        {error && (
-          <p className="rounded-lg bg-state-danger/10 px-3 py-2 text-sm text-state-danger">{error}</p>
-        )}
-
         <Button fullWidth size="lg" onClick={() => setShowForm(true)}>
+          <Icon name="plus" size={20} />
           Добавете първия си имот
         </Button>
 
-        <ul className="space-y-2 pt-2 text-left text-sm text-muted">
+        <ol className="space-y-2 pt-2 text-left text-sm text-muted">
           <li className="flex gap-2">
             <span className="font-bold text-brand-primary">1.</span>
-            Въвеждате адреса — намираме координатите автоматично.
+            Въвеждате адреса и кого да търсим на място.
           </li>
           <li className="flex gap-2">
             <span className="font-bold text-brand-primary">2.</span>
-            Избирате пакет за обслужване (по желание — може и по-късно).
+            Проверяваме адреса, одобряваме имота и избирате пакет.
           </li>
           <li className="flex gap-2">
             <span className="font-bold text-brand-primary">3.</span>
-            Тук ще виждате всеки обход, снимките и констатациите.
+            Тук виждате всеки обход, снимките и откритите проблеми.
           </li>
-        </ul>
+        </ol>
       </Card>
 
       {showForm && <PropertyForm onAdd={handleAdd} onClose={() => setShowForm(false)} />}
-
-      {newPropertyId && (
-        <PlanSelector
-          propertyId={newPropertyId}
-          onDone={() => {
-            setNewPropertyId(null);
-            onCreated();
-          }}
-        />
-      )}
     </div>
   );
 }

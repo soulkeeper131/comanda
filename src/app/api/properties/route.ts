@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { properties, jobs, findings, users } from "@/db/schema";
 import { eq, and, lt, inArray } from "drizzle-orm";
 import { notifyAdmins } from "@/lib/notifications";
+import { todaySofia } from "@/lib/jobs-generator";
 import { withAuth, canViewProperty } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
@@ -35,7 +36,9 @@ export const GET = withAuth({}, async (_request, { session }) => {
 
     // Статусът на имота се смята с 3 групови заявки (вместо до 3 на имот в цикъл).
     // Приоритет: in_progress > warning > overdue > ok.
-    const now = new Date().toISOString();
+    // planned_at често е само дата — сравняваме с днешната дата, не с
+    // текущия момент, иначе днешен обход излиза „просрочен" още от сутринта.
+    const today = todaySofia();
 
     const activeJobs = db
       .select({ property_id: jobs.property_id })
@@ -54,7 +57,7 @@ export const GET = withAuth({}, async (_request, { session }) => {
     const overdueJobs = db
       .select({ property_id: jobs.property_id })
       .from(jobs)
-      .where(and(eq(jobs.status, "planned"), lt(jobs.planned_at, now)))
+      .where(and(eq(jobs.status, "planned"), lt(jobs.planned_at, today)))
       .all();
     const overdueSet = new Set(overdueJobs.map((j) => j.property_id));
 

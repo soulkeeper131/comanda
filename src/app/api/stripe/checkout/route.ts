@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { payments, offers, findings, properties } from "@/db/schema";
 import { canDecideOffer } from "@/lib/auth";
 import { canTransition, type OfferDecision } from "@/lib/domain/offers";
+import { getPrepayThreshold } from "@/lib/settings";
 import { eq } from "drizzle-orm";
 import { validateStripeAmount, eurToCents, getStripeOrNull } from "@/lib/stripe";
 
@@ -38,7 +39,7 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session }) 
     }
 
     const offer = row.offer;
-    if (!canTransition(offer.decision as OfferDecision, "paid", offer.price)) {
+    if (!canTransition(offer.decision as OfferDecision, "paid", offer.price, getPrepayThreshold())) {
       return NextResponse.json(
         { error: "Тази оферта не чака плащане" },
         { status: 409 },

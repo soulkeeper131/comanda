@@ -24,3 +24,12 @@ export function getPrepayThreshold(): number {
   const raw = Number(getSetting("prepay_threshold"));
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_PREPAY_THRESHOLD;
 }
+
+/** Данни за плащане по банка — показват се на клиента при превод. */
+export function getBankDetails(): { iban: string | null; recipient: string | null; bank: string | null } {
+  return {
+    iban: getSetting("bank_iban"),
+    recipient: getSetting("bank_recipient"),
+    bank: getSetting("bank_name"),
+  };
+}

@@ -10,13 +10,13 @@ interface SmtpFormData {
 type TemplateKey = "welcome" | "job_assigned" | "job_completed" | "finding_new" | "offer_new" | "offer_decided" | "inquiry_new";
 
 const TEMPLATE_META: Record<string, { label: string; vars: string }> = {
-  welcome: { label: "🎉 Регистрация", vars: "{{name}}" },
-  job_assigned: { label: "📋 Възложен обход", vars: "{{property}}, {{date}}, {{worker}}" },
-  job_completed: { label: "✅ Завършен обход", vars: "{{property}}, {{worker}}, {{duration}}" },
-  finding_new: { label: "⚠️ Нова констатация", vars: "{{property}}, {{title}}, {{body}}" },
-  offer_new: { label: "💰 Нова оферта", vars: "{{property}}, {{price}}, {{days}}, {{scope}}" },
-  offer_decided: { label: "✅ Приета/отказана оферта", vars: "{{property}}, {{price}}, {{decision}}, {{decision_lower}}" },
-  inquiry_new: { label: "📩 Ново запитване", vars: "{{name}}, {{email}}, {{phone}}, {{message}}" },
+  welcome: { label: "Регистрация", vars: "{{name}}" },
+  job_assigned: { label: "Възложен обход", vars: "{{property}}, {{date}}, {{worker}}" },
+  job_completed: { label: "Завършен обход", vars: "{{property}}, {{worker}}, {{duration}}" },
+  finding_new: { label: "Нова констатация", vars: "{{property}}, {{title}}, {{body}}" },
+  offer_new: { label: "Нова оферта", vars: "{{property}}, {{price}}, {{days}}, {{scope}}" },
+  offer_decided: { label: "Приета/отказана оферта", vars: "{{property}}, {{price}}, {{decision}}, {{decision_lower}}" },
+  inquiry_new: { label: "Ново запитване", vars: "{{name}}, {{email}}, {{phone}}, {{message}}" },
 };
 
 export default function SmtpSettings() {
@@ -70,11 +70,11 @@ export default function SmtpSettings() {
       });
       if (res.ok) {
         setConfigured(true);
-        showMsg("✅ Запазено", true);
+        showMsg("Запазено", true);
       } else {
-        showMsg("❌ Грешка", false);
+        showMsg("Грешка", false);
       }
-    } catch { showMsg("❌ Грешка", false); }
+    } catch { showMsg("Грешка", false); }
     setSaving(false);
   };
 
@@ -82,8 +82,8 @@ export default function SmtpSettings() {
     setTesting(true);
     try {
       const res = await fetch("/api/email/test", { method: "POST" });
-      showMsg(res.ok ? "✅ Тестовият мейл е изпратен" : "❌ Грешка при изпращане", res.ok);
-    } catch { showMsg("❌ Грешка", false); }
+      showMsg(res.ok ? "Тестовият мейл е изпратен" : "Грешка при изпращане", res.ok);
+    } catch { showMsg("Грешка", false); }
     setTesting(false);
   };
 
@@ -106,11 +106,11 @@ export default function SmtpSettings() {
       if (res.ok) {
         setTemplates(updated);
         setEditKey(null);
-        showMsg("✅ Шаблонът е запазен", true);
+        showMsg("Шаблонът е запазен", true);
       } else {
-        showMsg("❌ Грешка", false);
+        showMsg("Грешка", false);
       }
-    } catch { showMsg("❌ Грешка", false); }
+    } catch { showMsg("Грешка", false); }
     setSaving(false);
   };
 
@@ -136,7 +136,7 @@ export default function SmtpSettings() {
               color: tab === t ? "#fff" : "#247ba0",
             }}
           >
-            {t === "smtp" ? "📧 SMTP" : "📝 Шаблони"}
+            {t === "smtp" ? "SMTP" : "Шаблони"}
           </button>
         ))}
       </div>
@@ -155,7 +155,7 @@ export default function SmtpSettings() {
             configured ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"
           }`}>
             <span className={`w-2.5 h-2.5 rounded-full ${configured ? "bg-green-500" : "bg-yellow-500"}`} />
-            {configured ? "✅ SMTP е конфигуриран" : "⚠️ SMTP не е конфигуриран"}
+            {configured ? "SMTP е конфигуриран" : "SMTP не е конфигуриран"}
           </div>
           {[
             ["SMTP Host", "smtp_host", "text", "smtp.gmail.com"],
@@ -179,10 +179,10 @@ export default function SmtpSettings() {
           ))}
           <div className="flex gap-3 pt-2">
             <button onClick={handleSaveSmtp} disabled={saving} className={btnClass} style={btnPrimary}>
-              {saving ? "Запазване..." : "💾 Запази"}
+              {saving ? "Запазване..." : "Запази"}
             </button>
             <button onClick={handleTest} disabled={testing} className={btnClass} style={btnSecondary}>
-              {testing ? "Изпращане..." : "📤 Тест"}
+              {testing ? "Изпращане..." : "Тест"}
             </button>
           </div>
         </div>
@@ -196,7 +196,7 @@ export default function SmtpSettings() {
             <div className="bg-white rounded-2xl border p-5 space-y-4" style={{ borderColor: "#e4e9f0" }}>
               <div className="flex items-center justify-between">
                 <h3 className="font-bold" style={{ color: "#006494" }}>
-                  ✏️ {TEMPLATE_META[editKey]?.label || editKey}
+                  {TEMPLATE_META[editKey]?.label || editKey}
                 </h3>
                 <button onClick={() => setEditKey(null)} className="text-sm" style={{ color: "#a663cc" }}>
                   ← Назад
@@ -220,7 +220,7 @@ export default function SmtpSettings() {
                 />
               </div>
               <button onClick={handleSaveTemplate} disabled={saving} className={btnClass + " w-full"} style={btnPrimary}>
-                {saving ? "Запазване..." : "💾 Запази шаблона"}
+                {saving ? "Запазване..." : "Запази шаблона"}
               </button>
             </div>
           ) : (

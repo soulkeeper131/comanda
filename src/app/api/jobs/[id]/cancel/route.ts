@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { jobs, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { emailLayout } from "@/lib/mail-layout";
 import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
 import { withAuth } from "@/lib/auth";
 import { canCancelJob } from "@/lib/domain/jobs";
@@ -60,17 +61,16 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
     // Клиентът е чакал обход, който няма да се случи — трябва да знае.
     const [prop] = db.select({ name: properties.name }).from(properties).where(eq(properties.id, job.property_id)).all();
     const propertyName = prop?.name || "Имот";
-    const cancelSubject = `❌ Обходът на ${propertyName} е отменен`;
-    const cancelHtml = `
-        <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
-          <h2 style="color: #dc2626;">❌ Обходът е отменен</h2>
-          <p style="color: #247ba0;"><strong>Имот:</strong> ${propertyName}</p>
-          <p style="color: #247ba0;"><strong>Задача:</strong> ${job.title || "Обход"}</p>
-          <p style="color: #247ba0;"><strong>Причина:</strong> ${normalizedReason}</p>
-          <hr style="border: none; border-top: 1px solid #e4e9f0; margin: 20px 0;" />
-          <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.bg</p>
-        </div>
-      `;
+    const cancelSubject = `Обходът на ${propertyName} е отменен`;
+    const cancelHtml = emailLayout({
+      title: "Обходът е отменен",
+      color: "#dc2626",
+      rows: [
+        ["Имот", propertyName],
+        ["Задача", job.title || "Обход"],
+        ["Причина", normalizedReason],
+      ],
+    });
 
     sendEmail({
       to: (await getNotifyEmail()) || "",

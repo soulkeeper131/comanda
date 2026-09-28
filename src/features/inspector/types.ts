@@ -6,9 +6,11 @@ export type InspectorJob = {
   id: string;
   title: string | null;
   status: "planned" | "in_progress" | "completed" | "cancelled";
+  /** Обикновено само дата ("2026-10-01") — обходът е за деня, без час. */
   planned_at: string;
   property_id: string;
-  property_name?: string;
+  property_name?: string | null;
+  property_address?: string | null;
   assignee_id?: string | null;
   assignee_name?: string | null;
   started_at?: string | null;
@@ -16,12 +18,15 @@ export type InspectorJob = {
   itemsChecked?: number;
   itemsTotal?: number;
   photoCount?: number;
+  rescheduled_from?: string | null;
 };
 
 export type JobItemPhoto = {
   id: string;
   storage_path: string;
   taken_at: string | null;
+  /** Снимана офлайн — показва се от устройството, още не е на сървъра. */
+  localBlobKey?: string;
 };
 
 export type JobItemDetail = {
@@ -32,15 +37,18 @@ export type JobItemDetail = {
   required: boolean | null;
   evidence_type?: string | null;
   photos: JobItemPhoto[];
+  /** Отметката чака синхронизация. */
+  pendingTick?: boolean;
 };
 
 export type JobDetail = InspectorJob & {
-  property_address?: string | null;
+  property_lat?: number | null;
+  property_lng?: number | null;
+  access_notes?: string | null;
+  contact_name?: string | null;
+  contact_phone?: string | null;
   items: JobItemDetail[];
   photos: JobItemPhoto[];
 };
 
-export function photoUrl(storagePath: string): string {
-  const name = storagePath.split("/").pop() || storagePath;
-  return `/api/photos/${name}`;
-}
+export { photoUrl } from "@/lib/format";

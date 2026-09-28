@@ -3,13 +3,15 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PushBell from "./PushBell";
 import NotificationBell from "./NotificationBell";
+import AccountSheet from "./AccountSheet";
+import { Badge } from "./ui/Badge";
+import { Icon } from "./ui/Icon";
 import { getQueueLength, initOfflineSync } from "@/lib/offline-sync";
 
-const ROLE_BADGE: Record<string, { label: string; color: string }> = {
-  admin: { label: "Админ", color: "#a663cc" },
-  owner: { label: "Собственик", color: "#1b98e0" },
-  worker: { label: "Работник", color: "#247ba0" },
-  inspector: { label: "Инспектор", color: "#d97706" },
+const ROLE_BADGE: Record<string, { label: string; tone: "accent" | "info" | "warning" }> = {
+  admin: { label: "Админ", tone: "accent" },
+  client: { label: "Клиент", tone: "info" },
+  inspector: { label: "Инспектор", tone: "warning" },
 };
 
 export default function Topbar() {
@@ -18,6 +20,7 @@ export default function Topbar() {
   const [user, setUser] = useState<{ name: string; role: string } | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/me")
@@ -69,7 +72,7 @@ export default function Topbar() {
   };
 
   const badge = user ? ROLE_BADGE[user.role] : null;
-  const initial = user ? user.name.charAt(0) : "В";
+  const initial = user?.name ? user.name.charAt(0).toUpperCase() : "·";
 
   return (
     <header
@@ -92,57 +95,33 @@ export default function Topbar() {
 
       <div className="flex-1" />
 
-      {/* Offline indicator + pending sync */}
-      <div className="flex items-center gap-1.5">
-        {!isOnline && (
-          <span
-            className="text-xs font-bold px-2 py-1 rounded-full"
-            style={{ background: "#fee2e2", color: "#dc2626" }}
-            title="Няма интернет връзка"
-          >
-            🚫 Офлайн
-          </span>
-        )}
-        {isOnline && pendingCount > 0 && (
-          <span
-            className="text-xs font-bold px-2 py-1 rounded-full"
-            style={{ background: "#fef3c7", color: "#d97706" }}
-            title={`${pendingCount} чакащи действия за синхронизация`}
-          >
-            📶 {pendingCount}
-          </span>
-        )}
-        {isOnline && pendingCount === 0 && (
-          <span
-            className="text-xs px-1"
-            style={{ color: "#16a34a" }}
-            title="Онлайн"
-          >
-            📶
-          </span>
-        )}
-      </div>
+      {/* Офлайн / чакащи за синхронизация действия */}
+      {!isOnline && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-state-danger/10 px-2 py-1 text-xs font-bold text-state-danger" title="Няма интернет връзка">
+          <Icon name="wifi-off" size={14} /> Офлайн
+        </span>
+      )}
+      {pendingCount > 0 && (
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-state-warning/10 px-2 py-1 text-xs font-bold text-state-warning"
+          title={`${pendingCount} действия чакат синхронизация`}
+        >
+          <Icon name="refresh" size={14} /> {pendingCount}
+        </span>
+      )}
 
-      {/* User menu */}
-      <div className="relative flex items-center gap-2">
+      <div className="relative flex items-center gap-1.5">
         {badge && (
-          <span
-            className="inline-block px-2 py-0.5 rounded-full text-xs font-bold mr-1"
-            style={{ background: badge.color + "18", color: badge.color, border: `1px solid ${badge.color}40` }}
-          >
+          <Badge tone={badge.tone} className="hidden sm:inline-flex">
             {badge.label}
-          </span>
+          </Badge>
         )}
         <NotificationBell />
         <PushBell />
         <button
           onClick={() => setMenuOpen(!menuOpen)}
-          className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm"
-          style={{
-            background: badge
-              ? `linear-gradient(140deg, ${badge.color}, #006494)`
-              : "linear-gradient(140deg, #a663cc, #247ba0)",
-          }}
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-brand-primary to-brand-dark text-sm font-bold text-white"
+          aria-label="Меню"
         >
           {initial}
         </button>
@@ -150,29 +129,35 @@ export default function Topbar() {
         {menuOpen && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            <div
-              className="absolute right-0 top-11 z-20 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden min-w-[200px] py-1"
-            >
-              <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider" style={{ color: "#247ba0" }}>
-                {user?.name || "Меню"}
+            <div className="absolute right-0 top-12 z-20 min-w-[220px] overflow-hidden rounded-card border border-line bg-white py-1 shadow-card-3">
+              <div className="px-4 py-2.5">
+                <div className="text-sm font-bold text-ink">{user?.name || "Профил"}</div>
+                {badge && <div className="text-xs text-muted">{badge.label}</div>}
               </div>
-              {badge && (
-                <div className="px-4 py-1 text-xs" style={{ color: badge.color }}>
-                  {badge.label}
-                </div>
-              )}
-              <div className="border-t my-1" style={{ borderColor: "#e4e9f0" }} />
+              <div className="my-1 border-t border-line" />
               <button
-                onClick={() => { setMenuOpen(false); handleSignOut(); }}
-                className="w-full text-left px-4 min-h-[44px] py-3 text-sm hover:bg-gray-50 transition"
-                style={{ color: "#006494" }}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setAccountOpen(true);
+                }}
+                className="flex min-h-touch w-full items-center gap-2 px-4 text-left text-sm text-ink hover:bg-brand-bg"
               >
-                🚪 Изход
+                <Icon name="user" size={18} /> Профил{user?.role === "client" ? " и плащания" : ""}
+              </button>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  handleSignOut();
+                }}
+                className="flex min-h-touch w-full items-center gap-2 px-4 text-left text-sm text-ink hover:bg-brand-bg"
+              >
+                <Icon name="logout" size={18} /> Изход
               </button>
             </div>
           </>
         )}
       </div>
+      <AccountSheet open={accountOpen} onClose={() => setAccountOpen(false)} />
     </header>
   );
 }

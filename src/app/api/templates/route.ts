@@ -61,21 +61,19 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
       );
     }
 
-    db
+    const [template] = db
       .insert(serviceTemplates)
       .values({
         org_id: session.org_id,
         category,
         name,
         description: description || null,
-        icon: icon || "🧹",
+        icon: icon || category,
         duration_min: duration_min ?? 60,
         price: price ?? 0,
       })
-      .run();
-
-    // SQLite doesn't support RETURNING — fetch by name
-    const [template] = db.select().from(serviceTemplates).where(eq(serviceTemplates.name, name)).limit(1).all();
+      .returning()
+      .all();
 
     return NextResponse.json(template, { status: 201 });
   } catch (error) {

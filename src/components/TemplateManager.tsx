@@ -1,5 +1,7 @@
 "use client";
 
+import { Icon } from "@/components/ui/Icon";
+
 import { useState, useEffect, useCallback } from "react";
 
 type TemplateItem = {
@@ -23,8 +25,8 @@ type Template = {
 };
 
 const PROOF_LABELS: Record<string, string> = {
-  photo: "📷 Снимка",
-  note: "📝 Бележка",
+  photo: "Снимка",
+  note: "Бележка",
   none: "— Без",
 };
 
@@ -109,7 +111,7 @@ export default function TemplateManager() {
   // Add item
   const handleAddItem = async (templateId: string) => {
     if (!newLabel.trim()) {
-      showToast("❌ Въведете име на стъпката");
+      showToast("Въведете име на стъпката");
       return;
     }
     try {
@@ -136,12 +138,12 @@ export default function TemplateManager() {
         setNewProofType("photo");
         setNewRequired(true);
         setAddingForId(null);
-        showToast("✅ Стъпката е добавена");
+        showToast("Стъпката е добавена");
       } else {
-        showToast("❌ Грешка при добавяне");
+        showToast("Грешка при добавяне");
       }
     } catch {
-      showToast("❌ Грешка при добавяне");
+      showToast("Грешка при добавяне");
     }
   };
 
@@ -157,12 +159,12 @@ export default function TemplateManager() {
           ...prev,
           [templateId]: (prev[templateId] || []).filter((it) => it.id !== itemId),
         }));
-        showToast("✅ Стъпката е изтрита");
+        showToast("Стъпката е изтрита");
       } else {
-        showToast("❌ Грешка при изтриване");
+        showToast("Грешка при изтриване");
       }
     } catch {
-      showToast("❌ Грешка при изтриване");
+      showToast("Грешка при изтриване");
     }
   };
 
@@ -176,7 +178,7 @@ export default function TemplateManager() {
   // Save edit
   const handleSaveEdit = async (itemId: string, templateId: string) => {
     if (!editLabel.trim()) {
-      showToast("❌ Въведете име на стъпката");
+      showToast("Въведете име на стъпката");
       return;
     }
     try {
@@ -197,12 +199,12 @@ export default function TemplateManager() {
           ),
         }));
         setEditingId(null);
-        showToast("✅ Стъпката е обновена");
+        showToast("Стъпката е обновена");
       } else {
-        showToast("❌ Грешка при обновяване");
+        showToast("Грешка при обновяване");
       }
     } catch {
-      showToast("❌ Грешка при обновяване");
+      showToast("Грешка при обновяване");
     }
   };
 
@@ -234,12 +236,12 @@ export default function TemplateManager() {
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4 relative">
       <h3 className="text-lg font-bold mb-4" style={{ color: "#006494" }}>
-        📋 Шаблони
+        Шаблони
       </h3>
 
       {templates.length === 0 && (
         <div className="text-center py-12" style={{ color: "#247ba0" }}>
-          <div className="text-4xl mb-3">📋</div>
+          <div className="text-4xl mb-3"></div>
           <div className="text-sm">Няма създадени шаблони</div>
         </div>
       )}
@@ -303,7 +305,7 @@ export default function TemplateManager() {
                         className="text-xs font-bold px-2 py-1 rounded-md mb-2 inline-block"
                         style={{ background: "#e8f1f2", color: "#006494" }}
                       >
-                        📍 {zone}
+                        {zone}
                       </div>
                       <div className="space-y-1">
                         {zoneItems.map((item) => (
@@ -336,8 +338,8 @@ export default function TemplateManager() {
                                     color: "#006494",
                                   }}
                                 >
-                                  <option value="photo">📷 Снимка</option>
-                                  <option value="note">📝 Бележка</option>
+                                  <option value="photo">Снимка</option>
+                                  <option value="note">Бележка</option>
                                   <option value="none">— Без доказателство</option>
                                 </select>
                                 <div className="flex gap-2">
@@ -348,7 +350,7 @@ export default function TemplateManager() {
                                       background: "linear-gradient(140deg, #1b98e0, #006494)",
                                     }}
                                   >
-                                    💾 Запази
+                                    Запази
                                   </button>
                                   <button
                                     onClick={cancelEdit}
@@ -409,19 +411,19 @@ export default function TemplateManager() {
                                 <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition">
                                   <button
                                     onClick={() => handleStartEdit(item)}
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-sm hover:bg-gray-100 transition"
+                                    className="w-11 h-11 rounded-lg flex items-center justify-center text-muted hover:bg-gray-100 transition"
                                     title="Редактирай"
-                                    style={{ fontSize: 16 }}
+                                    aria-label="Редактирай"
                                   >
-                                    ✏️
+                                    <Icon name="edit" size={18} />
                                   </button>
                                   <button
                                     onClick={() => handleDeleteItem(item.id, tpl.id)}
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-sm hover:bg-red-50 transition"
+                                    className="w-11 h-11 rounded-lg flex items-center justify-center text-state-danger hover:bg-red-50 transition"
                                     title="Изтрий"
-                                    style={{ fontSize: 16 }}
+                                    aria-label="Изтрий"
                                   >
-                                    ✕
+                                    <Icon name="trash" size={18} />
                                   </button>
                                 </div>
                               </div>
@@ -465,8 +467,8 @@ export default function TemplateManager() {
                             className="flex-1 px-3 py-2 rounded-lg border text-sm"
                             style={{ fontSize: 16, borderColor: "#e4e9f0", color: "#006494" }}
                           >
-                            <option value="photo">📷 Снимка</option>
-                            <option value="note">📝 Бележка</option>
+                            <option value="photo">Снимка</option>
+                            <option value="note">Бележка</option>
                             <option value="none">— Без доказателство</option>
                           </select>
                           <label
@@ -488,7 +490,7 @@ export default function TemplateManager() {
                             className="flex-1 min-h-[44px] py-2 rounded-lg text-xs font-semibold text-white"
                             style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}
                           >
-                            ✅ Добави
+                            Добави
                           </button>
                           <button
                             onClick={() => {
@@ -512,7 +514,7 @@ export default function TemplateManager() {
                       className="w-full mt-3 min-h-[44px] py-2 rounded-lg text-xs font-semibold border border-dashed transition hover:bg-gray-50"
                       style={{ borderColor: "#247ba0", color: "#247ba0" }}
                     >
-                      ➕ Добави стъпка
+                      Добави стъпка
                     </button>
                   )}
                 </div>

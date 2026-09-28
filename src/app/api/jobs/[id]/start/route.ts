@@ -172,7 +172,7 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
     notifyOwner(
       job.property_id,
       "job_started",
-      "🔧 Започнат обход",
+      "Започна обход",
       `${job.title || "Обход"} — ${prop?.name || "Имот"}`,
       "/dashboard",
     );

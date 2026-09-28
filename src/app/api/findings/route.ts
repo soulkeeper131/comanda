@@ -8,6 +8,7 @@ import { withAuth, canCompleteJobItem } from "@/lib/auth";
 import { emailLayout } from "@/lib/mail-layout";
 import { uploadedFileExists, uploadFilename } from "@/lib/uploads";
 import { isFindingStatus, isSeverity, sortFindings } from "@/lib/domain/findings";
+import { isClientId } from "@/lib/domain/idempotency";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,11 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
     const { job_id, job_item_id, title, photo_ids } = body;
     const desc: string = typeof body.body === "string" ? body.body.trim() : "";
     const severity = isSeverity(body.severity) ? body.severity : "normal";
+    const clientId = isClientId(body.client_id) ? body.client_id : undefined;
+    if (clientId) {
+      const existing = db.select().from(findings).where(eq(findings.id, clientId)).get();
+      if (existing) return NextResponse.json({ ...existing, photos: [], offer: null }, { status: 200 });
+    }
     let propertyId: string | undefined = body.property_id;
 
     if (!title || typeof title !== "string" || !title.trim()) {
@@ -142,6 +148,7 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
     const [finding] = db
       .insert(findings)
       .values({
+        ...(clientId ? { id: clientId } : {}),
         org_id: property.org_id,
         property_id: property.id,
         job_id: job_id || null,

@@ -19,8 +19,9 @@ export default function ClientHome() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // silent: презареждане без да сменяме екрана с „Зареждане…"
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(false);
     try {
       const res = await fetch("/api/properties");
@@ -28,7 +29,7 @@ export default function ClientHome() {
       const data: ClientProperty[] = await res.json();
       setProperties(data);
     } catch {
-      setError(true);
+      if (!silent) setError(true);
     } finally {
       setLoading(false);
     }
@@ -50,7 +51,7 @@ export default function ClientHome() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
         <p className="text-ink">Възникна грешка при зареждане.</p>
-        <button onClick={load} className="text-sm font-semibold text-brand-primary">
+        <button onClick={() => load()} className="min-h-touch text-sm font-semibold text-brand-primary">
           Опитайте отново
         </button>
       </div>
@@ -58,19 +59,20 @@ export default function ClientHome() {
   }
 
   if (properties.length === 0) {
-    return <EmptyPropertyState onCreated={load} />;
+    return <EmptyPropertyState onCreated={() => load(true)} />;
   }
 
   if (properties.length === 1) {
-    return <PropertyDetail propertyId={properties[0].id} propertyName={properties[0].name} />;
+    return <PropertyDetail property={properties[0]} onPropertyChanged={() => load(true)} />;
   }
 
   const selected = selectedId ? properties.find((p) => p.id === selectedId) : null;
   if (selected) {
     return (
       <PropertyDetail
-        propertyId={selected.id}
-        propertyName={selected.name}
+        key={selected.id}
+        property={selected}
+        onPropertyChanged={() => load(true)}
         onBack={() => setSelectedId(null)}
       />
     );

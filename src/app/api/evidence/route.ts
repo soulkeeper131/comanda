@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth, canViewProperty, canCompleteJobItem } from "@/lib/auth";
 import { uploadedFileExists, uploadFilename } from "@/lib/uploads";
+import { isClientId } from "@/lib/domain/idempotency";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +117,13 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
   try {
     const body = await request.json();
     const { job_id, job_item_id, storage_path, lat, lng, client_taken_at } = body;
+    // Офлайн опашката праща собствен id — повтор след изгубен отговор връща
+    // вече записаното, вместо да създаде второ доказателство.
+    const clientId = isClientId(body.client_id) ? body.client_id : undefined;
+    if (clientId) {
+      const existing = db.select().from(evidence).where(eq(evidence.id, clientId)).get();
+      if (existing) return NextResponse.json(existing, { status: 200 });
+    }
 
     if (!job_id || typeof storage_path !== "string" || !storage_path) {
       return NextResponse.json(
@@ -149,6 +157,7 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
     const [record] = db
       .insert(evidence)
       .values({
+        ...(clientId ? { id: clientId } : {}),
         job_id,
         job_item_id: job_item_id || null,
         storage_path: uploadFilename(storage_path),

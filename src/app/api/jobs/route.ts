@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { jobs, properties, users, serviceTemplates, jobItems, evidence } from "@/db/schema";
 import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { createNotification, notifyOwner } from "@/lib/notifications";
+import { createNotification } from "@/lib/notifications";
 import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";

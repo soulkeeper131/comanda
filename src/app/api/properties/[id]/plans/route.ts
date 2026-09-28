@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { plans, properties, packages } from "@/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { withAuth, canViewProperty } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { loadCatalog, coreItem, planPrice } from "@/lib/catalog";

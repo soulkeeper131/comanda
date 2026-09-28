@@ -217,7 +217,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   createNotification(
     payment.user_id,
     "offer_decided",
-    "✅ Плащането е успешно",
+    "Плащането е успешно",
     `Плащане от ${payment.amount.toFixed(2)}€ е обработено успешно. Фактура: ${invoiceNumber}`,
     "/dashboard"
   );

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Sheet } from "./ui/Sheet";
 import { Button } from "./ui/Button";
 import { Input, Select, Textarea } from "./ui/Input";
+import { Icon } from "./ui/Icon";
 
 type AddressHit = {
   lat: number;
@@ -12,18 +13,41 @@ type AddressHit = {
   display_name: string;
 };
 
-type PropertyFormData = {
+export type PropertyFormData = {
   name: string;
   city: string;
   addr: string;
   type: string;
   access: string;
+  /** Кого да търси инспекторът на място (въпрос 27) */
+  contact_name: string;
+  contact_phone: string;
   lat?: number;
   lng?: number;
 };
 
-export default function PropertyForm({ onAdd, onClose }: { onAdd: (data: PropertyFormData) => void; onClose: () => void }) {
-  const [data, setData] = useState<PropertyFormData>({ name: "", city: "", addr: "", type: "apartment", access: "" });
+/**
+ * onAdd може да върне съобщение за грешка — тогава формата остава отворена
+ * и го показва; иначе се затваря.
+ */
+export default function PropertyForm({
+  onAdd,
+  onClose,
+}: {
+  onAdd: (data: PropertyFormData) => void | string | Promise<void | string>;
+  onClose: () => void;
+}) {
+  const [data, setData] = useState<PropertyFormData>({
+    name: "",
+    city: "",
+    addr: "",
+    type: "apartment",
+    access: "",
+    contact_name: "",
+    contact_phone: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<AddressHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -90,16 +114,36 @@ export default function PropertyForm({ onAdd, onClose }: { onAdd: (data: Propert
     setData((prev) => ({ ...prev, addr: "", lat: undefined, lng: undefined }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!data.name.trim() || !picked) return;
-    onAdd(data);
+    if (!data.name.trim()) return;
+    if (!picked) {
+      setSubmitError("Изберете адреса от предложенията.");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError("");
+    const err = await onAdd({
+      ...data,
+      name: data.name.trim(),
+      access: data.access.trim(),
+      contact_name: data.contact_name.trim(),
+      contact_phone: data.contact_phone.trim(),
+    });
+    setSubmitting(false);
+    if (typeof err === "string" && err) {
+      setSubmitError(err);
+      return;
+    }
     onClose();
   };
 
   return (
-    <Sheet open onClose={onClose} placement="center">
-      <h3 className="text-lg font-bold mb-4 text-brand-dark">＋ Нов обект</h3>
+    <Sheet open onClose={onClose} placement="center" className="max-h-[90dvh] overflow-y-auto">
+      <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-brand-dark">
+        <Icon name="plus" size={20} />
+        Нов имот
+      </h3>
       <form onSubmit={handleSubmit} className="space-y-3">
         <Input
           type="text"
@@ -173,15 +217,41 @@ export default function PropertyForm({ onAdd, onClose }: { onAdd: (data: Propert
           <option value="studio">Студио</option>
           <option value="villa">Вила</option>
         </Select>
+        <p className="pt-1 text-sm font-semibold text-ink">
+          Достъп <span className="font-normal text-muted">(по желание)</span>
+        </p>
+        <Input
+          type="text"
+          placeholder="Контакт за достъп (име)"
+          aria-label="Контакт за достъп (име)"
+          value={data.contact_name}
+          onChange={(e) => setData({ ...data, contact_name: e.target.value })}
+          autoComplete="name"
+        />
+        <Input
+          type="tel"
+          inputMode="tel"
+          placeholder="Телефон"
+          aria-label="Телефон"
+          value={data.contact_phone}
+          onChange={(e) => setData({ ...data, contact_phone: e.target.value })}
+          autoComplete="tel"
+        />
         <Textarea
-          placeholder="Достъп (ключове, кодове, бележки)"
+          placeholder="Бележки за достъп (ключове, код на входа, етаж)"
+          aria-label="Бележки за достъп"
           value={data.access}
           onChange={(e) => setData({ ...data, access: e.target.value })}
           rows={2}
         />
+        {submitError && (
+          <p className="rounded-card bg-state-danger/10 px-3 py-2 text-sm text-state-danger">{submitError}</p>
+        )}
         <div className="flex gap-2 pt-2">
           <Button type="button" variant="secondary" fullWidth onClick={onClose}>Отказ</Button>
-          <Button type="submit" variant="primary" fullWidth>Добави</Button>
+          <Button type="submit" variant="primary" fullWidth disabled={submitting}>
+            {submitting ? "Запазване…" : "Добави"}
+          </Button>
         </div>
       </form>
     </Sheet>

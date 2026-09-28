@@ -1,7 +1,9 @@
 import { db } from "@/db";
 import { payments, offers, findings, properties } from "@/db/schema";
 import { withAuth, isAdmin } from "@/lib/auth";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
+import { awaitsPayment, type OfferDecision } from "@/lib/domain/offers";
+import { getPrepayThreshold } from "@/lib/settings";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +46,18 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session }) 
     .get();
   if (!row || row.owner_id !== session.uid) {
     return NextResponse.json({ error: "Офертата не е намерена" }, { status: 404 });
+  }
+
+  if (!awaitsPayment(row.offer.decision as OfferDecision, row.offer.price, getPrepayThreshold())) {
+    return NextResponse.json({ error: "Тази оферта не чака плащане" }, { status: 409 });
+  }
+  const duplicate = db
+    .select({ id: payments.id })
+    .from(payments)
+    .where(and(eq(payments.offer_id, offerId), eq(payments.status, "pending")))
+    .get();
+  if (duplicate) {
+    return NextResponse.json({ error: "Вече сте заявили плащане по банка — очаква потвърждение" }, { status: 409 });
   }
 
   const id = crypto.randomUUID();

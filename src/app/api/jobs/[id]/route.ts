@@ -3,6 +3,7 @@ import { jobs, jobItems, properties, users, evidence, jobReschedules } from "@/d
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth, canViewProperty } from "@/lib/auth";
+import { createNotification } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
         job_item_id: evidence.job_item_id,
         storage_path: evidence.storage_path,
         taken_at: evidence.taken_at,
+        client_taken_at: evidence.client_taken_at,
         lat: evidence.lat,
         lng: evidence.lng,
       })
@@ -110,6 +112,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
         id: p.id,
         storage_path: p.storage_path,
         taken_at: p.taken_at,
+        client_taken_at: p.client_taken_at,
         lat: p.lat,
         lng: p.lng,
       })),
@@ -158,5 +161,48 @@ export const DELETE = withAuth({ role: ["admin"] }, async (_request, { params })
   } catch (error) {
     console.error("DELETE /api/jobs/[id] error:", error);
     return NextResponse.json({ error: "Грешка при изтриване" }, { status: 500 });
+  }
+});
+
+/**
+ * PATCH /api/jobs/[id] — админът сменя изпълнителя/заглавието на конкретен
+ * обход, без да пипа инспектора на имота (въпрос 10). Датата се мести през
+ * /reschedule (там се пази история).
+ */
+export const PATCH = withAuth({ role: ["admin"] }, async (request, { params }) => {
+  try {
+    const job = db.select().from(jobs).where(eq(jobs.id, params.id)).get();
+    if (!job) return NextResponse.json({ error: "Задачата не е намерена" }, { status: 404 });
+    const body = await request.json().catch(() => ({}));
+    const updates: Partial<typeof jobs.$inferInsert> = {};
+
+    if (body.assignee_id !== undefined) {
+      if (job.status === "completed" || job.status === "cancelled") {
+        return NextResponse.json({ error: "Обходът е приключил" }, { status: 400 });
+      }
+      if (body.assignee_id === null || body.assignee_id === "") {
+        updates.assignee_id = null;
+      } else {
+        const person = db.select().from(users).where(eq(users.id, body.assignee_id)).get();
+        if (!person || person.role !== "inspector" || person.active === false) {
+          return NextResponse.json({ error: "Изберете активен инспектор" }, { status: 400 });
+        }
+        updates.assignee_id = person.id;
+      }
+    }
+    if (typeof body.title === "string" && body.title.trim()) updates.title = body.title.trim();
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "Няма полета за обновяване" }, { status: 400 });
+    }
+
+    db.update(jobs).set(updates).where(eq(jobs.id, job.id)).run();
+    if (updates.assignee_id && updates.assignee_id !== job.assignee_id) {
+      const prop = db.select({ name: properties.name }).from(properties).where(eq(properties.id, job.property_id)).get();
+      createNotification(updates.assignee_id, "job_started", "Възложен ви е обход", `${prop?.name ?? "Имот"} — ${job.planned_at.slice(0, 10)}`, "/dashboard");
+    }
+    return NextResponse.json(db.select().from(jobs).where(eq(jobs.id, job.id)).get());
+  } catch (error) {
+    console.error("PATCH /api/jobs/[id] error:", error);
+    return NextResponse.json({ error: "Грешка при промяна на обхода" }, { status: 500 });
   }
 });
