@@ -34,6 +34,8 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
 COPY --from=build /app/drizzle ./drizzle
+# Шрифтът с кирилица за PDF фактурите и отчетите
+COPY --from=build /app/assets ./assets
 # Скриптовете за резервно копие, възстановяване и периодичните задачи —
 # Coolify ги вика по график вътре в контейнера (виж docs/DEPLOY.md).
 COPY --from=build /app/scripts/backup-db.sh /app/scripts/restore-db.sh /app/scripts/cron.mjs ./scripts/

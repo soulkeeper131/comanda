@@ -6,6 +6,7 @@ import { appHost } from "@/lib/mail-layout";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import jsPDF from "jspdf";
+import { PDF_FONT, applyCyrillicFont } from "@/lib/pdf-fonts";
 import autoTable from "jspdf-autotable";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +63,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
   // Генериране на PDF
   // ============================================================
   const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+  applyCyrillicFont(doc);
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 15;
 
@@ -186,17 +188,19 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
       "1",
       description,
       "1",
-      `${amount.toFixed(2)} лв`,
-      `${amount.toFixed(2)} лв`,
+      `${amount.toFixed(2)} €`,
+      `${amount.toFixed(2)} €`,
     ],
   ];
 
   autoTable(doc, {
+      // шрифт с кирилица (виж pdf-fonts.ts)
     startY: y,
     head: [["№", "Описание", "К-во", "Ед. цена", "Общо"]],
     body: tableData,
     theme: "grid",
     styles: {
+      font: PDF_FONT,
       fontSize: 9,
       cellPadding: 3,
       textColor: [0, 100, 148],
@@ -230,7 +234,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
   doc.text("Обща сума:", pageWidth - 76, y + 7);
   doc.setFontSize(13);
   doc.setTextColor(...brandPrimary);
-  doc.text(`${amount.toFixed(2)} лв`, pageWidth - 18, y + 7, {
+  doc.text(`${amount.toFixed(2)} €`, pageWidth - 18, y + 7, {
     align: "right",
   });
   y += 25;
@@ -242,7 +246,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
     const methodLabel =
       payment.method === "card"
         ? "Карта"
-        : payment.method === "transfer"
+        : payment.method === "transfer" || payment.method === "bank"
           ? "Банков превод"
           : payment.method || "—";
     doc.text(`Метод на плащане: ${methodLabel}`, 14, y);

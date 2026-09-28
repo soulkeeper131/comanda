@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { PDF_FONT, applyCyrillicFont } from "@/lib/pdf-fonts";
 import autoTable from "jspdf-autotable";
 import { existsSync, readFileSync } from "fs";
 import path from "path";
@@ -59,6 +60,7 @@ export function photoToDataUri(photo: string): string | null {
 // ============================================================
 export async function generateJobReport(job: any): Promise<Buffer> {
   const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+  applyCyrillicFont(doc);
 
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 15;
@@ -145,6 +147,7 @@ export async function generateJobReport(job: any): Promise<Buffer> {
       body: tableData,
       theme: "grid",
       styles: {
+        font: PDF_FONT,
         fontSize: 9,
         cellPadding: 3,
         textColor: [0, 100, 148],
@@ -258,6 +261,7 @@ export async function generateJobReport(job: any): Promise<Buffer> {
 // ============================================================
 export async function generateFindingsReport(findings: any[]): Promise<Buffer> {
   const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+  applyCyrillicFont(doc);
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 15;
 
@@ -417,6 +421,7 @@ export async function generatePropertyReport(
   findings: any[]
 ): Promise<Buffer> {
   const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+  applyCyrillicFont(doc);
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 15;
 
@@ -490,6 +495,7 @@ export async function generatePropertyReport(
       body: jobRows,
       theme: "grid",
       styles: {
+        font: PDF_FONT,
         fontSize: 9,
         cellPadding: 3,
         textColor: [0, 100, 148],
@@ -548,6 +554,7 @@ export async function generatePropertyReport(
       body: findingRows,
       theme: "grid",
       styles: {
+        font: PDF_FONT,
         fontSize: 9,
         cellPadding: 3,
         textColor: [0, 100, 148],
