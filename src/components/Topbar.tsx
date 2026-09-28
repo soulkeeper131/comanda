@@ -20,11 +20,16 @@ export default function Topbar() {
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [environment, setEnvironment] = useState("production");
 
   useEffect(() => {
     fetch("/api/me")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => data && setUser({ name: data.name, role: data.role }))
+      .then((data) => {
+        if (!data) return;
+        setUser({ name: data.name, role: data.role });
+        setEnvironment(data.environment ?? "production");
+      })
       .catch(() => {});
 
     // Init offline sync
@@ -110,6 +115,11 @@ export default function Topbar() {
         <img src="/logo.png" alt="КОМАНДА" className="h-10 w-auto" />
       </Link>
 
+      {environment !== "production" && (
+        <span className="rounded-md bg-brand-accent px-2 py-0.5 text-xs font-bold uppercase text-white" title="Тестова среда — плащанията са на Stripe в тестов режим">
+          Тест
+        </span>
+      )}
       <div className="flex-1" />
 
       {/* Офлайн / чакащи за синхронизация действия */}

@@ -1,8 +1,10 @@
 # Stripe Интеграция — Архитектурен План за Ко Манда
 
+> **Архив.** Първоначален план. Реализацията и настройката са описани в docs/DEPLOY.md §3а.
+
 > **Дата:** 2026-08-10  
 > **Автор:** AI Agent (Hermes)  
-> **Проект:** Ко Манда (comanda.blv.bg) — Next.js 14 + TypeScript + Drizzle ORM + SQLite  
+> **Проект:** Ко Манда (comanda.bg) — Next.js 14 + TypeScript + Drizzle ORM + SQLite  
 
 ---
 
@@ -786,7 +788,7 @@ export const PAYMENT_METHODS = {
 - [ ] **7.1.** `npm run build` за проверка на грешки
 - [ ] **7.2.** Push към GitHub → Coolify auto-deploy
 - [ ] **7.3.** Задаване на production Stripe ключове в Coolify env vars
-- [ ] **7.4.** Конфигуриране на production webhook endpoint в Stripe Dashboard: `https://comanda.blv.bg/api/stripe/webhook`
+- [ ] **7.4.** Конфигуриране на production webhook endpoint в Stripe Dashboard: `https://comanda.bg/api/stripe/webhook`
 
 ---
 

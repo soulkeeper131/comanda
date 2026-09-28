@@ -124,23 +124,8 @@ export default function SmtpSettings() {
 
   return (
     <div className="p-4 md:p-6">
-      {/* Tabs */}
-      <div className="flex gap-1 mb-5 bg-white rounded-xl p-1 border" style={{ borderColor: "#e4e9f0" }}>
-        {(["smtp", "templates"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition"
-            style={{
-              background: tab === t ? "#1b98e0" : "transparent",
-              color: tab === t ? "#fff" : "#247ba0",
-            }}
-          >
-            {t === "smtp" ? "SMTP" : "Шаблони"}
-          </button>
-        ))}
-      </div>
-
+      {/* Шаблоните не се показват: писмата се съставят в кода
+          (src/lib/mail-layout.ts), а редакцията тук не влияеше на нищо. */}
       {message && (
         <div className={`mb-4 p-3 rounded-lg text-sm font-medium ${message.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
           {message.text}

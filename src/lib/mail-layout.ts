@@ -15,8 +15,17 @@ export function escapeHtml(value: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
+/**
+ * Адресът на тази среда — https://comanda.bg в продукция,
+ * https://dev.comanda.bg в тестовата. APP_URL се чете при работа;
+ * NEXT_PUBLIC_* се вгражда при build и затова е само резервен вариант.
+ */
 export function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL || "https://comanda.bg").replace(/\/$/, "");
+  return (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://comanda.bg").replace(/\/$/, "");
+}
+
+export function appHost(): string {
+  return appUrl().replace(/^https?:\/\//, "");
 }
 
 export function formatEur(amount: number | null | undefined): string {
@@ -55,6 +64,6 @@ ${opts.intro ? `<p style="color:#334155">${opts.intro}</p>` : ""}
 ${rows}
 ${cta}
 <hr style="border:none;border-top:1px solid #e4e9f0;margin:20px 0" />
-<p style="color:#94a3b8;font-size:12px">Ко Манда — comanda.bg</p>
+<p style="color:#94a3b8;font-size:12px">Ко Манда — ${appHost()}</p>
 </div>`;
 }

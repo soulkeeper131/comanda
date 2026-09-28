@@ -5,6 +5,7 @@ import { payments, offers, findings, properties } from "@/db/schema";
 import { canDecideOffer } from "@/lib/auth";
 import { canTransition, offerPrepay, type OfferDecision } from "@/lib/domain/offers";
 import { liveOfferPayment, settleOfferPayment } from "@/lib/payments";
+import { appUrl as appBaseUrl } from "@/lib/mail-layout";
 import { getPrepayThreshold } from "@/lib/settings";
 import { eq } from "drizzle-orm";
 import { validateStripeAmount, eurToCents, getStripeOrNull } from "@/lib/stripe";
@@ -66,10 +67,8 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session }) 
       );
     }
 
-    const appUrl =
-      request.headers.get("origin") ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "https://comanda.bg";
+    // Адресът за връщане — от настройката на средата, не от хедъра на заявката.
+    const appUrl = appBaseUrl();
 
     const stripe = getStripeOrNull();
 

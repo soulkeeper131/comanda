@@ -22,6 +22,8 @@ export const GET = withAuth({}, async (_request, { session }) => {
     company_name: user.company_name,
     eik: user.eik,
     vat_number: user.vat_number,
+    // Тестовата среда (dev.comanda.bg) се показва с етикет в приложението.
+    environment: process.env.APP_ENV || "production",
   });
 });
 

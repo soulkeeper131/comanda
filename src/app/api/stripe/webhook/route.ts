@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import type Stripe from "stripe";
+import Stripe from "stripe";
 import { db } from "@/db";
 import { payments } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getWebhookSecret, getStripe, eurToCents } from "@/lib/stripe";
+import { getWebhookSecret, eurToCents } from "@/lib/stripe";
 import { settleOfferPayment } from "@/lib/payments";
 import {
   onInvoicePaid,
@@ -40,7 +40,8 @@ export async function POST(request: Request) {
 
   let event: Stripe.Event;
   try {
-    event = getStripe().webhooks.constructEvent(rawBody, signature, webhookSecret);
+    // Проверката на подписа е локална — не иска API ключ.
+    event = Stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
   } catch (err) {
     console.error("[stripe/webhook] Signature verification failed:", err instanceof Error ? err.message : err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });

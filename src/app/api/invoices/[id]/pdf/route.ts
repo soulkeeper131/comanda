@@ -1,6 +1,8 @@
 import { db } from "@/db";
 import { invoices, users, payments } from "@/db/schema";
 import { withAuth, isAdmin } from "@/lib/auth";
+import { companyInfo } from "@/lib/legal";
+import { appHost } from "@/lib/mail-layout";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import jsPDF from "jspdf";
@@ -104,6 +106,26 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
   doc.setDrawColor(228, 233, 240);
   doc.line(14, y, pageWidth - 14, y);
   y += 8;
+
+  // --- Доставчик (данните идват от COMPANY_* в средата) ---
+  const company = companyInfo();
+  doc.setFontSize(12);
+  doc.setTextColor(...brandDark);
+  doc.text("Доставчик", 14, y);
+  y += 7;
+  doc.setFontSize(10);
+  doc.setTextColor(...brandSecondary);
+  for (const line of [
+    company.name || "Данните на доставчика не са настроени (COMPANY_NAME)",
+    company.eik && `ЕИК: ${company.eik}`,
+    company.vat && `ДДС номер: ${company.vat}`,
+    company.address && `Адрес: ${company.address}`,
+    company.mol && `МОЛ: ${company.mol}`,
+  ].filter(Boolean) as string[]) {
+    doc.text(line, 14, y);
+    y += 5;
+  }
+  y += 5;
 
   // --- Данни за клиента ---
   doc.setFontSize(12);
@@ -251,11 +273,14 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
 
   doc.setFontSize(8);
   doc.setTextColor(148, 163, 184);
-  doc.text("Ко Манда ЕООД", pageWidth / 2, footerY + 6, { align: "center" });
-  doc.text("ЕИК: 123456789 | ДДС: BG123456789", pageWidth / 2, footerY + 11, {
-    align: "center",
-  });
-  doc.text("София, ул. Примерна 1 | comanda.bg", pageWidth / 2, footerY + 16, {
+  doc.text(company.name || "Ко Манда", pageWidth / 2, footerY + 6, { align: "center" });
+  doc.text(
+    company.vat ? `ЕИК: ${company.eik} | ДДС: ${company.vat}` : company.eik ? `ЕИК: ${company.eik} | Не е регистриран по ЗДДС (чл. 113, ал. 9 ЗДДС)` : "",
+    pageWidth / 2,
+    footerY + 11,
+    { align: "center" },
+  );
+  doc.text([company.address, appHost()].filter(Boolean).join(" | "), pageWidth / 2, footerY + 16, {
     align: "center",
   });
   doc.text(
