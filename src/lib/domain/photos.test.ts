@@ -37,3 +37,17 @@ describe("resolveOwningProperty", () => {
     expect(resolveOwningProperty("c.jpg", rows)).toBeNull();
   });
 });
+
+describe("resolveOwningProperty — снимки към оферта", () => {
+  it("снимка → оферта → констатация → имот", () => {
+    const rows = {
+      evidence: [],
+      jobs: [],
+      findingPhotos: [],
+      findings: [{ id: "f9", property_id: "p9" }],
+      offerPhotos: [{ storage_path: "d.jpg", offer_id: "o1" }],
+      offers: [{ id: "o1", finding_id: "f9" }],
+    };
+    expect(resolveOwningProperty("d.jpg", rows)).toBe("p9");
+  });
+});

@@ -4,11 +4,11 @@ import { eq, and, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
 import { notifyOwner } from "@/lib/notifications";
-import { withAuth } from "@/lib/auth";
+import { withAuth, canCompleteJobItem } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, { params }) => {
+export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, { session, params }) => {
   try {
     const { id } = params;
 
@@ -16,6 +16,10 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, 
     const job = db.select().from(jobs).where(eq(jobs.id, id)).get();
     if (!job) {
       return NextResponse.json({ error: "Задачата не е намерена" }, { status: 404 });
+    }
+
+    if (!canCompleteJobItem(session, job)) {
+      return NextResponse.json({ error: "Обходът не е възложен на вас" }, { status: 403 });
     }
 
     if (job.status !== "in_progress") {
@@ -125,7 +129,7 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, 
           <p style="color: #247ba0;"><strong>Задача:</strong> ${job.title || "Обход"}</p>
           <p style="color: #247ba0;"><strong>Завършен на:</strong> ${new Date().toLocaleString("bg-BG")}</p>
           <hr style="border: none; border-top: 1px solid #e4e9f0; margin: 20px 0;" />
-          <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.blv.bg</p>
+          <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.bg</p>
         </div>
       `;
 

@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySession } from "./session";
 import type { Role, SessionData } from "./session";
+import { currentUserState } from "./user-state";
 
 export type AuthedContext = {
   session: SessionData;
@@ -32,11 +33,15 @@ export function withAuth(options: AuthOptions, handler: Handler) {
     ctx: RouteContext = {},
   ): Promise<Response> {
     const raw = (await cookies()).get(SESSION_COOKIE)?.value;
-    const session = raw ? verifySession(raw) : null;
+    const token = raw ? verifySession(raw) : null;
+    const state = token ? currentUserState(token.uid) : null;
 
-    if (!session) {
+    if (!token || !state || !state.active) {
       return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
     }
+
+    // Ролята идва от базата, не от бисквитката — смяната важи веднага.
+    const session: SessionData = { ...token, role: state.role };
 
     if (options.role && !options.role.includes(session.role)) {
       return NextResponse.json(

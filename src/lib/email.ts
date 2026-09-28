@@ -28,7 +28,7 @@ const DEFAULT_TEMPLATES: Record<TemplateKey, EmailTemplate> = {
 <p>Здравей, <strong>{{name}}</strong>!</p>
 <p>Твоят профил е създаден успешно. Вече можеш да влезеш в приложението и да:</p>
 <ul><li>Разглеждаш имотите си</li><li>Следиш обходите</li><li>Получаваш оферти за ремонт</li></ul>
-<a href="https://comanda.blv.bg/login" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none">Влез в приложението</a>
+<a href="https://comanda.bg/login" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none">Влез в приложението</a>
 </div>`
   },
   job_assigned: {
@@ -37,7 +37,7 @@ const DEFAULT_TEMPLATES: Record<TemplateKey, EmailTemplate> = {
 <h2 style="color:#006494">📋 Нов обход</h2>
 <p>Възложен е обход на <strong>{{property}}</strong> за <strong>{{date}}</strong>.</p>
 <p>Изпълнител: {{worker}}</p>
-<a href="https://comanda.blv.bg/login" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none">Виж в приложението</a>
+<a href="https://comanda.bg/login" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none">Виж в приложението</a>
 </div>`
   },
   job_completed: {
@@ -46,7 +46,7 @@ const DEFAULT_TEMPLATES: Record<TemplateKey, EmailTemplate> = {
 <h2 style="color:#006494">✅ Обход завършен</h2>
 <p>Обходът на <strong>{{property}}</strong> е завършен успешно от {{worker}}.</p>
 <p>Времетраене: {{duration}} мин</p>
-<a href="https://comanda.blv.bg/login" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none">Виж отчета</a>
+<a href="https://comanda.bg/login" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none">Виж отчета</a>
 </div>`
   },
   finding_new: {
@@ -56,7 +56,7 @@ const DEFAULT_TEMPLATES: Record<TemplateKey, EmailTemplate> = {
 <p><strong>{{property}}</strong></p>
 <p>{{title}}</p>
 <p>{{body}}</p>
-<a href="https://comanda.blv.bg/login" style="display:inline-block;padding:12px 24px;background:#d97706;color:#fff;border-radius:8px;text-decoration:none">Виж детайли</a>
+<a href="https://comanda.bg/login" style="display:inline-block;padding:12px 24px;background:#d97706;color:#fff;border-radius:8px;text-decoration:none">Виж детайли</a>
 </div>`
   },
   offer_new: {
@@ -66,7 +66,7 @@ const DEFAULT_TEMPLATES: Record<TemplateKey, EmailTemplate> = {
 <p><strong>{{property}}</strong></p>
 <p>Сума: <strong>{{price}}€</strong> | Срок: {{days}} дни</p>
 <p>{{scope}}</p>
-<a href="https://comanda.blv.bg/login" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none">Виж и отговори</a>
+<a href="https://comanda.bg/login" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none">Виж и отговори</a>
 </div>`
   },
   offer_decided: {
@@ -74,7 +74,7 @@ const DEFAULT_TEMPLATES: Record<TemplateKey, EmailTemplate> = {
     html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:24px;background:#e8f1f2;border-radius:12px">
 <h2 style="color:#006494">{{decision}} оферта</h2>
 <p>Офертата за <strong>{{property}}</strong> ({{price}}€) е <strong>{{decision_lower}}</strong>.</p>
-<a href="https://comanda.blv.bg/login" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none">Виж в приложението</a>
+<a href="https://comanda.bg/login" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none">Виж в приложението</a>
 </div>`
   },
   inquiry_new: {

@@ -20,8 +20,9 @@ export const GET = withAuth({}, async (_request, { session }) => {
   return NextResponse.json(rows);
 });
 
-// POST /api/invoices — генерира "фактура" (просто запис с номер)
-export const POST = withAuth({}, async (request, { session }) => {
+// POST /api/invoices — ръчна фактура. Само админ — фактурите иначе се
+// създават автоматично при потвърдено плащане.
+export const POST = withAuth({ role: ["admin"] }, async (request, { session }) => {
   const body = await request.json().catch(() => ({}));
   const { payment_id, number, amount, description } = body;
 
@@ -32,7 +33,7 @@ export const POST = withAuth({}, async (request, { session }) => {
   const id = crypto.randomUUID();
   db.insert(invoices).values({
     id,
-    user_id: session.uid,
+    user_id: typeof body.user_id === "string" ? body.user_id : session.uid,
     payment_id: payment_id || null,
     number,
     amount: amount ?? null,

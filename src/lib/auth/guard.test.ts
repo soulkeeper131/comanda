@@ -10,6 +10,13 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
+// Базата е заменена с таблица: a1 е админ, останалите — клиенти.
+const dbUsers: Record<string, { active: boolean; role: string }> = {};
+vi.mock("./user-state", () => ({
+  currentUserState: (uid: string) =>
+    dbUsers[uid] ?? { active: true, role: uid === "a1" ? "admin" : "client" },
+}));
+
 describe("withAuth", () => {
   beforeEach(() => {
     process.env.SESSION_SECRET = VALID_SECRET;
@@ -96,5 +103,25 @@ describe("withAuth", () => {
     const res = await handler(new Request("http://localhost/api/x"), { params: {} });
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toContain("тайна");
+  });
+
+  it("връща 401 за деактивиран потребител с валидна бисквитка", async () => {
+    const { withAuth } = await import("./guard");
+    const { signSession } = await import("./session");
+    dbUsers["gone"] = { active: false, role: "client" };
+    cookieValue = signSession({ uid: "gone", role: "client", org_id: "org1" });
+    const handler = withAuth({}, async () => Response.json({ ok: true }));
+    const res = await handler(new Request("http://localhost/api/x"), { params: {} });
+    expect(res.status).toBe(401);
+  });
+
+  it("ролята идва от базата, не от бисквитката", async () => {
+    const { withAuth } = await import("./guard");
+    const { signSession } = await import("./session");
+    dbUsers["demoted"] = { active: true, role: "client" };
+    cookieValue = signSession({ uid: "demoted", role: "admin", org_id: "org1" });
+    const handler = withAuth({ role: ["admin"] }, async () => Response.json({ ok: true }));
+    const res = await handler(new Request("http://localhost/api/x"), { params: {} });
+    expect(res.status).toBe(403);
   });
 });

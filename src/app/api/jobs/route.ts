@@ -7,25 +7,6 @@ import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-// Fire-and-forget push notification
-async function pushNotify(title: string, propertyId: string) {
-  try {
-    const prop = db.select().from(properties).where(eq(properties.id, propertyId)).get();
-    const propName = prop?.name || "Имот";
-    await fetch(`${process.env.NEXT_PUBLIC_APP_URL || "https://comanda.blv.bg"}/api/push/send`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: "📋 Нова задача",
-        body: `${title} — ${propName}`,
-        url: "/dashboard",
-      }),
-    });
-  } catch (e) {
-    // Silently fail — push is best-effort
-  }
-}
-
 // GET /api/jobs?assignee_id=X&status=Y
 export const GET = withAuth({}, async (request, { session }) => {
   try {
@@ -200,18 +181,13 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
       .returning()
       .all();
 
-    // Fire push notification (non-blocking)
-    pushNotify(jobTitle, property_id).catch((e) =>
-      console.error("Push notify error:", e)
-    );
-
     // Notify assignee (worker) about new job
     if (assignee_id) {
       const prop = db.select({ name: properties.name }).from(properties).where(eq(properties.id, property_id)).get();
       createNotification(
         assignee_id,
         "job_started",
-        "📋 Възложен нов обход",
+        "Възложен нов обход",
         `${jobTitle} — ${prop?.name || "Имот"}`,
         "/dashboard",
       );

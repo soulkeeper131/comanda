@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
 import { db } from "@/db";
-import { payments } from "@/db/schema";
+import { payments, offers, findings, properties } from "@/db/schema";
+import { canDecideOffer } from "@/lib/auth";
+import { canTransition, type OfferDecision } from "@/lib/domain/offers";
 import { eq } from "drizzle-orm";
 import { validateStripeAmount, eurToCents, getStripeOrNull } from "@/lib/stripe";
 
@@ -9,29 +11,48 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/stripe/checkout
- * Body: { plan?, propertyId?, offerId?, amount, currency? }
+ * Body: { offerId }
  *
- * Създава Stripe Checkout Session и връща URL + sessionId + paymentId.
- * Записва payment запис в DB със status="pending" и stripe_session_id.
+ * Плащане по оферта. Сумата, собственикът и статусът идват от базата, НЕ от
+ * тялото на заявката — иначе клиент плаща 0.50 € за оферта от 5000 €.
  */
-export const POST = withAuth({}, async (request, { session }) => {
+export const POST = withAuth({ role: ["client"] }, async (request, { session }) => {
   try {
     const body = await request.json().catch(() => ({}));
-    let { plan, propertyId, offerId, amount, currency } = body;
+    const offerId: unknown = body?.offerId;
 
-    amount = parseFloat(amount);
-    currency = currency || "eur";
+    if (typeof offerId !== "string" || !offerId) {
+      return NextResponse.json({ error: "Липсва оферта" }, { status: 400 });
+    }
 
-    if (!amount || isNaN(amount) || amount <= 0) {
+    const row = db
+      .select({ offer: offers, owner_id: properties.owner_id })
+      .from(offers)
+      .innerJoin(findings, eq(offers.finding_id, findings.id))
+      .innerJoin(properties, eq(findings.property_id, properties.id))
+      .where(eq(offers.id, offerId))
+      .get();
+
+    if (!row || !canDecideOffer(session, { owner_id: row.owner_id })) {
+      return NextResponse.json({ error: "Офертата не е намерена" }, { status: 404 });
+    }
+
+    const offer = row.offer;
+    if (!canTransition(offer.decision as OfferDecision, "paid", offer.price)) {
       return NextResponse.json(
-        { error: "Сумата е задължителна и трябва да е положителна" },
-        { status: 400 }
+        { error: "Тази оферта не чака плащане" },
+        { status: 409 },
       );
     }
 
+    const amount = Number(offer.price ?? 0);
+    const currency = "eur";
+    const plan = "";
+    const propertyId = "";
+
     if (!validateStripeAmount(amount)) {
       return NextResponse.json(
-        { error: "Минималната сума за Stripe плащане е 0.50€" },
+        { error: "Минималната сума за плащане с карта е 0.50 €" },
         { status: 400 }
       );
     }
@@ -39,11 +60,18 @@ export const POST = withAuth({}, async (request, { session }) => {
     const appUrl =
       request.headers.get("origin") ||
       process.env.NEXT_PUBLIC_APP_URL ||
-      "https://comanda.blv.bg";
+      "https://comanda.bg";
 
     const stripe = getStripeOrNull();
 
-    // Ако Stripe не е конфигуриран — dev fallback: директно маркираме като платено
+    if (!stripe && process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "Плащането с карта не е настроено. Моля, платете по банков път." },
+        { status: 503 },
+      );
+    }
+
+    // Само при локална разработка без Stripe ключ — симулирано плащане.
     if (!stripe) {
       const paymentId = crypto.randomUUID();
       db.insert(payments)

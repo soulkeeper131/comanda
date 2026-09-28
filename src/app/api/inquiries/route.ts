@@ -46,7 +46,7 @@ export async function POST(request: Request) {
           ${service ? `<p style="color: #247ba0;"><strong>Услуга:</strong> ${service}</p>` : ""}
           ${message ? `<p style="color: #247ba0;"><strong>Съобщение:</strong> ${message}</p>` : ""}
           <hr style="border: none; border-top: 1px solid #e4e9f0; margin: 20px 0;" />
-          <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.blv.bg</p>
+          <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.bg</p>
         </div>
       `,
     }).catch(() => {});

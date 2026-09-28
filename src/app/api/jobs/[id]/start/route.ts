@@ -3,7 +3,7 @@ import { jobs, templateItems, jobItems, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { notifyOwner } from "@/lib/notifications";
-import { withAuth, canOverride } from "@/lib/auth";
+import { withAuth, canOverride, isAdmin } from "@/lib/auth";
 import { distanceMeters } from "@/lib/geo";
 import { recordOverride, normalizeOverrideReason } from "@/lib/domain/overrides";
 
@@ -13,7 +13,7 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
   try {
     const { id } = params;
     const body = await request.json().catch(() => ({}));
-    const { lat, lng, override_reason } = body ?? {};
+    const { lat, lng, override_reason, client_at } = body ?? {};
 
     // Get the job
     const job = db.select().from(jobs).where(eq(jobs.id, id)).get();
@@ -26,6 +26,13 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
         { error: "Задачата няма свързан шаблон" },
         { status: 400 }
       );
+    }
+
+    // Инспектор стартира само своя обход. Невъзложен обход се взема от
+    // инспектора, който го стартира — иначе остава in_progress без човек,
+    // който има право да отмята стъпките му.
+    if (job.assignee_id && job.assignee_id !== session.uid && !isAdmin(session)) {
+      return NextResponse.json({ error: "Обходът е възложен на друг инспектор" }, { status: 403 });
     }
 
     if (job.status !== "planned") {
@@ -140,6 +147,8 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
         check_in: now,
         check_in_lat: hasCoords ? lat : null,
         check_in_lng: hasCoords ? lng : null,
+        check_in_client_at: typeof client_at === "string" ? client_at : null,
+        assignee_id: job.assignee_id ?? (session.role === "inspector" ? session.uid : null),
       })
       .where(eq(jobs.id, id))
       .run();

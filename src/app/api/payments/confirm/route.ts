@@ -5,6 +5,8 @@ import { payments, offers, invoices, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
+import { canTransition, type OfferDecision } from "@/lib/domain/offers";
+import { getPrepayThreshold } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -67,9 +69,9 @@ export const POST = withAuth({ role: ["admin"] }, async (request) => {
         .where(eq(offers.id, payment.offer_id))
         .get();
 
-      if (offer && offer.decision === "accepted") {
+      if (offer && canTransition(offer.decision as OfferDecision, "paid", offer.price, getPrepayThreshold())) {
         db.update(offers)
-          .set({ decision: "paid" })
+          .set({ decision: "paid", paid_at: now })
           .where(eq(offers.id, payment.offer_id))
           .run();
       }
@@ -109,7 +111,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request) => {
       "offer_decided",
       "✅ Плащането е потвърдено",
       `Плащане от ${payment.amount.toFixed(2)}€ е потвърдено. Фактура: ${invoiceNumber}`,
-      "/dashboard/payments"
+      "/dashboard"
     );
 
     // Email
@@ -126,7 +128,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request) => {
             <p style="color:#247ba0"><strong>Метод:</strong> ${payment.method === "transfer" ? "Банков превод" : "Карта"}</p>
             <p style="color:#247ba0"><strong>Фактура:</strong> ${invoiceNumber}</p>
             <hr style="border:none;border-top:1px solid #e4e9f0;margin:20px 0" />
-            <p style="color:#94a3b8;font-size:12px">Ко Манда — comanda.blv.bg</p>
+            <p style="color:#94a3b8;font-size:12px">Ко Манда — comanda.bg</p>
           </div>
         `,
       }).catch(() => {});
@@ -139,9 +141,9 @@ export const POST = withAuth({ role: ["admin"] }, async (request) => {
             <h2 style="color:#16a34a">✅ Плащането е потвърдено</h2>
             <p style="color:#247ba0">Вашето плащане от <strong>${payment.amount.toFixed(2)}€</strong> е потвърдено.</p>
             <p style="color:#247ba0"><strong>Фактура:</strong> ${invoiceNumber}</p>
-            <a href="https://comanda.blv.bg/dashboard/payments" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none;margin-top:12px">Към таблото</a>
+            <a href="https://comanda.bg/dashboard" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none;margin-top:12px">Към таблото</a>
             <hr style="border:none;border-top:1px solid #e4e9f0;margin:20px 0" />
-            <p style="color:#94a3b8;font-size:12px">Ко Манда — comanda.blv.bg</p>
+            <p style="color:#94a3b8;font-size:12px">Ко Манда — comanda.bg</p>
           </div>
         `,
       }).catch(() => {});

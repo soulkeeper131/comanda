@@ -255,7 +255,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
   doc.text("ЕИК: 123456789 | ДДС: BG123456789", pageWidth / 2, footerY + 11, {
     align: "center",
   });
-  doc.text("София, ул. Примерна 1 | comanda.blv.bg", pageWidth / 2, footerY + 16, {
+  doc.text("София, ул. Примерна 1 | comanda.bg", pageWidth / 2, footerY + 16, {
     align: "center",
   });
   doc.text(

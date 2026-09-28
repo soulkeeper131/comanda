@@ -25,11 +25,18 @@ function getLimit(pathname: string): number {
   return 60;
 }
 
-/** Extract client IP, respecting x-forwarded-for */
+/**
+ * IP на клиента. Първата стойност в X-Forwarded-For се задава от клиента и
+ * е подправима — с въртене на хедъра лимитът за вход се заобикаля. Traefik
+ * (Coolify) слага реалния адрес в X-Real-Ip и го добавя НАКРАЯ на XFF.
+ */
 function getIP(request: Request): string {
+  const realIp = request.headers.get("x-real-ip");
+  if (realIp) return realIp.trim();
   const xff = request.headers.get("x-forwarded-for");
   if (xff) {
-    return xff.split(",")[0].trim();
+    const hops = xff.split(",").map((h) => h.trim()).filter(Boolean);
+    if (hops.length) return hops[hops.length - 1];
   }
   // In Edge/Node, fallback to connection info if available
   const req = request as Request & { ip?: string };

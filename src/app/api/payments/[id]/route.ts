@@ -6,8 +6,9 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-// PATCH /api/payments/[id] — сменя статус ("paid") — БУТАФОРНО
-export const PATCH = withAuth({}, async (request, { session, params }) => {
+// PATCH /api/payments/[id] — сменя статус. САМО админ: иначе клиентът сам си
+// маркира плащане като платено. Банковите преводи се потвърждават от админ.
+export const PATCH = withAuth({ role: ["admin"] }, async (request, { session, params }) => {
   const { id } = params;
   const payment = db.select().from(payments).where(eq(payments.id, id)).get();
 

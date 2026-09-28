@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { payments, offers, invoices, users } from "@/db/schema";
-import { getWebhookSecret, getStripe } from "@/lib/stripe";
+import { getWebhookSecret, getStripe, eurToCents } from "@/lib/stripe";
+import { getPrepayThreshold } from "@/lib/settings";
 import { canTransition, type OfferDecision } from "@/lib/domain/offers";
 import { eq } from "drizzle-orm";
 import { sendEmail, getNotifyEmail } from "@/lib/email";
@@ -124,6 +125,19 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
+  // Сумата и статусът се сверяват с това, което Stripe реално е събрал —
+  // не с това, което е записано при създаването на сесията.
+  if (session.payment_status !== "paid") {
+    console.warn(`[stripe/webhook] Session ${session.id} is not paid (${session.payment_status}), skipping`);
+    return;
+  }
+  if (session.amount_total !== eurToCents(payment.amount)) {
+    console.error(
+      `[stripe/webhook] Amount mismatch for payment ${paymentId}: expected ${eurToCents(payment.amount)}, got ${session.amount_total}`,
+    );
+    return;
+  }
+
   const paymentIntentId =
     typeof session.payment_intent === "string"
       ? session.payment_intent
@@ -154,9 +168,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     // Преходът минава през същата карта, която пази PATCH route-а — за да
     // няма два източника на истина. Само Stripe има право на accepted → paid.
-    if (offer && canTransition(offer.decision as OfferDecision, "paid")) {
+    if (offer && canTransition(offer.decision as OfferDecision, "paid", offer.price, getPrepayThreshold())) {
       db.update(offers)
-        .set({ decision: "paid" })
+        .set({ decision: "paid", paid_at: now })
         .where(eq(offers.id, payment.offer_id))
         .run();
 
@@ -205,12 +219,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     "offer_decided",
     "✅ Плащането е успешно",
     `Плащане от ${payment.amount.toFixed(2)}€ е обработено успешно. Фактура: ${invoiceNumber}`,
-    "/dashboard/payments"
+    "/dashboard"
   );
 
   // Email нотификация
   const notifyEmail = await getNotifyEmail();
-  if (notifyEmail && user?.email) {
+  if (notifyEmail) {
     sendEmail({
       to: notifyEmail,
       subject: `💰 Ново плащане: ${payment.amount.toFixed(2)}€ от ${userName}`,
@@ -222,12 +236,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
           <p style="color:#247ba0"><strong>Фактура:</strong> ${invoiceNumber}</p>
           ${payment.offer_id ? `<p style="color:#247ba0"><strong>Оферта:</strong> #${payment.offer_id.slice(0, 8)}</p>` : ""}
           <hr style="border:none;border-top:1px solid #e4e9f0;margin:20px 0" />
-          <p style="color:#94a3b8;font-size:12px">Ко Манда — comanda.blv.bg</p>
+          <p style="color:#94a3b8;font-size:12px">Ко Манда — comanda.bg</p>
         </div>
       `,
     }).catch(() => {});
+  }
 
-    // Изпрати и на клиента
+  // Изпрати и на клиента
+  if (user?.email) {
     sendEmail({
       to: user.email,
       subject: `✅ Плащането от ${payment.amount.toFixed(2)}€ е потвърдено`,
@@ -237,9 +253,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
           <p style="color:#247ba0">Благодарим ви! Плащането от <strong>${payment.amount.toFixed(2)}€</strong> е обработено успешно.</p>
           <p style="color:#247ba0"><strong>Фактура:</strong> ${invoiceNumber}</p>
           <p style="color:#247ba0">Можете да изтеглите фактурата от таблото си.</p>
-          <a href="https://comanda.blv.bg/dashboard/payments" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none;margin-top:12px">Към таблото</a>
+          <a href="https://comanda.bg/dashboard" style="display:inline-block;padding:12px 24px;background:#1b98e0;color:#fff;border-radius:8px;text-decoration:none;margin-top:12px">Към таблото</a>
           <hr style="border:none;border-top:1px solid #e4e9f0;margin:20px 0" />
-          <p style="color:#94a3b8;font-size:12px">Ко Манда — comanda.blv.bg</p>
+          <p style="color:#94a3b8;font-size:12px">Ко Манда — comanda.bg</p>
         </div>
       `,
     }).catch(() => {});

@@ -1,7 +1,7 @@
 import webpush from "web-push";
 import { db } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 export function getVapidKeys() {
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -22,12 +22,40 @@ export function ensureWebpushConfigured() {
   const { publicKey, privateKey } = getVapidKeys();
 
   webpush.setVapidDetails(
-    "mailto:admin@comanda.blv.bg",
+    "mailto:admin@comanda.bg",
     publicKey,
     privateKey
   );
 
   webpushInitialized = true;
+}
+
+export function isPushConfigured(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+}
+
+/**
+ * Push само до устройствата на конкретни потребители. За разлика от
+ * sendPushToAll не издава чужди имоти/адреси на други клиенти.
+ */
+export async function sendPushToUsers(userIds: string[], title: string, body: string, url: string = "/dashboard") {
+  if (!isPushConfigured() || userIds.length === 0) return;
+  try {
+    ensureWebpushConfigured();
+    const subs = db.select().from(pushSubscriptions).where(inArray(pushSubscriptions.user_id, userIds)).all();
+    const payload = JSON.stringify({ title, body, url });
+    for (const row of subs) {
+      try {
+        await webpush.sendNotification(JSON.parse(row.subscription), payload);
+      } catch (err: any) {
+        if (err?.statusCode === 410 || err?.statusCode === 404) {
+          db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, row.id)).run();
+        }
+      }
+    }
+  } catch (error) {
+    console.error("sendPushToUsers error:", error);
+  }
 }
 
 /**

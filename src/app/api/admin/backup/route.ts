@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
 import fs from "fs";
 import path from "path";
+import { backupDatabase } from "@/db";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
  * Returns { success, path, filename } with the backup file info.
  */
 export const GET = withAuth({ role: ["admin"] }, async () => {
+  // Само базата — пълният архив (база + снимки) е scripts/backup-db.sh.
   const dbDir = path.join(process.cwd(), "data");
   const src = path.join(dbDir, "sqlite.db");
 
@@ -34,7 +36,7 @@ export const GET = withAuth({ role: ["admin"] }, async () => {
   const dest = path.join(backupsDir, filename);
 
   try {
-    fs.copyFileSync(src, dest);
+    await backupDatabase(dest);
   } catch (err) {
     console.error("[BACKUP] Copy failed:", err);
     return NextResponse.json(

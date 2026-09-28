@@ -68,7 +68,7 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
           <p style="color: #247ba0;"><strong>Задача:</strong> ${job.title || "Обход"}</p>
           <p style="color: #247ba0;"><strong>Причина:</strong> ${normalizedReason}</p>
           <hr style="border: none; border-top: 1px solid #e4e9f0; margin: 20px 0;" />
-          <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.blv.bg</p>
+          <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.bg</p>
         </div>
       `;
 

@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { payments } from "@/db/schema";
+import { payments, offers, findings, properties } from "@/db/schema";
 import { withAuth, isAdmin } from "@/lib/auth";
 import { eq, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -20,26 +20,39 @@ export const GET = withAuth({}, async (_request, { session }) => {
   return NextResponse.json(rows);
 });
 
-// POST /api/payments — създава "плащане" (бутафорно)
-export const POST = withAuth({}, async (request, { session }) => {
+// POST /api/payments — клиентът заявява плащане по банка за своя оферта.
+// Записва се като "pending"; админът го потвърждава (/api/payments/confirm).
+// Сумата идва от офертата, не от тялото на заявката.
+export const POST = withAuth({ role: ["client"] }, async (request, { session }) => {
   const body = await request.json().catch(() => ({}));
-  const { offer_id, amount, method } = body;
+  const offerId = body.offer_id;
+  const method = body.method ?? body.payment_method ?? "transfer";
 
-  if (!amount || amount <= 0) {
-    return NextResponse.json({ error: "Сумата е задължителна и трябва да е положителна" }, { status: 400 });
+  if (!["transfer", "bank"].includes(method)) {
+    return NextResponse.json({ error: "За плащане с карта използвайте Stripe" }, { status: 400 });
+  }
+  if (typeof offerId !== "string") {
+    return NextResponse.json({ error: "Липсва оферта" }, { status: 400 });
   }
 
-  if (method && !["card", "transfer"].includes(method)) {
-    return NextResponse.json({ error: "Методът трябва да е 'card' или 'transfer'" }, { status: 400 });
+  const row = db
+    .select({ offer: offers, owner_id: properties.owner_id })
+    .from(offers)
+    .innerJoin(findings, eq(offers.finding_id, findings.id))
+    .innerJoin(properties, eq(findings.property_id, properties.id))
+    .where(eq(offers.id, offerId))
+    .get();
+  if (!row || row.owner_id !== session.uid) {
+    return NextResponse.json({ error: "Офертата не е намерена" }, { status: 404 });
   }
 
   const id = crypto.randomUUID();
   db.insert(payments).values({
     id,
     user_id: session.uid,
-    offer_id: offer_id || null,
-    amount,
-    method: method || "card",
+    offer_id: offerId,
+    amount: row.offer.price ?? 0,
+    method: "bank",
     status: "pending",
   }).run();
 

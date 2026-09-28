@@ -48,7 +48,7 @@ export const GET = withAuth({}, async (request) => {
       `&limit=6&addressdetails=1&countrycodes=bg&accept-language=bg`;
 
     const response = await fetch(url, {
-      headers: { "User-Agent": "KoManda/1.0 (comanda.blv.bg)" },
+      headers: { "User-Agent": "KoManda/1.0 (comanda.bg)" },
       // Nominatim иска да не го заливаме; кешираме за минута.
       next: { revalidate: 60 },
     });
