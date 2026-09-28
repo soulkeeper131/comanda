@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { Icon, type IconName } from "@/components/ui/Icon";
 
 const PLANS = [
   {
     key: "year",
-    icon: "🔄",
+    icon: "refresh" as IconName,
     name: "Пълен надзор",
     price: "60€",
     period: "/месец",
@@ -15,7 +16,7 @@ const PLANS = [
   },
   {
     key: "winter",
-    icon: "❄️",
+    icon: "snowflake" as IconName,
     name: "Зимен сезон",
     price: "40€",
     period: "/месец",
@@ -24,7 +25,7 @@ const PLANS = [
   },
   {
     key: "summer",
-    icon: "☀️",
+    icon: "sun" as IconName,
     name: "Летен сезон",
     price: "50€",
     period: "/месец",
@@ -33,7 +34,8 @@ const PLANS = [
   },
 ];
 
-export default function HeroSection() {
+/** prices: цените от каталога по име на пакет (идват от страницата). */
+export default function HeroSection({ prices = {} }: { prices?: Record<string, number> }) {
   const [modalOpen, setModalOpen] = useState(false);
 
   // Close on Escape + lock body scroll
@@ -120,10 +122,11 @@ export default function HeroSection() {
               </h2>
               <button
                 onClick={() => setModalOpen(false)}
-                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition text-xl"
+                className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-gray-100 transition"
                 style={{ color: "#64748b" }}
+                aria-label="Затвори"
               >
-                ✕
+                <Icon name="x" />
               </button>
             </div>
 
@@ -135,13 +138,13 @@ export default function HeroSection() {
                   className="flex flex-col bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-[#1b98e0] transition-all group"
                   onClick={() => setModalOpen(false)}
                 >
-                  <div className="text-3xl mb-3">{plan.icon}</div>
+                  <div className="mb-3" style={{ color: "#1b98e0" }}><Icon name={plan.icon} size={30} /></div>
                   <h3 className="font-bold text-lg mb-1" style={{ color: "#006494" }}>
                     {plan.name}
                   </h3>
                   <div className="flex items-baseline gap-1 mb-2">
                     <span className="text-2xl font-extrabold" style={{ color: "#1b98e0" }}>
-                      {plan.price}
+                      {prices[plan.name] !== undefined ? `${prices[plan.name]}€` : plan.price}
                     </span>
                     <span className="text-sm" style={{ color: "#64748b" }}>
                       {plan.period}
@@ -153,7 +156,7 @@ export default function HeroSection() {
                   <ul className="space-y-1">
                     {plan.features.map((f) => (
                       <li key={f} className="text-xs flex items-center gap-1.5" style={{ color: "#64748b" }}>
-                        <span style={{ color: "#22c55e" }}>✓</span> {f}
+                        <Icon name="check" size={14} className="text-state-ok" /> {f}
                       </li>
                     ))}
                   </ul>
@@ -174,7 +177,7 @@ export default function HeroSection() {
               className="block border-2 border-dashed rounded-xl p-4 text-center hover:bg-purple-50 hover:border-[#a663cc] transition-all"
               style={{ borderColor: "var(--accent)" }}
             >
-              <div className="text-2xl mb-2">✎</div>
+              <div className="mb-2 flex justify-center" style={{ color: "var(--accent)" }}><Icon name="edit" size={26} /></div>
               <h3 className="font-bold text-lg" style={{ color: "#006494" }}>
                 По заявка
               </h3>

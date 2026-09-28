@@ -1,10 +1,31 @@
 import Link from "next/link";
 import HeroSection from "@/components/HeroSection";
+import InquiryForm from "@/components/InquiryForm";
+import { Icon, type IconName } from "@/components/ui/Icon";
+import { loadCatalog } from "@/lib/catalog";
+import { companyInfo } from "@/lib/legal";
 
 export const dynamic = "force-dynamic";
 
-// FORCE_REBUILD: cache-bust 2026-08-05-a
+/**
+ * Публичната страница. Цените на абонаментите идват от каталога в базата —
+ * същите, които клиентът вижда след регистрация. Ако пакетът липсва в
+ * каталога, остава цената от текста.
+ */
 export default function Home() {
+  let catalog: { name: string; price: number }[] = [];
+  try {
+    catalog = loadCatalog();
+  } catch {
+    /* празна база — остават цените от текста */
+  }
+  const priceOf = (name: string, fallback: number) => {
+    const p = catalog.find((c) => c.name === name)?.price ?? fallback;
+    return Number.isInteger(p) ? p : p.toFixed(2);
+  };
+  const packageNames = catalog.length ? catalog.map((c) => c.name) : ["Пълен надзор", "Зимен сезон", "Летен сезон"];
+  const contactEmail = companyInfo().email || "vladimir.jotov@gmail.com";
+
   return (
     <>
       {/* ================= НАЧАЛНА СТРАНИЦА ================= */}
@@ -23,7 +44,7 @@ export default function Home() {
         </div>
       </nav>
 
-      <HeroSection />
+      <HeroSection prices={Object.fromEntries(catalog.map((c) => [c.name, c.price]))} />
 
       {/* ============ ЗАЩО ============ */}
       <section className="l-sec l-sec-alt" id="why">
@@ -41,7 +62,7 @@ export default function Home() {
 
           <div className="l-risks">
             <div className="l-risk relative">
-              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1 }}>💧</div>
+              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1 }}><Icon name="droplet" size={42} /></div>
               <h4>Теч, който никой не чува</h4>
               <p>
                 Спукана връзка капе седмици. При обитаван имот се хваща за час.
@@ -49,7 +70,7 @@ export default function Home() {
               </p>
             </div>
             <div className="l-risk relative">
-              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1 }}>🌫️</div>
+              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1 }}><Icon name="cloud" size={42} /></div>
               <h4>Влага и мухъл</h4>
               <p>
                 Без проветряване въздухът застоява. Мухълът тръгва от ъглите и первазите
@@ -57,7 +78,7 @@ export default function Home() {
               </p>
             </div>
             <div className="l-risk relative">
-              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1 }}>🚱</div>
+              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1 }}><Icon name="droplet" size={42} /></div>
               <h4>Изсъхнали сифони</h4>
               <p>
                 Водата в сифона се изпарява за седмици и канализацията започва да мирише
@@ -93,7 +114,7 @@ export default function Home() {
                 сезонът и кога свършва — чек-листът се сменя сам.
               </div>
               <div className="l-sub-price">
-                <span className="v">60</span>
+                <span className="v">{priceOf("Пълен надзор", 60)}</span>
                 <span className="u">€ / месец</span>
               </div>
               <div className="cad">2 обхода месечно · чек-листът следва сезона</div>
@@ -111,14 +132,14 @@ export default function Home() {
 
             {/* Зимен */}
             <div className="l-sub-card l-winter">
-              <div className="season">❄ Октомври – Април</div>
+              <div className="season">Октомври – Април</div>
               <h3>Зимен сезон</h3>
               <div className="d">
                 Месеците, в които празният имот се поврежда сам — влага, мухъл,
                 изсъхнали сифони, замръзнала тръба.
               </div>
               <div className="l-sub-price">
-                <span className="v">40</span>
+                <span className="v">{priceOf("Зимен сезон", 40)}</span>
                 <span className="u">€ / месец</span>
               </div>
               <div className="cad">2 обхода месечно · около 40 мин всеки</div>
@@ -137,14 +158,14 @@ export default function Home() {
 
             {/* Летен */}
             <div className="l-sub-card l-summer">
-              <div className="season">☀ Май – Септември</div>
+              <div className="season">Май – Септември</div>
               <h3>Летен сезон</h3>
               <div className="d">
                 По-спокойните месеци, но не и празни — жега, влага от бури,
                 двор и тераса, които обрастват.
               </div>
               <div className="l-sub-price">
-                <span className="v">50</span>
+                <span className="v">{priceOf("Летен сезон", 50)}</span>
                 <span className="u">€ / месец</span>
               </div>
               <div className="cad">2 обхода месечно · около 1 ч всеки</div>
@@ -172,14 +193,14 @@ export default function Home() {
 
           <div className="l-pkgs">
             {[
-              { theme: "hammer", icon: "🔨", title: "Присъствие при майстор", desc: "Водопроводчик, електротехник, техник на асансьора, застрахователен оглед. Някой трябва да е там и да отчете какво е свършено.", price: "20", unit: "€ / до 2 часа", color: "#d97706" },
-              { theme: "alert", icon: "🚨", title: "Извънредна проверка", desc: "След буря, сигнал от съсед, спиране на тока или просто лошо предчувствие. Отиваме до 6 часа и пращаме снимки.", price: "25", unit: "€ / посещение", color: "#ef4444" },
-              { theme: "snow", icon: "❄️", title: "Зимна консервация", desc: "Еднократна подготовка преди дълго отсъствие — спиране на вода, източване на инсталацията, режим на отоплението.", price: "75", unit: "€ еднократно", color: "#3b82f6" },
-              { theme: "box", icon: "📦", title: "Приемане на доставка", desc: "Мебел, техника, пратка с подпис. Приемаме, проверяваме за щети и снимаме опаковката преди и след отваряне.", price: "15", unit: "€ / доставка", color: "#8b5cf6" },
-              { theme: "clean", icon: "🧹", title: "Почистване", desc: "Поливане, косене на тревата, разчистване на листа. Добавя се към обхода или се заявява отделно.", price: "80", unit: "€ / посещение", color: "#22c55e" },
-              { theme: "camera", icon: "📷", title: "Фотоотчет за трета страна", desc: "Пълен снимков протокол за застраховател, банка, купувач или при спор със съсед. С дата, час и координати.", price: "20", unit: "€ / протокол", color: "#a855f7" },
-              { theme: "repair", icon: "🔧", title: "Ремонт по оферта", desc: "Открием ли нещо при обход, получаваш цена, срок и обхват в писмен вид. Организираме майстора. Решаваш ти.", price: "по", unit: "оферта", color: "#64748b" },
-              { theme: "custom", icon: "✎", title: "Твоя услуга", desc: "Нещо, което не е в списъка? Опиши какво ти трябва в запитването — връщаме цена и срок до 24 часа. Ако е изпълнимо, го правим.", price: "по", unit: "заявка", color: "#a663cc" },
+              { theme: "hammer", icon: "wrench" as IconName, title: "Присъствие при майстор", desc: "Водопроводчик, електротехник, техник на асансьора, застрахователен оглед. Някой трябва да е там и да отчете какво е свършено.", price: "20", unit: "€ / до 2 часа", color: "#d97706" },
+              { theme: "alert", icon: "alert" as IconName, title: "Извънредна проверка", desc: "След буря, сигнал от съсед, спиране на тока или просто лошо предчувствие. Отиваме до 6 часа и пращаме снимки.", price: "25", unit: "€ / посещение", color: "#ef4444" },
+              { theme: "snow", icon: "snowflake" as IconName, title: "Зимна консервация", desc: "Еднократна подготовка преди дълго отсъствие — спиране на вода, източване на инсталацията, режим на отоплението.", price: "75", unit: "€ еднократно", color: "#3b82f6" },
+              { theme: "box", icon: "package" as IconName, title: "Приемане на доставка", desc: "Мебел, техника, пратка с подпис. Приемаме, проверяваме за щети и снимаме опаковката преди и след отваряне.", price: "15", unit: "€ / доставка", color: "#8b5cf6" },
+              { theme: "clean", icon: "home" as IconName, title: "Почистване", desc: "Поливане, косене на тревата, разчистване на листа. Добавя се към обхода или се заявява отделно.", price: "80", unit: "€ / посещение", color: "#22c55e" },
+              { theme: "camera", icon: "camera" as IconName, title: "Фотоотчет за трета страна", desc: "Пълен снимков протокол за застраховател, банка, купувач или при спор със съсед. С дата, час и координати.", price: "20", unit: "€ / протокол", color: "#a855f7" },
+              { theme: "repair", icon: "wrench" as IconName, title: "Ремонт по оферта", desc: "Открием ли нещо при обход, получаваш цена, срок и обхват в писмен вид. Организираме майстора. Решаваш ти.", price: "по", unit: "оферта", color: "#64748b" },
+              { theme: "custom", icon: "edit" as IconName, title: "Твоя услуга", desc: "Нещо, което не е в списъка? Опиши какво ти трябва в запитването — връщаме цена и срок до 24 часа. Ако е изпълнимо, го правим.", price: "по", unit: "заявка", color: "#a663cc" },
             ].map(({ theme, icon, title, desc, price, unit, color }, i) => (
               <div
                 key={title}
@@ -193,7 +214,7 @@ export default function Home() {
                 <span
                   className="l-pkg-icon"
                   style={{ position: "absolute", left: "auto", right: 12 }}
-                >{icon}</span>
+                ><Icon name={icon} size={28} /></span>
                 <h3>{title}</h3>
                 <div className="desc">{desc}</div>
                 <div className="l-price">
@@ -258,7 +279,7 @@ export default function Home() {
 
           <div className="l-proof">
             <div className="l-pcard relative">
-              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1, width: "auto", height: "auto", background: "none", borderRadius: 0 }}>📍</div>
+              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1, width: "auto", height: "auto", background: "none", borderRadius: 0 }}><Icon name="pin" size={42} /></div>
               <h4>Потвърдена локация</h4>
               <p>
                 Чек-листът се отключва само когато телефонът е физически в имота.
@@ -266,7 +287,7 @@ export default function Home() {
               </p>
             </div>
             <div className="l-pcard relative">
-              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1, width: "auto", height: "auto", background: "none", borderRadius: 0 }}>📷</div>
+              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1, width: "auto", height: "auto", background: "none", borderRadius: 0 }}><Icon name="camera" size={42} /></div>
               <h4>Снимки от място</h4>
               <p>
                 Само през камерата в приложението — качване от галерия няма.
@@ -274,7 +295,7 @@ export default function Home() {
               </p>
             </div>
             <div className="l-pcard relative">
-              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1, width: "auto", height: "auto", background: "none", borderRadius: 0 }}>✓</div>
+              <div className="ic" style={{ position: "absolute", left: "auto", right: 12, top: 10, fontSize: 42, opacity: 0.12, pointerEvents: "none", lineHeight: 1, width: "auto", height: "auto", background: "none", borderRadius: 0 }}><Icon name="check" size={42} /></div>
               <h4>Последната дума е твоя</h4>
               <p>
                 Преглеждаш отчета и приемаш, приемаш с бележка или оспорваш.
@@ -303,7 +324,7 @@ export default function Home() {
 
               <div className="l-contact-note">
                 <div className="row" style={{ alignItems: "flex-start", gap: 11 }}>
-                  <div style={{ fontSize: 19 }}>📞</div>
+                  <div style={{ color: "var(--accent)" }}><Icon name="phone" size={20} /></div>
                   <div>
                     <div className="strong small">Предпочиташ да се чуем?</div>
                     <div className="tiny muted" style={{ marginTop: 3 }}>
@@ -315,61 +336,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="l-form">
-              <div className="row" style={{ gap: 10 }}>
-                <div className="field" style={{ flex: 1 }}>
-                  <label className="label">Име</label>
-                  <input className="input" placeholder="Име и фамилия" />
-                </div>
-                <div className="field" style={{ flex: 1 }}>
-                  <label className="label">Телефон</label>
-                  <input className="input" type="tel" placeholder="+359 …" />
-                </div>
-              </div>
-              <div className="field">
-                <label className="label">Имейл</label>
-                <input className="input" type="email" placeholder="за да ти изпратим офертата" />
-              </div>
-              <div className="row" style={{ gap: 10 }}>
-                <div className="field" style={{ flex: 1 }}>
-                  <label className="label">Град / район</label>
-                  <input className="input" placeholder="напр. София, Лозенец" />
-                </div>
-                <div className="field" style={{ flex: 1 }}>
-                  <label className="label">Тип имот</label>
-                  <select className="select" defaultValue="Апартамент">
-                    <option>Апартамент</option>
-                    <option>Студио</option>
-                    <option>Къща</option>
-                    <option>Вила</option>
-                    <option>Офис</option>
-                  </select>
-                </div>
-              </div>
-              <div className="field">
-                <label className="label">Какво те интересува</label>
-                <select className="select" defaultValue="Пълен надзор — целогодишно">
-                  <option>Пълен надзор — целогодишно</option>
-                  <option>Зимен сезон</option>
-                  <option>Летен сезон</option>
-                  <option>Еднократна услуга</option>
-                  <option>Друго — описвам по-долу</option>
-                </select>
-              </div>
-              <div className="field">
-                <label className="label">Разкажи накратко</label>
-                <textarea
-                  className="textarea"
-                  placeholder="Откога е празен имотът, има ли известни проблеми, какво точно ти трябва"
-                />
-              </div>
-              <button className="l-btn l-btn-p" style={{ width: "100%" }}>
-                Изпрати запитването
-              </button>
-              <p className="tiny muted" style={{ marginTop: 11, textAlign: "center" }}>
-                Отговаряме до 24 часа. Данните ти не отиват никъде другаде.
-              </p>
-            </div>
+            <InquiryForm services={packageNames} />
           </div>
         </div>
       </section>
@@ -383,7 +350,7 @@ export default function Home() {
               Регистрираш имотите си, следиш обходите, получаваш офертите
               и виждаш снимките от всяко посещение.
             </p>
-            <Link href="/login" className="l-btn">
+            <Link href="/register" className="l-btn">
               Създай профил →
             </Link>
           </div>
@@ -391,9 +358,17 @@ export default function Home() {
             КОМАНДА — стопанисване и управление на имоти
             <br />
             София ·{" "}
-            <a href="mailto:vladimir.jotov@gmail.com" style={{ color: "var(--accent)" }}>
-              vladimir.jotov@gmail.com
+            <a href={`mailto:${contactEmail}`} style={{ color: "var(--accent)" }}>
+              {contactEmail}
             </a>
+            <br />
+            <Link href="/terms" style={{ color: "var(--muted)", textDecoration: "underline", fontSize: "12.5px" }}>
+              Общи условия
+            </Link>
+            {" · "}
+            <Link href="/privacy" style={{ color: "var(--muted)", textDecoration: "underline", fontSize: "12.5px" }}>
+              Поверителност
+            </Link>
             <br />
             <Link href="/login" style={{ color: "var(--muted)", textDecoration: "underline", fontSize: "12.5px", marginTop: 8, display: "inline-block" }}>
               Вход в приложението
