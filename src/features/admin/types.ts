@@ -109,8 +109,11 @@ export type AdminPlan = {
   per_month: number | null;
   price: number | null;
   options: string | null;
-  status: "requested" | "active" | "cancelled";
+  status: "pending_payment" | "requested" | "active" | "cancelled";
   active: boolean | null;
+  stripe_subscription_id: string | null;
+  stripe_status: string | null;
+  paid_until: string | null;
   first_job_at: string | null;
   ends_at: string | null;
   cancelled_at: string | null;

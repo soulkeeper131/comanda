@@ -1,11 +1,13 @@
 export type PlanLike = { status: string | null; active?: boolean | null; ends_at?: string | null };
 
 /**
- * „Жив" абонамент — заявен, активен, или отказан, но още в платения период.
+ * „Жив" абонамент — чакащ плащане, заявен, активен, или отказан, но още в платения период.
  * Имот има най-много един жив абонамент (въпрос 6).
  */
 export function isLivePlan(plan: PlanLike, today: string = new Date().toISOString().slice(0, 10)): boolean {
-  if (plan.status === "requested" || plan.status === "active") return plan.active !== false;
+  if (plan.status === "pending_payment" || plan.status === "requested" || plan.status === "active") {
+    return plan.active !== false;
+  }
   if (plan.status === "cancelled") return Boolean(plan.ends_at && plan.ends_at.slice(0, 10) >= today);
   return false;
 }

@@ -160,7 +160,26 @@ export default function AccountSheet({ open, onClose }: { open: boolean; onClose
 
         {isClient && (
           <div className="space-y-2 border-t border-line pt-4">
-            <p className="text-sm font-semibold text-ink-2">Плащания</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-ink-2">Плащания</p>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  const res = await fetch("/api/stripe/portal", { method: "POST" });
+                  const d = await res.json().catch(() => ({}));
+                  if (res.ok && d.url) window.location.href = d.url;
+                  else {
+                    setBusy(false);
+                    setMsg({ text: d.error || "Не успяхме да отворим Stripe", ok: false });
+                  }
+                }}
+              >
+                <Icon name="card" size={16} /> Карта
+              </Button>
+            </div>
             {payments.length === 0 && <p className="text-sm text-muted">Още няма плащания.</p>}
             {payments.map((p) => {
               const st = PAYMENT_STATUS[p.status] ?? { text: p.status, tone: "neutral" as const };

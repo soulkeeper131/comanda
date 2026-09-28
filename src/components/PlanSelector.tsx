@@ -86,8 +86,15 @@ export default function PlanSelector({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ package_id: selected.id, options }),
       });
-      if (res.ok) setDone(true);
-      else {
+      if (res.ok) {
+        const d = await res.json().catch(() => ({}));
+        // С карта — към Stripe; абонаментът тръгва след плащането.
+        if (d.checkout_url) {
+          window.location.href = d.checkout_url;
+          return;
+        }
+        setDone(true);
+      } else {
         const d = await res.json().catch(() => ({}));
         setError(d.error || "Заявката не беше приета. Опитайте отново.");
       }

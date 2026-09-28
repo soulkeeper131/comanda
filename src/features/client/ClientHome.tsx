@@ -39,6 +39,23 @@ export default function ClientHome() {
     load();
   }, [load]);
 
+  // Връщане от Stripe (?payment=plan-ok / plan-cancel) — казваме какво стана
+  // и чистим адреса. Webhook-ът може да закъснее с секунди, затова и
+  // презареждане след малко.
+  const [returnNotice, setReturnNotice] = useState<string | null>(null);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("payment");
+    if (!p) return;
+    setReturnNotice(
+      p === "plan-ok"
+        ? "Плащането е прието. Ще се свържем с вас, за да уговорим първия обход."
+        : "Плащането не беше завършено. Можете да опитате отново от „Абонамент“.",
+    );
+    window.history.replaceState(null, "", window.location.pathname);
+    const t = setTimeout(load, 4000);
+    return () => clearTimeout(t);
+  }, [load]);
+
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -58,25 +75,34 @@ export default function ClientHome() {
     );
   }
 
-  if (properties.length === 0) {
-    return <EmptyPropertyState onCreated={() => load(true)} />;
-  }
-
-  if (properties.length === 1) {
-    return <PropertyDetail property={properties[0]} onPropertyChanged={() => load(true)} />;
-  }
-
   const selected = selectedId ? properties.find((p) => p.id === selectedId) : null;
-  if (selected) {
-    return (
+  const view =
+    properties.length === 0 ? (
+      <EmptyPropertyState onCreated={() => load(true)} />
+    ) : properties.length === 1 ? (
+      <PropertyDetail property={properties[0]} onPropertyChanged={() => load(true)} />
+    ) : selected ? (
       <PropertyDetail
         key={selected.id}
         property={selected}
         onPropertyChanged={() => load(true)}
         onBack={() => setSelectedId(null)}
       />
+    ) : (
+      <PropertyList properties={properties} onSelect={setSelectedId} />
     );
-  }
 
-  return <PropertyList properties={properties} onSelect={setSelectedId} />;
+  return (
+    <>
+      {returnNotice && (
+        <button
+          onClick={() => setReturnNotice(null)}
+          className="mx-4 mt-3 rounded-card bg-brand-dark px-4 py-3 text-left text-sm font-semibold text-white"
+        >
+          {returnNotice}
+        </button>
+      )}
+      {view}
+    </>
+  );
 }

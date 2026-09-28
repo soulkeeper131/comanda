@@ -71,7 +71,7 @@ export type OverrideRecord = {
   created_at: string | null;
 };
 
-export type PlanStatus = "requested" | "active" | "cancelled";
+export type PlanStatus = "pending_payment" | "requested" | "active" | "cancelled";
 
 export type ClientPlan = {
   id: string;
@@ -89,6 +89,9 @@ export type ClientPlan = {
   ends_at?: string | null;
   cancelled_at?: string | null;
   started_at?: string | null;
+  stripe_subscription_id?: string | null;
+  stripe_status?: string | null;
+  paid_until?: string | null;
 };
 
 export type PackageItem = {

@@ -91,8 +91,22 @@ export default function SubscriptionSection({
     );
   }
 
+  const redirectTo = async (url: string, body?: unknown) => {
+    setBusy(true);
+    setError("");
+    const res = await api<{ checkout_url?: string; url?: string }>(url, { method: "POST", body });
+    if (res.ok && (res.data.checkout_url || res.data.url)) {
+      window.location.href = (res.data.checkout_url || res.data.url)!;
+      return;
+    }
+    setBusy(false);
+    setError(res.ok ? "Опитайте отново" : res.error);
+  };
+
   const status =
-    plan.status === "requested"
+    plan.status === "pending_payment"
+      ? { badge: "Чака плащане", tone: "warning" as const, text: "Платете, за да потвърдите заявката." }
+      : plan.status === "requested"
       ? { badge: "Заявен", tone: "warning" as const, text: "Ще ви се обадим, за да уговорим първия обход." }
       : plan.status === "active"
         ? {
@@ -132,6 +146,24 @@ export default function SubscriptionSection({
           <span className="text-sm text-ink">{status.text}</span>
         </div>
 
+        {plan.stripe_status === "past_due" && (
+          <Notice tone="danger">Последното месечно плащане не мина. Обновете картата, за да не спират обходите.</Notice>
+        )}
+        {error && !confirming && <Notice tone="danger">{error}</Notice>}
+        {plan.status === "pending_payment" && (
+          <Button fullWidth disabled={busy} onClick={() => redirectTo(`/api/plans/${plan.id}/checkout`)}>
+            {busy ? "Пренасочване…" : `Плати ${formatMoney(plan.price)} с карта`}
+          </Button>
+        )}
+        {plan.stripe_subscription_id && plan.status !== "pending_payment" && (
+          <Button variant="secondary" fullWidth disabled={busy} onClick={() => redirectTo("/api/stripe/portal")}>
+            Карта и плащания
+          </Button>
+        )}
+        {plan.paid_until && plan.status !== "cancelled" && (
+          <p className="text-xs text-muted">Платено до {formatDateOnly(plan.paid_until)}. Следващото плащане е автоматично.</p>
+        )}
+
         {plan.status !== "cancelled" && (
           <Button variant="ghost" size="sm" className="min-h-touch text-state-danger" onClick={() => setConfirming(true)}>
             Прекратяване на абонамента
@@ -142,8 +174,10 @@ export default function SubscriptionSection({
       <Sheet open={confirming} onClose={() => setConfirming(false)} placement="bottom" className="mx-auto max-w-lg p-5">
         <h3 className="text-lg font-bold text-ink">Прекратяване на абонамента?</h3>
         <p className="mt-2 text-sm text-muted">
-          {plan.status === "requested"
-            ? "Заявката ви ще бъде оттеглена и няма да насрочваме обходи."
+          {plan.status === "pending_payment"
+            ? "Заявката ще бъде оттеглена. Не сте платили нищо."
+            : plan.status === "requested"
+            ? "Заявката ви ще бъде оттеглена и няма да насрочваме обходи. Платената сума ще ви бъде върната."
             : "Обслужването продължава до края на платения период. Обходите след това ще бъдат премахнати от графика."}
         </p>
         {error && (

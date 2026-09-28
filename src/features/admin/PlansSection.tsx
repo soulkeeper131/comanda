@@ -13,9 +13,10 @@ import { Chips, EmptyState, SectionTitle } from "./ui";
 import type { AdminData, Resource } from "./useAdminData";
 import type { AdminPlan, CatalogPackage, ServiceTemplate } from "./types";
 
-type Filter = "requested" | "active" | "cancelled" | "catalog";
+type Filter = "pending_payment" | "requested" | "active" | "cancelled" | "catalog";
 
-const PLAN_STATUS: Record<AdminPlan["status"], { text: string; tone: "warning" | "ok" | "neutral" }> = {
+const PLAN_STATUS: Record<AdminPlan["status"], { text: string; tone: "warning" | "ok" | "neutral" | "info" }> = {
+  pending_payment: { text: "Чака плащане", tone: "info" },
   requested: { text: "Чака насрочване", tone: "warning" },
   active: { text: "Активен", tone: "ok" },
   cancelled: { text: "Прекратен", tone: "neutral" },
@@ -66,13 +67,17 @@ export default function PlansSection({
   };
 
   const cancel = async (p: AdminPlan) => {
-    if (!confirm(`Прекратяване на абонамента за ${p.property_name}? Важи до края на месеца, бъдещите обходи се махат.`)) return;
+    const text =
+      p.status === "active"
+        ? `Прекратяване на абонамента за ${p.property_name}? Важи до края на платения период, бъдещите обходи се махат.`
+        : `Оттегляне на абонамента за ${p.property_name}?${p.stripe_subscription_id ? " Върнете платената сума от таблото на Stripe." : ""}`;
+    if (!confirm(text)) return;
     const res = await api<{ ends_at: string; jobs_removed: number }>(`/api/plans/${p.id}`, {
       method: "PATCH",
       body: { action: "cancel" },
     });
     if (!res.ok) return toast(res.error, "error");
-    toast(`Прекратен — важи до ${formatDateOnly(res.data.ends_at)}, махнати ${res.data.jobs_removed} обхода`);
+    toast(res.data.ends_at ? `Прекратен — важи до ${formatDateOnly(res.data.ends_at)}, махнати ${res.data.jobs_removed} обхода` : "Оттеглен");
     reload("plans", "jobs");
   };
 
@@ -100,6 +105,7 @@ export default function PlansSection({
         onChange={setFilter}
         options={[
           { value: "requested", label: "Чакат насрочване", count: count("requested") },
+          { value: "pending_payment", label: "Чакат плащане", count: count("pending_payment") },
           { value: "active", label: "Активни", count: count("active") },
           { value: "cancelled", label: "Прекратени" },
           { value: "catalog", label: "Каталог с пакети" },
@@ -161,7 +167,12 @@ export default function PlansSection({
                       {p.owner_name || p.owner_email}
                       {p.first_job_at ? ` · първи обход ${formatDateOnly(p.first_job_at)}` : ""}
                       {p.ends_at ? ` · важи до ${formatDateOnly(p.ends_at)}` : ""}
+                      {p.paid_until ? ` · платено до ${formatDateOnly(p.paid_until)}` : ""}
+                      {p.stripe_subscription_id ? " · карта" : " · банка"}
                     </div>
+                    {p.stripe_status === "past_due" && (
+                      <div className="mt-1 text-xs font-semibold text-state-danger">Последното теглене не мина — Stripe опитва пак</div>
+                    )}
                   </div>
                   <Badge tone={st.tone}>{st.text}</Badge>
                 </div>
@@ -170,6 +181,21 @@ export default function PlansSection({
                     {p.status === "requested" && (
                       <Button size="sm" onClick={() => setScheduling(p)}>
                         Насрочи първия обход
+                      </Button>
+                    )}
+                    {p.status === "pending_payment" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={async () => {
+                          if (!confirm("Клиентът е платил първия месец по банка?")) return;
+                          const res = await api(`/api/plans/${p.id}`, { method: "PATCH", body: { action: "mark_paid" } });
+                          if (!res.ok) return toast(res.error, "error");
+                          toast("Отбелязано — абонаментът чака насрочване");
+                          reload("plans");
+                        }}
+                      >
+                        Платено по банка
                       </Button>
                     )}
                     <Button size="sm" variant="ghost" onClick={() => cancel(p)}>
