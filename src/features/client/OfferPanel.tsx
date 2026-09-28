@@ -154,18 +154,19 @@ export default function OfferPanel({
               <BankDetails offerId={offer.id} amount={offer.price} findingTitle={offer.finding?.title} />
             </>
           ) : null}
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button fullWidth onClick={payCard} disabled={!!busy}>
-              <Icon name="card" size={18} />
-              {busy === "card" ? "Пренасочване…" : "Плати с карта"}
-            </Button>
-            {!pendingPayment && !bankRequested && (
+          {/* Заявен превод → без втори начин на плащане (иначе двойно плащане). */}
+          {!pendingPayment && !bankRequested && (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button fullWidth onClick={payCard} disabled={!!busy}>
+                <Icon name="card" size={18} />
+                {busy === "card" ? "Пренасочване…" : "Плати с карта"}
+              </Button>
               <Button fullWidth variant="secondary" onClick={payBank} disabled={!!busy}>
                 <Icon name="bank" size={18} />
                 {busy === "bank" ? "Запазване…" : "Плащане по банков път"}
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

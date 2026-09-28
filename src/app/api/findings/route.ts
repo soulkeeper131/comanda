@@ -6,7 +6,7 @@ import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
 import { notifyOwner, notifyAdmins } from "@/lib/notifications";
 import { withAuth, canCompleteJobItem } from "@/lib/auth";
 import { emailLayout } from "@/lib/mail-layout";
-import { uploadedFileExists, uploadFilename } from "@/lib/uploads";
+import { claimUpload, uploadFilename } from "@/lib/uploads";
 import { isFindingStatus, isSeverity, sortFindings } from "@/lib/domain/findings";
 import { isClientId } from "@/lib/domain/idempotency";
 
@@ -142,7 +142,7 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
     }
 
     const photos: string[] = Array.isArray(photo_ids)
-      ? photo_ids.filter((p: unknown): p is string => typeof p === "string" && uploadedFileExists(p))
+      ? photo_ids.filter((p: unknown): p is string => typeof p === "string" && claimUpload(p, session.uid))
       : [];
 
     const [finding] = db

@@ -15,6 +15,13 @@
       "when": 1790618411777,
       "tag": "0001_business_flow",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790621592153,
+      "tag": "0002_payments_auth",
+      "breakpoints": true
     }
   ]
 }

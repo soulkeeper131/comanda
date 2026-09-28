@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { findings } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { findings, offers } from "@/db/schema";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth, isAdmin } from "@/lib/auth";
 import { FINDING_STATUSES, isFindingStatus, isSeverity } from "@/lib/domain/findings";
@@ -31,6 +31,19 @@ export const PATCH = withAuth({ role: ["admin", "inspector"] }, async (request, 
           { error: `Невалиден статус. Позволени: ${FINDING_STATUSES.join(", ")}` },
           { status: 400 },
         );
+      }
+      if (body.status === "closed") {
+        const live = db
+          .select({ id: offers.id })
+          .from(offers)
+          .where(and(eq(offers.finding_id, existing.id), inArray(offers.decision, ["pending", "accepted", "paid", "in_progress"])))
+          .get();
+        if (live) {
+          return NextResponse.json(
+            { error: "По констатацията има активна оферта — първо я завършете или изтрийте" },
+            { status: 409 },
+          );
+        }
       }
       updates.status = body.status;
     }

@@ -5,7 +5,7 @@ import { generateAll, todaySofia } from "@/lib/jobs-generator";
 import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
 import { notifyOwner } from "@/lib/notifications";
 import { emailLayout, formatEur } from "@/lib/mail-layout";
-import { dueOfferReminder, duePaymentReminder, requiresPrepayment } from "@/lib/domain/offers";
+import { dueOfferReminder, duePaymentReminder, offerPrepay } from "@/lib/domain/offers";
 import { getPrepayThreshold } from "@/lib/settings";
 
 /** Изтекли оферти → "expired"; констатацията пак може да поиска оферта. */
@@ -77,7 +77,7 @@ export async function remindUnpaidOffers(now = new Date()): Promise<number> {
   const notify = await getNotifyEmail();
   for (const row of offerRows("done")) {
     const o = row.offer;
-    if (requiresPrepayment(o.price, threshold) || !o.done_at) continue;
+    if (offerPrepay(o, threshold) || !o.done_at) continue;
     const due = duePaymentReminder(o.done_at, o.payment_reminders_sent ?? 0, now);
     if (!due) continue;
     const html = emailLayout({

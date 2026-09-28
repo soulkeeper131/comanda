@@ -6,6 +6,7 @@ import { withAuth, isAdmin } from "@/lib/auth";
 import { generateForPlan, removePlannedJobsAfter, todaySofia } from "@/lib/jobs-generator";
 import { createNotification, notifyAdmins } from "@/lib/notifications";
 import { endOfPaidPeriod } from "@/lib/domain/plans";
+import { cancelStripeSubscription } from "@/lib/subscriptions";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,9 @@ export const PATCH = withAuth({ role: ["admin", "client"] }, async (request, { s
       if (plan.status === "cancelled") {
         return NextResponse.json({ error: "Абонаментът е отказан" }, { status: 409 });
       }
+      if (plan.status === "pending_payment") {
+        return NextResponse.json({ error: "Абонаментът още не е платен" }, { status: 409 });
+      }
       if (plan.first_job_at) {
         return NextResponse.json(
           { error: "Първият обход вече е насрочен — преместете отделните обходи от графика" },
@@ -68,32 +72,73 @@ export const PATCH = withAuth({ role: ["admin", "client"] }, async (request, { s
       });
     }
 
+    if (body.action === "mark_paid") {
+      // Клиент, който плаща по банка: админът потвърждава първото плащане.
+      if (!isAdmin(session)) {
+        return NextResponse.json({ error: "Само администратор" }, { status: 403 });
+      }
+      if (plan.status !== "pending_payment") {
+        return NextResponse.json({ error: "Абонаментът не чака плащане" }, { status: 409 });
+      }
+      db.update(plans).set({ status: "requested" }).where(eq(plans.id, plan.id)).run();
+      return NextResponse.json(db.select().from(plans).where(eq(plans.id, plan.id)).get());
+    }
+
     if (body.action === "cancel") {
       if (plan.status === "cancelled") {
         return NextResponse.json({ error: "Абонаментът вече е отказан" }, { status: 409 });
       }
-      let endsAt = endOfPaidPeriod(today);
-      if (isAdmin(session) && typeof body.ends_at === "string" && DATE.test(body.ends_at)) {
+      const neverStarted = plan.status === "requested" || plan.status === "pending_payment";
+
+      // Карта: Stripe спира тегленето. Ненасрочен абонамент — веднага (и
+      // админът връща сумата от Stripe); насрочен — в края на платения месец.
+      let endsAt: string | null = null;
+      try {
+        endsAt = await cancelStripeSubscription(plan.id, neverStarted);
+      } catch (err) {
+        console.error("[plans] Stripe cancel failed:", err);
+        return NextResponse.json({ error: "Stripe не прие отказа — опитайте пак след малко" }, { status: 502 });
+      }
+      if (!endsAt) endsAt = endOfPaidPeriod(today);
+      if (isAdmin(session) && typeof body.ends_at === "string" && DATE.test(body.ends_at) && !plan.stripe_subscription_id) {
         endsAt = body.ends_at < today ? today : body.ends_at;
       }
-      // Заявен, но още ненасрочен абонамент спира веднага.
-      if (plan.status === "requested") endsAt = today;
 
       const removed = db.transaction((tx) => {
         tx.update(plans)
-          .set({ status: "cancelled", cancelled_at: new Date().toISOString(), ends_at: endsAt })
+          .set({
+            status: "cancelled",
+            cancelled_at: new Date().toISOString(),
+            // Никога не тръгнал абонамент не „важи до" никоя дата — имотът
+            // може веднага да заяви нов.
+            ends_at: neverStarted ? null : endsAt,
+          })
           .where(eq(plans.id, plan.id))
           .run();
-        return removePlannedJobsAfter(plan.id, endsAt, tx);
+        return removePlannedJobsAfter(plan.id, neverStarted ? "0000-00-00" : endsAt!, tx);
       });
 
+      if (neverStarted && plan.stripe_subscription_id) {
+        notifyAdmins(
+          "plan_requested",
+          "Отказан платен абонамент — върнете сумата",
+          `${property.name} — възстановете първото плащане от таблото на Stripe.`,
+          "/dashboard",
+        );
+      }
       if (isAdmin(session)) {
-        createNotification(property.owner_id, "plan_scheduled", "Абонаментът е прекратен", `${property.name} — важи до ${endsAt}`, "/dashboard");
+        createNotification(
+          property.owner_id,
+          "plan_scheduled",
+          "Абонаментът е прекратен",
+          neverStarted ? property.name : `${property.name} — важи до ${endsAt}`,
+          "/dashboard",
+        );
       } else {
-        notifyAdmins("plan_requested", "Клиент отказа абонамент", `${property.name} — важи до ${endsAt}`, "/dashboard");
+        notifyAdmins("plan_requested", "Клиент отказа абонамент", `${property.name}${neverStarted ? "" : ` — важи до ${endsAt}`}`, "/dashboard");
       }
       const updated = db.select().from(plans).where(eq(plans.id, plan.id)).get();
-      return NextResponse.json({ ...updated, jobs_removed: removed });
+      return NextResponse.json({ ...updated, ends_at: updated?.ends_at ?? endsAt, jobs_removed: removed });
     }
 
     return NextResponse.json({ error: "Няма действие" }, { status: 400 });

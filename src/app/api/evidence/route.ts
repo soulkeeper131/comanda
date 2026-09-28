@@ -3,7 +3,7 @@ import { evidence, jobItems, jobs, properties } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth, canViewProperty, canCompleteJobItem } from "@/lib/auth";
-import { uploadedFileExists, uploadFilename } from "@/lib/uploads";
+import { claimUpload, uploadFilename } from "@/lib/uploads";
 import { isClientId } from "@/lib/domain/idempotency";
 
 export const dynamic = "force-dynamic";
@@ -43,12 +43,12 @@ export const GET = withAuth({}, async (request, { session }) => {
     }
 
     const job = db
-      .select({ property_id: jobs.property_id })
+      .select({ property_id: jobs.property_id, assignee_id: jobs.assignee_id })
       .from(jobs)
       .where(eq(jobs.id, effectiveJobId))
       .get();
 
-    if (!job) {
+    if (!job || (session.role === "inspector" && job.assignee_id && job.assignee_id !== session.uid)) {
       return NextResponse.json(
         { error: "Задачата не е намерена" },
         { status: 404 }
@@ -150,8 +150,8 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
       }
     }
 
-    if (!uploadedFileExists(storage_path)) {
-      return NextResponse.json({ error: "Снимката не е качена" }, { status: 400 });
+    if (!claimUpload(storage_path, session.uid)) {
+      return NextResponse.json({ error: "Снимката не е качена или вече е използвана" }, { status: 400 });
     }
 
     const [record] = db

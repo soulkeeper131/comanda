@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { jobs, properties, jobReschedules } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { jobs, properties, jobReschedules, plans } from "@/db/schema";
+import { asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth, isAdmin } from "@/lib/auth";
 import { createNotification } from "@/lib/notifications";
@@ -26,11 +26,20 @@ export const PATCH = withAuth({ role: ["admin", "client"] }, async (request, { s
 
     const body = await request.json().catch(() => ({}));
     const to = typeof body.date === "string" ? body.date.slice(0, 10) : "";
+    const firstMove = db
+      .select({ from_date: jobReschedules.from_date })
+      .from(jobReschedules)
+      .where(eq(jobReschedules.job_id, job.id))
+      .orderBy(asc(jobReschedules.created_at))
+      .get();
+    const plan = job.plan_id ? db.select().from(plans).where(eq(plans.id, job.plan_id)).get() : undefined;
     const verdict = canReschedule({
       status: job.status ?? "planned",
       to,
       today: todaySofia(),
       isAdmin: isAdmin(session),
+      originalDate: (firstMove?.from_date ?? job.planned_at).slice(0, 10),
+      planEndsAt: plan?.status === "cancelled" ? plan.ends_at : null,
     });
     if (!verdict.ok) return NextResponse.json({ error: verdict.error }, { status: 400 });
 

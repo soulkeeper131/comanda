@@ -35,6 +35,13 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
       return NextResponse.json({ error: "Обходът е възложен на друг инспектор" }, { status: 403 });
     }
 
+    // Повторен старт от същия човек (изгубен отговор, офлайн опашка) е
+    // успех, не грешка — иначе отхвърлянето повлича и всичките му снимки.
+    if (job.status === "in_progress" && (job.assignee_id === session.uid || isAdmin(session))) {
+      const items = db.select().from(jobItems).where(eq(jobItems.job_id, id)).all();
+      return NextResponse.json({ ...job, items, already_started: true });
+    }
+
     if (job.status !== "planned") {
       return NextResponse.json(
         { error: "Задачата може да бъде стартирана само от статус 'planned'" },

@@ -10,6 +10,7 @@ import { emailLayout, formatEur } from "@/lib/mail-layout";
 import { getPrepayThreshold } from "@/lib/settings";
 import {
   awaitsPayment,
+  offerPrepay,
   expiryFrom,
   requiresPrepayment,
   type OfferDecision,
@@ -21,7 +22,8 @@ export const dynamic = "force-dynamic";
 const LIVE: OfferDecision[] = ["pending", "accepted", "paid", "in_progress"];
 
 // GET /api/offers?finding_id=X&decision=pending
-export const GET = withAuth({}, async (request, { session }) => {
+// Инспекторът не вижда цени и оферти — те са между клиента и админа.
+export const GET = withAuth({ role: ["admin", "client"] }, async (request, { session }) => {
   try {
     // Изтеклите се маркират още при четене — клиентът не бива да вижда
     // „Приемам" на оферта, която вече не важи, само защото cron-ът не е минал.
@@ -56,8 +58,8 @@ export const GET = withAuth({}, async (request, { session }) => {
     return NextResponse.json(
       rows.map(({ offer, finding, property }) => ({
         ...offer,
-        requires_prepayment: requiresPrepayment(offer.price, threshold),
-        awaits_payment: awaitsPayment(offer.decision as OfferDecision, offer.price, threshold),
+        requires_prepayment: offerPrepay(offer, threshold),
+        awaits_payment: awaitsPayment(offer.decision as OfferDecision, offerPrepay(offer, threshold)),
         photos: photos
           .filter((p) => p.offer_id === offer.id)
           .map((p) => ({ id: p.id, storage_path: p.storage_path, taken_at: p.taken_at })),
@@ -112,6 +114,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
     }
 
     const now = new Date();
+    const prepay = requiresPrepayment(price, getPrepayThreshold());
     const [offer] = db
       .insert(offers)
       .values({
@@ -123,6 +126,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
         created_by: session.uid,
         sent_at: now.toISOString(),
         expires_at: expiryFrom(now),
+        requires_prepayment: prepay,
       })
       .returning()
       .all();
@@ -131,7 +135,6 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
 
     const property = db.select().from(properties).where(eq(properties.id, finding.property_id)).get();
     const propertyName = property?.name || "Имот";
-    const prepay = requiresPrepayment(price, getPrepayThreshold());
     const html = emailLayout({
       title: "Нова оферта",
       intro: `Изготвихме оферта за <strong>${propertyName.replace(/</g, "&lt;")}</strong>. Валидна е 7 дни.`,

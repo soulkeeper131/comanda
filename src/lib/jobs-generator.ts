@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { jobs, jobReschedules, plans, properties, packages, packageItems, serviceTemplates } from "@/db/schema";
+import { jobs, jobReschedules, plans, properties, packages, packageItems, serviceTemplates, users } from "@/db/schema";
 import { and, eq, gt, inArray, isNotNull } from "drizzle-orm";
 import { scheduleVisits, genKey } from "@/lib/domain/schedule";
 import { createNotification } from "@/lib/notifications";
@@ -13,11 +13,27 @@ export function todaySofia(now: Date = new Date()): string {
 
 type Stream = { templateId: string; perMonth: number };
 
-/** Кои услуги генерира планът: ядрото + избраните опции от пакета. */
+/**
+ * Кои услуги генерира планът: ядрото + избраните опции. Опциите идват от
+ * снимката при заявката (options_snapshot) — промяна в каталога не пипа
+ * вече платен абонамент. Стари планове без снимка четат пакета.
+ */
 function streamsForPlan(plan: typeof plans.$inferSelect): Stream[] {
   const streams: Stream[] = [{ templateId: plan.template_id, perMonth: plan.per_month ?? 1 }];
-  if (!plan.package_id || !plan.options) return streams;
 
+  if (plan.options_snapshot) {
+    try {
+      const snap = JSON.parse(plan.options_snapshot) as { template_id?: unknown; per_month?: unknown }[];
+      for (const o of Array.isArray(snap) ? snap : []) {
+        if (typeof o.template_id === "string") streams.push({ templateId: o.template_id, perMonth: Number(o.per_month) || 1 });
+      }
+    } catch {
+      /* повредена снимка — само ядрото */
+    }
+    return streams;
+  }
+
+  if (!plan.package_id || !plan.options) return streams;
   let optionIds: string[] = [];
   try {
     const parsed = JSON.parse(plan.options);
@@ -26,7 +42,6 @@ function streamsForPlan(plan: typeof plans.$inferSelect): Stream[] {
     return streams;
   }
   if (optionIds.length === 0) return streams;
-
   const items = db
     .select()
     .from(packageItems)
@@ -48,15 +63,28 @@ export type GenerateResult = { plans: number; created: number };
 export function generateForPlan(planId: string, today = todaySofia()): number {
   const plan = db.select().from(plans).where(eq(plans.id, planId)).get();
   if (!plan || !plan.first_job_at) return 0;
-  if (plan.status === "requested") return 0;
+  if (plan.status === "requested" || plan.status === "pending_payment") return 0;
   if (plan.status === "cancelled" && !plan.ends_at) return 0;
 
   const property = db.select().from(properties).where(eq(properties.id, plan.property_id)).get();
   if (!property || property.archived || property.status !== "active") return 0;
 
-  const pkg = plan.package_id
+  // Сезонът — от снимката в плана; за стари планове — от пакета.
+  const pkg = plan.package_id && !plan.season_from
     ? db.select().from(packages).where(eq(packages.id, plan.package_id)).get()
     : undefined;
+  const season = plan.season_from
+    ? { from: plan.season_from, to: plan.season_to }
+    : pkg
+      ? { from: pkg.active_from, to: pkg.active_to }
+      : undefined;
+
+  // Деактивиран инспектор не получава нови обходи — остават невъзложени и
+  // се виждат в опашката на админа.
+  const inspector = property.assigned_inspector_id
+    ? db.select({ id: users.id, active: users.active }).from(users).where(eq(users.id, property.assigned_inspector_id)).get()
+    : undefined;
+  const assignee = inspector && inspector.active !== false ? inspector.id : null;
 
   let created = 0;
   for (const stream of streamsForPlan(plan)) {
@@ -68,7 +96,7 @@ export function generateForPlan(planId: string, today = todaySofia()): number {
       perMonth: stream.perMonth,
       today,
       endsAt: plan.ends_at,
-      season: pkg ? { from: pkg.active_from, to: pkg.active_to } : undefined,
+      season,
     });
 
     for (const visit of visits) {
@@ -79,7 +107,7 @@ export function generateForPlan(planId: string, today = todaySofia()): number {
           property_id: property.id,
           plan_id: plan.id,
           template_id: template.id,
-          assignee_id: property.assigned_inspector_id ?? null,
+          assignee_id: assignee,
           title: `${template.name} — ${property.name}`,
           duration_min: template.duration_min,
           planned_at: visit.date,
@@ -92,9 +120,9 @@ export function generateForPlan(planId: string, today = todaySofia()): number {
     }
   }
 
-  if (created > 0 && property.assigned_inspector_id) {
+  if (created > 0 && assignee) {
     createNotification(
-      property.assigned_inspector_id,
+      assignee,
       "job_started",
       "Нови обходи в графика",
       `${created} ${created === 1 ? "обход" : "обхода"} — ${property.name}`,

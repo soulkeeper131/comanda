@@ -1,8 +1,8 @@
 import { db } from "@/db";
 import { payments, offers, findings, properties } from "@/db/schema";
 import { withAuth, isAdmin } from "@/lib/auth";
-import { and, eq, desc } from "drizzle-orm";
-import { awaitsPayment, type OfferDecision } from "@/lib/domain/offers";
+import { and, eq, desc, inArray } from "drizzle-orm";
+import { awaitsPayment, offerPrepay, type OfferDecision } from "@/lib/domain/offers";
 import { getPrepayThreshold } from "@/lib/settings";
 import { NextResponse } from "next/server";
 
@@ -48,16 +48,16 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session }) 
     return NextResponse.json({ error: "Офертата не е намерена" }, { status: 404 });
   }
 
-  if (!awaitsPayment(row.offer.decision as OfferDecision, row.offer.price, getPrepayThreshold())) {
+  if (!awaitsPayment(row.offer.decision as OfferDecision, offerPrepay(row.offer, getPrepayThreshold()))) {
     return NextResponse.json({ error: "Тази оферта не чака плащане" }, { status: 409 });
   }
   const duplicate = db
     .select({ id: payments.id })
     .from(payments)
-    .where(and(eq(payments.offer_id, offerId), eq(payments.status, "pending")))
+    .where(and(eq(payments.offer_id, offerId), inArray(payments.status, ["pending", "paid"])))
     .get();
   if (duplicate) {
-    return NextResponse.json({ error: "Вече сте заявили плащане по банка — очаква потвърждение" }, { status: 409 });
+    return NextResponse.json({ error: "Вече има плащане по тази оферта — очаква потвърждение" }, { status: 409 });
   }
 
   const id = crypto.randomUUID();

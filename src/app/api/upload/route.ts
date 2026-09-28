@@ -4,6 +4,7 @@ import { existsSync } from "fs";
 import path from "path";
 import crypto from "crypto";
 import { withAuth } from "@/lib/auth";
+import { recordUpload } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ function getExtension(filename: string): string {
   return map[ext] || ext || ".jpg";
 }
 
-export const POST = withAuth({}, async (request) => {
+export const POST = withAuth({}, async (request, { session }) => {
   try {
     const formData = await request.formData();
     const file = formData.get("file");
@@ -68,6 +69,7 @@ export const POST = withAuth({}, async (request) => {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     await writeFile(filepath, buffer);
+    recordUpload(filename, session.uid);
 
     return NextResponse.json({
       url: `/api/photos/${filename}`,

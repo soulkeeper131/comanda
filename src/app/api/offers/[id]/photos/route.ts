@@ -3,7 +3,7 @@ import { offers, offerPhotos } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import { uploadedFileExists } from "@/lib/uploads";
+import { claimUpload } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session, par
     }
     const body = await request.json().catch(() => ({}));
     const storagePath = typeof body.storage_path === "string" ? body.storage_path : "";
-    if (!uploadedFileExists(storagePath)) {
+    if (!claimUpload(storagePath, session.uid)) {
       return NextResponse.json({ error: "Снимката не е качена" }, { status: 400 });
     }
 

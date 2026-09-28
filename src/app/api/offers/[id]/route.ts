@@ -1,5 +1,6 @@
 import { db } from "@/db";
-import { offers, findings, properties, payments, offerPhotos } from "@/db/schema";
+import { offers, findings, properties, offerPhotos } from "@/db/schema";
+import { settleOfferPayment } from "@/lib/payments";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
@@ -9,6 +10,7 @@ import { emailLayout, formatEur } from "@/lib/mail-layout";
 import { getPrepayThreshold } from "@/lib/settings";
 import {
   canTransition,
+  offerPrepay,
   allowedTransitions,
   isValidDecision,
   isExpired,
@@ -75,11 +77,12 @@ export const PATCH = withAuth({}, async (request, { session, params }) => {
         );
       }
 
-      if (!canTransition(from, to!, existing.price, threshold)) {
+      const prepay = offerPrepay(existing, threshold);
+      if (!canTransition(from, to!, prepay)) {
         return NextResponse.json(
           {
             error: `Офертата е „${LABELS[from]}" и не може да стане „${LABELS[to!]}".`,
-            allowed: allowedTransitions(from, existing.price, threshold),
+            allowed: allowedTransitions(from, prepay),
           },
           { status: 400 },
         );
@@ -98,19 +101,13 @@ export const PATCH = withAuth({}, async (request, { session, params }) => {
       }
 
       if (to === "paid") {
-        // Ръчно отбелязване от админ — плащане по банка (въпрос 4: при 10–50
-        // клиента парите се събират по банка). Записва се като плащане.
-        updates.paid_at = now;
-        db.insert(payments)
-          .values({
-            user_id: property.owner_id,
-            offer_id: existing.id,
-            amount: existing.price ?? 0,
-            status: "paid",
-            method: "bank",
-            paid_at: now,
-          })
-          .run();
+        // Ръчно от админ — плащане по банка. Потвърждава заявения от клиента
+        // превод (ако има), прави фактура и уведомява — като при Stripe.
+        const settled = await settleOfferPayment({ offerId: existing.id, method: "bank" });
+        if (!settled.ok) {
+          return NextResponse.json({ error: "Офертата не чака плащане" }, { status: 409 });
+        }
+        return NextResponse.json(db.select().from(offers).where(eq(offers.id, existing.id)).get());
       }
       if (to === "done") updates.done_at = now;
       updates.decision = to!;

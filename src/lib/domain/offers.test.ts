@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   canTransition,
   requiresPrepayment,
+  offerPrepay,
   isExpired,
   dueOfferReminder,
   duePaymentReminder,
@@ -73,15 +74,21 @@ describe("преходи на офертата", () => {
 describe("два потока според сумата (въпрос 22)", () => {
   it("над прага: плаща се преди работата", () => {
     expect(requiresPrepayment(180)).toBe(true);
-    expect(canTransition("accepted", "paid", 180)).toBe(true);
-    expect(canTransition("accepted", "in_progress", 180)).toBe(false);
+    expect(canTransition("accepted", "paid", requiresPrepayment(180))).toBe(true);
+    expect(canTransition("accepted", "in_progress", requiresPrepayment(180))).toBe(false);
   });
 
   it("под прага: работата тръгва веднага, плаща се след нея", () => {
     expect(requiresPrepayment(60)).toBe(false);
-    expect(canTransition("accepted", "in_progress", 60)).toBe(true);
-    expect(canTransition("accepted", "paid", 60)).toBe(false);
-    expect(canTransition("done", "paid", 60)).toBe(true);
+    expect(canTransition("accepted", "in_progress", requiresPrepayment(60))).toBe(true);
+    expect(canTransition("accepted", "paid", requiresPrepayment(60))).toBe(false);
+    expect(canTransition("done", "paid", requiresPrepayment(60))).toBe(true);
+  });
+
+  it("записаният поток важи, дори прагът да е сменен", () => {
+    expect(offerPrepay({ requires_prepayment: false, price: 80 }, 50)).toBe(false);
+    expect(canTransition("done", "paid", offerPrepay({ requires_prepayment: false, price: 80 }, 50))).toBe(true);
+    expect(offerPrepay({ requires_prepayment: null, price: 80 }, 50)).toBe(true);
   });
 
   it("прагът се сменя", () => {
@@ -89,7 +96,7 @@ describe("два потока според сумата (въпрос 22)", () =
   });
 
   it("изтекла оферта не се приема", () => {
-    expect(canTransition("expired", "accepted", 60)).toBe(false);
+    expect(canTransition("expired", "accepted", requiresPrepayment(60))).toBe(false);
   });
 });
 

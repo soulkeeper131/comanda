@@ -29,8 +29,40 @@ export const users = sqliteTable("users", {
   eik: text("eik"),
   vat_number: text("vat_number"),
   active: integer("active", { mode: "boolean" }).default(true),
+  // Потвърден имейл — без него клиентът не влиза (грешен адрес значи клиент,
+  // който не получава оферти и фактури).
+  email_verified_at: text("email_verified_at"),
+  // Съгласие с общите условия и политиката за лични данни (GDPR)
+  terms_accepted_at: text("terms_accepted_at"),
+  terms_version: text("terms_version"),
+  stripe_customer_id: text("stripe_customer_id"),
   created_at: text("created_at").default(sql`(datetime('now'))`),
   updated_at: text("updated_at").default(sql`(datetime('now'))`),
+});
+
+// ============================================================
+// Еднократни токени по имейл: потвърждение на адрес, нова парола.
+// Пази се само хешът — изтекла база не дава работещи линкове.
+// ============================================================
+export const authTokens = sqliteTable("auth_tokens", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  user_id: text("user_id").references(() => users.id).notNull(),
+  type: text("type").$type<"verify_email" | "reset_password">().notNull(),
+  token_hash: text("token_hash").notNull().unique(),
+  expires_at: text("expires_at").notNull(),
+  used_at: text("used_at"),
+  created_at: text("created_at").default(sql`(datetime('now'))`),
+});
+
+// ============================================================
+// Качени файлове — кой ги е качил и дали вече са закачени. Снимка се
+// приема като доказателство само от този, който я е качил, и само веднъж.
+// ============================================================
+export const uploads = sqliteTable("uploads", {
+  filename: text("filename").primaryKey(),
+  user_id: text("user_id").references(() => users.id).notNull(),
+  attached_at: text("attached_at"),
+  created_at: text("created_at").default(sql`(datetime('now'))`),
 });
 
 // ============================================================
@@ -152,10 +184,20 @@ export const plans = sqliteTable("plans", {
   price: real("price").default(0),
   // JSON масив с id-та на избраните опционални package_items
   options: text("options"),
+  // Снимка на пакета към момента на заявката — последващи промени в
+  // каталога не пипат вече платени абонаменти. JSON: [{template_id, per_month}]
+  options_snapshot: text("options_snapshot"),
+  season_from: text("season_from"),
+  season_to: text("season_to"),
+  // Stripe абонамент (N9)
+  stripe_subscription_id: text("stripe_subscription_id"),
+  stripe_status: text("stripe_status"),
+  paid_until: text("paid_until"),
   active: integer("active", { mode: "boolean" }).default(true),
-  // requested → чака админ да насрочи първия обход; active → генерира;
-  // cancelled → работи до ends_at, после спира (въпрос 5).
-  status: text("status").$type<"requested" | "active" | "cancelled">().default("active"),
+  // pending_payment → клиентът още не е платил; requested → платен, чака
+  // админ да насрочи първия обход; active → генерира; cancelled → работи до
+  // ends_at, после спира (въпрос 5).
+  status: text("status").$type<"pending_payment" | "requested" | "active" | "cancelled">().default("active"),
   // До попълването му планът не генерира (въпрос 7)
   first_job_at: text("first_job_at"),
   cancelled_at: text("cancelled_at"),
@@ -311,6 +353,9 @@ export const offers = sqliteTable(
       .$type<"pending" | "accepted" | "declined" | "paid" | "in_progress" | "done" | "expired">()
       .default("pending"),
     created_by: text("created_by").references(() => users.id),
+    // Потокът на плащане се решава веднъж, при създаването — смяна на прага
+    // по-късно не бива да „заключи" вече тръгнала оферта.
+    requires_prepayment: integer("requires_prepayment", { mode: "boolean" }),
     // Валидна 7 дни (въпрос 21); след това cron скриптът я маркира expired.
     expires_at: text("expires_at"),
     decided_at: text("decided_at"),

@@ -38,6 +38,7 @@ const IGNORABLE = /already exists|duplicate column/i;
 function applyMigrationsLeniently(folder: string) {
   const files = fs.readdirSync(folder).filter((f) => f.endsWith(".sql")).sort();
   let applied = 0;
+  let failed = 0;
   for (const file of files) {
     const statements = fs
       .readFileSync(path.join(folder, file), "utf8")
@@ -50,12 +51,20 @@ function applyMigrationsLeniently(folder: string) {
         applied++;
       } catch (err) {
         if (!IGNORABLE.test(String(err))) {
+          failed++;
           console.error(`[db] ${file}: изразът се провали:`, err);
         }
       }
     }
   }
   console.log(`[db] Поправка на схемата: приложени ${applied} израза.`);
+
+  // Истинска грешка → журналът НЕ се записва, за да се опита пак при
+  // следващия старт, вместо схемата да остане тихо непълна.
+  if (failed > 0) {
+    console.error(`[db] ${failed} израза се провалиха — журналът на миграциите не е обновен.`);
+    return;
+  }
 
   // Записваме миграциите като приложени, за да мине следващият старт по
   // нормалния път. Drizzle сравнява само по created_at (`when` от журнала).

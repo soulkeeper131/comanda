@@ -3,7 +3,8 @@ import { withAuth } from "@/lib/auth";
 import { db } from "@/db";
 import { payments, offers, findings, properties } from "@/db/schema";
 import { canDecideOffer } from "@/lib/auth";
-import { canTransition, type OfferDecision } from "@/lib/domain/offers";
+import { canTransition, offerPrepay, type OfferDecision } from "@/lib/domain/offers";
+import { liveOfferPayment, settleOfferPayment } from "@/lib/payments";
 import { getPrepayThreshold } from "@/lib/settings";
 import { eq } from "drizzle-orm";
 import { validateStripeAmount, eurToCents, getStripeOrNull } from "@/lib/stripe";
@@ -39,9 +40,16 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session }) 
     }
 
     const offer = row.offer;
-    if (!canTransition(offer.decision as OfferDecision, "paid", offer.price, getPrepayThreshold())) {
+    if (!canTransition(offer.decision as OfferDecision, "paid", offerPrepay(offer, getPrepayThreshold()))) {
       return NextResponse.json(
         { error: "Тази оферта не чака плащане" },
+        { status: 409 },
+      );
+    }
+    // Заявен банков превод или вече платено — второ плащане не се отваря.
+    if (liveOfferPayment(offer.id).some((p) => p.method !== "card" || p.status === "paid")) {
+      return NextResponse.json(
+        { error: "Вече има заявено плащане по тази оферта — очаква потвърждение" },
         { status: 409 },
       );
     }
@@ -87,10 +95,7 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session }) 
         })
         .run();
 
-      db.update(offers)
-        .set({ decision: "paid", paid_at: new Date().toISOString() })
-        .where(eq(offers.id, offer.id))
-        .run();
+      await settleOfferPayment({ offerId: offer.id, paymentId, method: "card" });
 
       return NextResponse.json({
         url: `${appUrl}/dashboard/payment/success?payment_id=${paymentId}&amount=${amount}`,

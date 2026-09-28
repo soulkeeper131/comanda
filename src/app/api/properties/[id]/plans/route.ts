@@ -4,10 +4,9 @@ import { desc, eq } from "drizzle-orm";
 import { withAuth, canViewProperty } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { loadCatalog, coreItem, planPrice } from "@/lib/catalog";
-import { notifyAdmins } from "@/lib/notifications";
-import { sendEmail, getNotifyEmail } from "@/lib/email";
-import { emailLayout, formatEur } from "@/lib/mail-layout";
 import { isLivePlan } from "@/lib/domain/plans";
+import { isStripeConfigured } from "@/lib/stripe";
+import { announcePlanRequested, createSubscriptionCheckout } from "@/lib/subscriptions";
 
 export const dynamic = "force-dynamic";
 
@@ -56,12 +55,12 @@ export const POST = withAuth({ role: ["admin", "client"] }, async (request, { se
       );
     }
 
-    const existing = db
-      .select()
-      .from(plans)
-      .where(eq(plans.property_id, prop.id))
-      .all()
-      .find((p) => isLivePlan(p));
+    const own = db.select().from(plans).where(eq(plans.property_id, prop.id)).all();
+    // Изоставено плащане (клиентът е затворил Stripe) не блокира нова заявка.
+    for (const stale of own.filter((p) => p.status === "pending_payment")) {
+      db.update(plans).set({ status: "cancelled", active: false, cancelled_at: new Date().toISOString() }).where(eq(plans.id, stale.id)).run();
+    }
+    const existing = own.find((p) => p.status !== "pending_payment" && isLivePlan(p));
     if (existing) {
       return NextResponse.json({ error: "Имотът вече има абонамент" }, { status: 409 });
     }
@@ -83,6 +82,13 @@ export const POST = withAuth({ role: ["admin", "client"] }, async (request, { se
       : [];
 
     const price = planPrice(pkg, optionIds);
+    // С карта: планът чака плащането (въпрос 4 — плаща се при заявката).
+    // Без Stripe (локално / само по банка) — направо при админа.
+    // Админ, който заявява от името на клиента, е случаят „по банка".
+    const payByCard = isStripeConfigured() && session.role === "client";
+    const snapshot = pkg.items
+      .filter((i) => i.optional && optionIds.includes(i.id))
+      .map((i) => ({ template_id: i.template_id, per_month: i.per_month }));
     const [plan] = db
       .insert(plans)
       .values({
@@ -93,31 +99,21 @@ export const POST = withAuth({ role: ["admin", "client"] }, async (request, { se
         per_month: pkg.per_month,
         price,
         options: JSON.stringify(optionIds),
-        status: "requested",
+        options_snapshot: JSON.stringify(snapshot),
+        season_from: pkg.active_from,
+        season_to: pkg.active_to,
+        status: payByCard ? "pending_payment" : "requested",
         active: true,
       })
       .returning()
       .all();
 
-    notifyAdmins("plan_requested", "Нов абонамент чака насрочване", `${prop.name} — ${pkg.name}`, "/dashboard");
-    sendEmail({
-      to: (await getNotifyEmail()) || "",
-      subject: `Нов абонамент: ${prop.name} — ${pkg.name}`,
-      html: emailLayout({
-        title: "Нов абонамент чака насрочване",
-        intro: "Обадете се на клиента и насрочете първия обход.",
-        rows: [
-          ["Имот", prop.name],
-          ["Адрес", prop.address],
-          ["Пакет", pkg.name],
-          ["Опции", pkg.items.filter((i) => optionIds.includes(i.id)).map((i) => i.template_name).join(", ")],
-          ["Месечно", formatEur(price)],
-          ["Контакт", [prop.contact_name, prop.contact_phone].filter(Boolean).join(", ")],
-        ],
-        cta: { label: "Насрочи" },
-      }),
-    }).catch(() => {});
+    if (payByCard) {
+      const checkoutUrl = await createSubscriptionCheckout(plan.id, prop.owner_id);
+      return NextResponse.json({ ...plan, checkout_url: checkoutUrl }, { status: 201 });
+    }
 
+    await announcePlanRequested(plan.id);
     return NextResponse.json(plan, { status: 201 });
   } catch (error) {
     console.error("POST plan error:", error);

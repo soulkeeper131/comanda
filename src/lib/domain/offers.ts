@@ -59,31 +59,31 @@ export function requiresPrepayment(
   return price >= threshold;
 }
 
-export function allowedTransitions(
-  from: OfferDecision,
-  price?: number | null,
+/**
+ * Предплаща ли се тази оферта. Решението се пази в офертата при създаването
+ * (`requires_prepayment`); смяната на прага по-късно не пипа вече тръгнали
+ * оферти. За стари записи без флаг — изчислява се от цената.
+ */
+export function offerPrepay(
+  offer: { requires_prepayment?: boolean | null; price: number | null },
   threshold?: number,
-): OfferDecision[] {
-  const map = requiresPrepayment(price, threshold) ? PREPAY : PAY_AFTER;
+): boolean {
+  if (offer.requires_prepayment === true || offer.requires_prepayment === false) return offer.requires_prepayment;
+  return requiresPrepayment(offer.price, threshold);
+}
+
+export function allowedTransitions(from: OfferDecision, prepay: boolean = true): OfferDecision[] {
+  const map = prepay ? PREPAY : PAY_AFTER;
   return map[from] ?? [];
 }
 
-export function canTransition(
-  from: OfferDecision,
-  to: OfferDecision,
-  price?: number | null,
-  threshold?: number,
-): boolean {
-  return allowedTransitions(from, price, threshold).includes(to);
+export function canTransition(from: OfferDecision, to: OfferDecision, prepay: boolean = true): boolean {
+  return allowedTransitions(from, prepay).includes(to);
 }
 
 /** Чака ли офертата плащане от клиента в момента. */
-export function awaitsPayment(
-  decision: OfferDecision,
-  price: number | null | undefined,
-  threshold?: number,
-): boolean {
-  return canTransition(decision, "paid", price, threshold);
+export function awaitsPayment(decision: OfferDecision, prepay: boolean): boolean {
+  return canTransition(decision, "paid", prepay);
 }
 
 /** Изтекла ли е офертата към момента `now`. */

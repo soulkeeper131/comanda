@@ -48,7 +48,8 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
     }
 
     const property = db.select().from(properties).where(eq(properties.id, job.property_id)).get();
-    if (!property || !canViewProperty(session, property)) {
+    const foreignForInspector = session.role === "inspector" && job.assignee_id && job.assignee_id !== session.uid;
+    if (!property || !canViewProperty(session, property) || foreignForInspector) {
       // 404, не 403 — не издаваме, че задачата съществува
       return NextResponse.json({ error: "Задачата не е намерена" }, { status: 404 });
     }
@@ -150,6 +151,14 @@ export const DELETE = withAuth({ role: ["admin"] }, async (_request, { params })
     if (job.status !== "planned") {
       return NextResponse.json(
         { error: "Изтрива се само планирана задача. Стартираната се отказва." },
+        { status: 400 },
+      );
+    }
+    // Обход от абонамент не се трие — генераторът би го създал отново.
+    // Отказва се (остава в историята) или се мести.
+    if (job.gen_key) {
+      return NextResponse.json(
+        { error: "Обходът е от абонамента — откажете го или го преместете." },
         { status: 400 },
       );
     }

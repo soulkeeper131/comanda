@@ -85,7 +85,9 @@ export const PATCH = withAuth({ role: ["admin", "client"] }, async (request, { s
       }
 
       if (body.assigned_inspector_id !== undefined) {
-        if (body.assigned_inspector_id === null || body.assigned_inspector_id === "") {
+        if (body.assigned_inspector_id === property.assigned_inspector_id) {
+          // без промяна — не проверяваме отново (формулярът праща всичко)
+        } else if (body.assigned_inspector_id === null || body.assigned_inspector_id === "") {
           updates.assigned_inspector_id = null;
         } else {
           const insp = db.select().from(users).where(eq(users.id, body.assigned_inspector_id)).get();

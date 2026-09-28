@@ -156,7 +156,11 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
       }
     }
     // Без изрично избран изпълнител — инспекторът на имота (въпрос 10).
-    const assigneeId: string | null = assignee_id || property.assigned_inspector_id || null;
+    const propertyInspector = property.assigned_inspector_id
+      ? db.select().from(users).where(eq(users.id, property.assigned_inspector_id)).get()
+      : undefined;
+    const assigneeId: string | null =
+      assignee_id || (propertyInspector && propertyInspector.active !== false ? propertyInspector.id : null);
 
     let jobTitle = bodyTitle || null;
     let durationMin: number | null = null;

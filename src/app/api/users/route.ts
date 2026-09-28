@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { users } from "@/db/schema";
-import { asc, eq } from "drizzle-orm";
+import { users, properties, jobs } from "@/db/schema";
+import { and, asc, eq } from "drizzle-orm";
 import { withAuth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
@@ -11,6 +11,18 @@ export const dynamic = "force-dynamic";
 const ROLES = ["admin", "client", "inspector"] as const;
 type Role = (typeof ROLES)[number];
 const isRole = (v: unknown): v is Role => typeof v === "string" && (ROLES as readonly string[]).includes(v);
+
+/**
+ * Инспектор, който напуска: имотите му остават без инспектор, а бъдещите
+ * му планирани обходи — невъзложени, за да ги види админът в опашката.
+ */
+function releaseInspector(userId: string) {
+  db.update(properties).set({ assigned_inspector_id: null }).where(eq(properties.assigned_inspector_id, userId)).run();
+  db.update(jobs)
+    .set({ assignee_id: null })
+    .where(and(eq(jobs.assignee_id, userId), eq(jobs.status, "planned")))
+    .run();
+}
 
 function view(u: typeof users.$inferSelect) {
   return {
@@ -124,6 +136,9 @@ export const PATCH = withAuth({ role: ["admin"] }, async (request, { session }) 
     }
 
     const [updated] = db.update(users).set(updates).where(eq(users.id, id)).returning().all();
+    if (updates.active === false || (updates.role && updates.role !== "inspector" && existing.role === "inspector")) {
+      releaseInspector(id);
+    }
     return NextResponse.json(view(updated));
   } catch (err) {
     console.error("[USERS PATCH] Error:", err);
@@ -142,6 +157,7 @@ export const DELETE = withAuth({ role: ["admin"] }, async (request, { session })
     if (!existing) return NextResponse.json({ error: "Потребителят не е намерен" }, { status: 404 });
 
     db.update(users).set({ active: false, updated_at: new Date().toISOString() }).where(eq(users.id, id)).run();
+    releaseInspector(id);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[USERS DELETE] Error:", err);
