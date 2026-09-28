@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import PushBell from "./PushBell";
 import NotificationBell from "./NotificationBell";
 import AccountSheet from "./AccountSheet";
 import { Badge } from "./ui/Badge";
@@ -66,7 +65,25 @@ export default function Topbar() {
   }, []);
 
   const handleSignOut = async () => {
+    const unsynced = getQueueLength();
+    if (
+      unsynced > 0 &&
+      !confirm(`${unsynced} действия още не са изпратени. Излезте ли сега, ще се изпратят чак при следващо влизане от това устройство. Да изляза ли?`)
+    ) {
+      return;
+    }
     await fetch("/api/auth/logout", { method: "POST" });
+    // Кешът за офлайн четене е на този потребител — триe се, освен ако има
+    // неизпратена работа (тя е по-ценна от чистотата на кеша).
+    if (unsynced === 0) {
+      try {
+        indexedDB.deleteDatabase("komanda-offline");
+      } catch {
+        /* няма IndexedDB */
+      }
+    }
+    // Кешираните страници не бива да останат за следващия на устройството.
+    navigator.serviceWorker?.controller?.postMessage("logout");
     router.push("/");
     router.refresh();
   };
@@ -117,7 +134,6 @@ export default function Topbar() {
           </Badge>
         )}
         <NotificationBell />
-        <PushBell />
         <button
           onClick={() => setMenuOpen(!menuOpen)}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-brand-primary to-brand-dark text-sm font-bold text-white"

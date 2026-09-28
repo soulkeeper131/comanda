@@ -20,7 +20,7 @@ export function useToast() {
   const node = message ? (
     <div
       role="status"
-      className={`fixed inset-x-4 bottom-6 z-[70] mx-auto max-w-md rounded-card px-4 py-3 text-sm font-semibold text-white shadow-card-3 ${
+      className={`fixed inset-x-4 bottom-24 z-[70] md:bottom-6 mx-auto max-w-md rounded-card px-4 py-3 text-sm font-semibold text-white shadow-card-3 ${
         message.tone === "error" ? "bg-state-danger" : "bg-brand-dark"
       }`}
     >

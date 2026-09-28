@@ -1,5 +1,7 @@
 "use client";
 
+import { Icon } from "./ui/Icon";
+
 import { useState, useEffect, useCallback, useRef } from "react";
 
 type BellState = "loading" | "unsupported" | "unsubscribed" | "subscribed" | "blocked";
@@ -67,7 +69,7 @@ export default function PushBell() {
       const result = await Notification.requestPermission();
       if (result !== "granted") {
         setBellState("blocked");
-        showToast("Известията са блокирани 😕", "error");
+        showToast("Известията са блокирани в настройките на браузъра", "error");
         return;
       }
 
@@ -100,7 +102,7 @@ export default function PushBell() {
       if (!subRes.ok) throw new Error("Subscribe API failed");
 
       setBellState("subscribed");
-      showToast("🔔 Известията са включени!", "success");
+      showToast("Известията са включени", "success");
     } catch (err) {
       console.error("Push subscribe error:", err);
       showToast("Грешка при включване на известия", "error");
@@ -118,7 +120,7 @@ export default function PushBell() {
         await subscription.unsubscribe();
       }
       setBellState("unsubscribed");
-      showToast("🔕 Известията са изключени", "success");
+      showToast("Известията са изключени", "success");
     } catch (err) {
       console.error("Push unsubscribe error:", err);
       showToast("Грешка при изключване на известия", "error");
@@ -141,7 +143,7 @@ export default function PushBell() {
   if (bellState === "loading") {
     return (
       <div className="w-11 h-11 flex items-center justify-center">
-        <span className="text-lg opacity-30">🔔</span>
+        <Icon name="bell" size={20} className="opacity-30" />
       </div>
     );
   }
@@ -196,9 +198,7 @@ export default function PushBell() {
         }}
       >
         {/* Bell icon */}
-        <span className="text-xl" style={{ lineHeight: 1 }}>
-          {bellState === "blocked" ? "🚫" : "🔔"}
-        </span>
+        <Icon name={bellState === "blocked" ? "x" : "phone"} size={20} className="text-brand-dark" />
 
         {/* Green dot for subscribed */}
         {bellState === "subscribed" && (

@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
 
   // 1. Rate limiting — независимо от auth, не прекъсва потока
   let rateLimitRemaining: number | null = null;
-  if (pathname.startsWith("/api/") || pathname === "/login") {
+  if (pathname.startsWith("/api/")) {
     const rl = checkRateLimit(request, pathname);
     if (!rl.allowed) return rateLimitedResponse(rl.reset);
     rateLimitRemaining = rl.remaining;

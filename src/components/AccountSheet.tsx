@@ -5,6 +5,7 @@ import { Sheet } from "./ui/Sheet";
 import { Button } from "./ui/Button";
 import { Badge } from "./ui/Badge";
 import { Icon } from "./ui/Icon";
+import PushBell from "./PushBell";
 import { formatDateOnly, formatMoney } from "@/lib/format";
 
 type Me = {
@@ -113,6 +114,14 @@ export default function AccountSheet({ open, onClose }: { open: boolean; onClose
           <Button fullWidth disabled={busy || !form.full_name.trim()} onClick={() => save(form, "Данните са запазени")}>
             Запази
           </Button>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
+          <div>
+            <p className="text-sm font-semibold text-ink-2">Известия на това устройство</p>
+            <p className="text-xs text-muted">Спешни проблеми, нови обходи и оферти — дори при затворено приложение.</p>
+          </div>
+          <PushBell />
         </div>
 
         <div className="space-y-2 border-t border-line pt-4">

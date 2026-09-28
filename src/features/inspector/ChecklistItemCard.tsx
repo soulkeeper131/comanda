@@ -51,7 +51,7 @@ export default function ChecklistItemCard({
           onClick={() => canToggle && onToggle()}
           disabled={!canToggle}
           className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border-2 text-white ${
-            item.done ? "border-state-ok bg-state-ok" : "border-line bg-white"
+            item.done ? "border-state-ok bg-state-ok" : "border-muted bg-white"
           } disabled:opacity-50`}
           aria-label={item.done ? "Отметни като незавършено" : "Отметни като завършено"}
           aria-pressed={Boolean(item.done)}

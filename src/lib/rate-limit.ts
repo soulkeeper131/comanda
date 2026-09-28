@@ -19,7 +19,8 @@ const windows = new Map<string, WindowEntry>();
 
 /** Max requests per minute per endpoint type */
 function getLimit(pathname: string): number {
-  if (pathname === "/api/auth/login" || pathname.startsWith("/login")) {
+  // Само опитите за вход — зареждането на страницата /login не е опит.
+  if (pathname === "/api/auth/login" || pathname === "/api/auth/register") {
     return 5;
   }
   return 60;

@@ -29,7 +29,7 @@ export function Sheet({ open, onClose, children, placement = "center", className
           {placement === "bottom" ? (
             <motion.div
               className={[
-                "fixed inset-x-0 bottom-0 z-50 rounded-t-sheet bg-white shadow-card-3 safe-bottom",
+                "fixed inset-x-0 bottom-0 z-50 mx-auto max-w-2xl rounded-t-sheet bg-white shadow-card-3 safe-bottom",
                 className,
               ]
                 .filter(Boolean)

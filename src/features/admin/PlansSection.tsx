@@ -30,7 +30,10 @@ export default function PlansSection({
   reload: (...r: Resource[]) => Promise<void>;
   toast: (text: string, tone?: "ok" | "error") => void;
 }) {
-  const [filter, setFilter] = useState<Filter>("requested");
+  // Отваря се на „Чакат насрочване", само ако има какво да се насрочи.
+  const [filter, setFilter] = useState<Filter>(() =>
+    data.plans.some((p) => p.status === "requested") ? "requested" : "active",
+  );
   const [scheduling, setScheduling] = useState<AdminPlan | null>(null);
   const [catalog, setCatalog] = useState<CatalogPackage[]>([]);
   const [templates, setTemplates] = useState<ServiceTemplate[]>([]);
