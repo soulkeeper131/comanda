@@ -136,6 +136,9 @@ export const templateItems = sqliteTable("template_items", {
   proof_type: text("proof_type").default("photo"),
   required: integer("required", { mode: "boolean" }).default(true),
   sort: integer("sort").default(0),
+  // Кога се проверява точката: целогодишно, само зимата (окт–апр) или
+  // само лятото (май–сеп) — чек-листът на обхода следва сезона.
+  season: text("season").$type<"all" | "winter" | "summer">().default("all"),
 });
 
 // ============================================================
@@ -196,6 +199,11 @@ export const plans = sqliteTable("plans", {
   // Последната отворена страница за плащане — за да не се плати два пъти
   // и да се затвори, щом планът бъде отказан или платен по банка.
   stripe_checkout_session_id: text("stripe_checkout_session_id"),
+  // Сезонен абонамент с карта: таксуването в Stripe е на пауза до тази дата
+  // (началото на следващия сезон) — извън сезона не се тегли нищо.
+  billing_paused_until: text("billing_paused_until"),
+  // Абонамент по банка без плащане над 14 дни: обходите са спрени до превода.
+  suspended_at: text("suspended_at"),
   stripe_status: text("stripe_status"),
   paid_until: text("paid_until"),
   active: integer("active", { mode: "boolean" }).default(true),

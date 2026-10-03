@@ -5,7 +5,8 @@ import { Sheet } from "./ui/Sheet";
 import { Button } from "./ui/Button";
 import { Badge } from "./ui/Badge";
 import { Icon } from "./ui/Icon";
-import { formatMoney, perMonthLabel } from "@/lib/format";
+import { formatMoney, perMonthLabel, todayKey } from "@/lib/format";
+import { inSeason } from "@/lib/domain/schedule";
 import { formatMonthDay } from "@/features/client/format";
 import type { CatalogPackage } from "@/features/client/types";
 import BankDetails from "@/features/client/BankDetails";
@@ -232,6 +233,8 @@ function PackageCard({
   const addons = pkg.items.filter((i) => i.optional);
   const saving = pkg.list_price != null && pkg.list_price > pkg.price ? pkg.list_price - pkg.price : 0;
   const seasonal = pkg.active_from && pkg.active_to;
+  // Заявен до 30 дни преди сезона — плащането тръгва от първия му ден.
+  const startsLater = Boolean(seasonal && !inSeason(todayKey(), pkg.active_from, pkg.active_to));
 
   return (
     <div
@@ -280,12 +283,28 @@ function PackageCard({
               <Icon name="check" size={16} className="mt-0.5 text-state-ok" />
               <span>
                 {core.template_name}
-                {core.steps > 0 ? ` — ${core.steps} точки в чек-листа, всяка със снимка` : ""}
+                {core.steps > 0 ? ` — ${core.steps} точки в чек-листа, със снимков отчет` : ""}
+              </span>
+            </p>
+          )}
+          {seasonal && (
+            <p className="mt-1 flex items-start gap-1.5 text-sm text-ink-2">
+              <Icon name="calendar" size={16} className="mt-0.5 shrink-0 text-brand-secondary" />
+              <span>
+                Плащате само месеците в сезона — извън него няма обходи и такси.
+                {startsLater && ` Първото плащане е за месеца от ${formatMonthDay(pkg.active_from)}.`}
               </span>
             </p>
           )}
         </div>
       </button>
+
+      {selected && core && core.checklist && core.checklist.length > 0 && (
+        <details className="border-t border-line px-4 py-2 text-sm">
+          <summary className="flex min-h-touch cursor-pointer items-center font-semibold text-brand-secondary">Какво проверяваме</summary>
+          <ChecklistPreview steps={core.checklist} yearRound={!seasonal} />
+        </details>
+      )}
 
       {selected && addons.length > 0 && (
         <div className="space-y-1 border-t border-line px-4 py-3">
@@ -307,6 +326,45 @@ function PackageCard({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+type Step = NonNullable<CatalogPackage["items"][number]["checklist"]>[number];
+
+/** Чек-листът на обхода; при целогодишния пакет — какво се добавя зимата и лятото. */
+function ChecklistPreview({ steps, yearRound }: { steps: Step[]; yearRound: boolean }) {
+  const groups: { title: string | null; icon?: "snowflake" | "sun"; items: Step[] }[] = yearRound
+    ? [
+        { title: null, items: steps.filter((s) => s.season === "all") },
+        { title: "Зимата (окт–апр) още", icon: "snowflake", items: steps.filter((s) => s.season === "winter") },
+        { title: "Лятото (май–сеп) още", icon: "sun", items: steps.filter((s) => s.season === "summer") },
+      ]
+    : [{ title: null, items: steps }];
+  return (
+    <div className="space-y-2 pb-2">
+      {groups
+        .filter((g) => g.items.length > 0)
+        .map((g) => (
+          <div key={g.title ?? "all"}>
+            {g.title && (
+              <p className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted">
+                {g.icon && <Icon name={g.icon} size={14} />} {g.title}
+              </p>
+            )}
+            <ul className="space-y-1">
+              {g.items.map((s, i) => (
+                <li key={`${s.label}-${i}`} className="flex items-start gap-1.5 text-ink-2">
+                  <Icon name="check" size={14} className="mt-1 shrink-0 text-state-ok" />
+                  <span>
+                    {s.zone ? <span className="text-muted">{s.zone}: </span> : null}
+                    {s.label}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
     </div>
   );
 }

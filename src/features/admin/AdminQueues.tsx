@@ -75,12 +75,13 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
       ),
       bankPending: data.payments.filter((p) => p.status === "pending" && p.method !== "card"),
       // Абонамент без карта, чийто платен период е изтекъл (или никога не е
-      // платен) — обходите вървят, а парите не са дошли.
+      // платен) — обходите вървят (до 14 дни), а парите не са дошли.
+      // Сезонен пакет извън сезона не е тук — сървърът смята просрочието.
       unpaidPlans: data.plans.filter(
         (p) =>
           (p.status === "active" || p.status === "requested") &&
           !p.stripe_subscription_id &&
-          (!p.paid_until || p.paid_until < today),
+          (!p.paid_until || !!p.suspended_at || p.overdue_days > 0),
       ),
       // Приет ремонт, който може да започне: плащане след ремонта — веднага;
       // с предплащане — щом е платено.
@@ -186,7 +187,13 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
           <Row
             key={p.id}
             title={`${p.property_name} — ${formatMoney(p.price)}/месец`}
-            sub={`${p.owner_name ?? p.owner_email} · ${p.paid_until ? `платено до ${formatDay(p.paid_until)}` : "не е плащан"}`}
+            sub={`${p.owner_name ?? p.owner_email} · ${
+              p.suspended_at
+                ? "обходите са спрени до плащането"
+                : p.paid_until
+                  ? `${p.overdue_days} ${p.overdue_days === 1 ? "ден" : "дни"} просрочие — спира на 15-ия`
+                  : "не е плащан"
+            }`}
             action={
               <Button size="sm" variant="secondary" onClick={() => markPlanPaid(p.id)}>
                 Платен

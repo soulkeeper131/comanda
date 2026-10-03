@@ -65,6 +65,8 @@ export function generateForPlan(planId: string, today = todaySofia(), opts: { an
   if (!plan || !plan.first_job_at) return 0;
   if (plan.status === "requested" || plan.status === "pending_payment") return 0;
   if (plan.status === "cancelled" && !plan.ends_at) return 0;
+  // Спрян за неплащане — графикът се връща при потвърждаване на превода.
+  if (plan.suspended_at) return 0;
 
   const property = db.select().from(properties).where(eq(properties.id, plan.property_id)).get();
   if (!property || property.archived || property.status !== "active") return 0;

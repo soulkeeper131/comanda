@@ -5,7 +5,8 @@ import { NextResponse } from "next/server";
 import { withAuth, isAdmin } from "@/lib/auth";
 import { generateForPlan, todaySofia } from "@/lib/jobs-generator";
 import { notify, propertyLink } from "@/lib/messages";
-import { formatDateOnly } from "@/lib/format";
+import { formatDateOnly, seasonLabel } from "@/lib/format";
+import { inSeason } from "@/lib/domain/schedule";
 import { cancelPlan } from "@/lib/plan-cancel";
 import { requestPlanBankPayment, settlePlanPayment } from "@/lib/subscriptions";
 
@@ -53,6 +54,12 @@ export const PATCH = withAuth({ role: ["admin", "client"] }, async (request, { s
       }
       if (property.status !== "active") {
         return NextResponse.json({ error: "Имотът още не е одобрен" }, { status: 409 });
+      }
+      if (plan.season_from && plan.season_to && !inSeason(first, plan.season_from, plan.season_to)) {
+        return NextResponse.json(
+          { error: `Пакетът е сезонен (${seasonLabel(plan.season_from, plan.season_to)}) — първият обход трябва да е в сезона` },
+          { status: 400 },
+        );
       }
 
       db.update(plans).set({ first_job_at: first, status: "active" }).where(eq(plans.id, plan.id)).run();

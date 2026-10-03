@@ -95,3 +95,39 @@ describe("inSeason", () => {
     expect(inSeason("2027-07-15", null, null)).toBe(true);
   });
 });
+
+import { nextSeasonStart, prevWorkingDay, stepApplies, visitSeason } from "./schedule";
+
+describe("сезони и месечен график", () => {
+  it("веднъж месечно е същият ден всеки месец — няма месец без обход", () => {
+    const v = scheduleVisits({ firstDate: "2026-12-31", perMonth: 1, today: "2026-12-01", horizonMonths: 6 });
+    const months = v.map((x) => x.date.slice(0, 7));
+    expect(months).toEqual(["2026-12", "2027-01", "2027-02", "2027-03", "2027-04", "2027-05"]);
+    expect(v[2].date).toBe("2027-02-28");
+  });
+
+  it("празник в края на сезона мести обхода по-рано, не го губи", () => {
+    // 30.04.2027 е Велики петък; зимният сезон свършва на 30.04
+    const v = scheduleVisits({
+      firstDate: "2027-04-16",
+      perMonth: 2,
+      today: "2027-04-01",
+      horizonMonths: 2,
+      season: { from: "10-01", to: "04-30" },
+    });
+    expect(v.map((x) => x.date)).toContain("2027-04-29");
+    expect(prevWorkingDay("2027-05-03")).toBe("2027-04-29");
+  });
+
+  it("сезонът на чек-листа и началото на следващия сезон", () => {
+    expect(visitSeason("2026-10-01")).toBe("winter");
+    expect(visitSeason("2027-04-30")).toBe("winter");
+    expect(visitSeason("2027-05-01")).toBe("summer");
+    expect(stepApplies("winter", "2027-01-10")).toBe(true);
+    expect(stepApplies("summer", "2027-01-10")).toBe(false);
+    expect(stepApplies("all", "2027-07-10")).toBe(true);
+    expect(nextSeasonStart("2027-05-04", "10-01")).toBe("2027-10-01");
+    expect(nextSeasonStart("2027-11-04", "10-01")).toBe("2028-10-01");
+    expect(nextSeasonStart("2027-10-01", "10-01")).toBe("2027-10-01");
+  });
+});

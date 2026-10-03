@@ -5,6 +5,7 @@ import path from "node:path";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "komanda-ord-"));
 fs.cpSync(path.join(process.cwd(), "drizzle"), path.join(dir, "drizzle"), { recursive: true });
+fs.cpSync(path.join(process.cwd(), "assets"), path.join(dir, "assets"), { recursive: true });
 process.chdir(dir);
 
 let db: typeof import("@/db")["db"];

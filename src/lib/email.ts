@@ -3,7 +3,6 @@ import { db } from "@/db";
 import { organizations, settings, properties, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getDefaultOrgId } from "@/lib/org";
-import { appUrl } from "@/lib/mail-layout";
 
 export interface SmtpConfig {
   smtp_host: string;

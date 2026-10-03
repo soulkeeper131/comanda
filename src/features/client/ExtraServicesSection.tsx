@@ -165,7 +165,7 @@ export default function ExtraServicesSection({
             <input
               type="date"
               className={input}
-              min={addDaysKey(todayKey(), 1)}
+              min={todayKey()}
               max={addDaysKey(todayKey(), 60)}
               value={date}
               onChange={(e) => setDate(e.target.value)}
@@ -175,12 +175,13 @@ export default function ExtraServicesSection({
             <span className="mb-1 block text-sm font-semibold text-ink-2">Бележка (по желание)</span>
             <textarea className={`${input} min-h-[72px] py-2`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
           </label>
+          {date === todayKey() && <p className="text-sm text-muted">За днес — само с карта, за да тръгнем веднага.</p>}
           {error && <Notice tone="danger">{error}</Notice>}
           <div className="flex flex-col gap-2 pb-2 sm:flex-row">
             <Button fullWidth disabled={busy || !selected} onClick={() => submit("card")}>
               <Icon name="card" size={18} /> {selected ? `Плати ${formatMoney(selected.price)}` : "Изберете услуга"}
             </Button>
-            <Button fullWidth variant="secondary" disabled={busy || !selected} onClick={() => submit("bank")}>
+            <Button fullWidth variant="secondary" disabled={busy || !selected || date === todayKey()} onClick={() => submit("bank")}>
               <Icon name="bank" size={18} /> По банков път
             </Button>
           </div>

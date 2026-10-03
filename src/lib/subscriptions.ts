@@ -1,15 +1,15 @@
 import type Stripe from "stripe";
 import { db } from "@/db";
 import { plans, properties, users, payments } from "@/db/schema";
-import { and, eq, inArray, isNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 import { getStripeOrNull, eurToCents } from "@/lib/stripe";
 import { appUrl, formatEur } from "@/lib/mail-layout";
 import { bankRows, notify, propertyLink } from "@/lib/messages";
 import { invoiceAttachment } from "@/lib/messages/attachments";
 import { ensureInvoice } from "@/lib/payments";
-import { removePlannedJobsAfter, todaySofia } from "@/lib/jobs-generator";
-import { addDays, billingPeriod } from "@/lib/domain/plans";
-import { getBankDetails } from "@/lib/settings";
+import { generateForPlan, removePlannedJobsAfter, todaySofia } from "@/lib/jobs-generator";
+import { addDays, billingPeriod, seasonDayOnOrAfter, unpaidFrom } from "@/lib/domain/plans";
+import { inSeason, nextSeasonStart } from "@/lib/domain/schedule";
 import { bankReference, formatDateOnly } from "@/lib/format";
 
 /**
@@ -18,6 +18,16 @@ import { bankReference, formatDateOnly } from "@/lib/format";
  */
 
 const unixToDate = (s: number | null | undefined) => (s ? new Date(s * 1000).toISOString().slice(0, 10) : null);
+
+/** 00:00 българско време на дадена дата, в секунди (за Stripe). */
+export function sofiaMidnightUnix(date: string): number {
+  const utc = Date.parse(`${date}T00:00:00Z`);
+  const local = new Date(utc).toLocaleString("sv-SE", { timeZone: "Europe/Sofia" });
+  const offset = Date.parse(`${local.replace(" ", "T")}Z`) - utc;
+  return Math.floor((utc - offset) / 1000);
+}
+
+const seasonOf = (plan: typeof plans.$inferSelect) => ({ from: plan.season_from, to: plan.season_to });
 
 /** Stripe клиент за потребителя — създава се веднъж и се пази. */
 export async function ensureStripeCustomer(stripe: Stripe, userId: string): Promise<string> {
@@ -56,13 +66,20 @@ export async function createSubscriptionCheckout(planId: string, userId: string)
     }
   }
 
+  // Сезонен пакет, заявен преди сезона: картата се запазва сега, първото
+  // теглене е в първия ден на сезона (Stripe иска поне 48 часа напред).
+  const today = todaySofia();
+  const seasonStart = seasonDayOnOrAfter(today, seasonOf(plan));
+  const trialEnd = seasonStart > today ? sofiaMidnightUnix(seasonStart) : null;
+  const deferred = trialEnd !== null && trialEnd * 1000 - Date.now() > 48 * 3600_000;
+
   const customer = await ensureStripeCustomer(stripe, userId);
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer,
     client_reference_id: plan.id,
     metadata: { plan_id: plan.id, kind: "plan" },
-    subscription_data: { metadata: { plan_id: plan.id } },
+    subscription_data: { metadata: { plan_id: plan.id }, ...(deferred ? { trial_end: trialEnd! } : {}) },
     line_items: [
       {
         quantity: 1,
@@ -239,11 +256,22 @@ export async function onInvoicePaid(invoice: Stripe.Invoice) {
   const property = db.select().from(properties).where(eq(properties.id, plan.property_id)).get();
   if (!property) return;
 
+  const periodEnd = invoice.lines?.data?.[0]?.period?.end ?? invoice.period_end;
+
+  // Сезонен пакет, заявен преди сезона: нулевата фактура само запазва
+  // картата — без плащане и без фактура; първото теглене е в началото на сезона.
+  if (invoice.amount_paid <= 0) {
+    const firstCharge = unixToDate(periodEnd);
+    if (firstCharge && firstCharge > todaySofia()) {
+      db.update(plans).set({ billing_paused_until: firstCharge }).where(eq(plans.id, plan.id)).run();
+    }
+    return;
+  }
+
   // Идемпотентност: Stripe може да прати събитието повече от веднъж.
   const seen = db.select().from(payments).where(eq(payments.stripe_session_id, invoice.id)).get();
   if (seen) return;
 
-  const periodEnd = invoice.lines?.data?.[0]?.period?.end ?? invoice.period_end;
   const [payment] = db
     .insert(payments)
     .values({
@@ -261,9 +289,10 @@ export async function onInvoicePaid(invoice: Stripe.Invoice) {
   const inv = ensureInvoice(payment.id, `Абонамент ${plan.name} — ${property.name}, до ${unixToDate(periodEnd) ?? ""}`);
 
   db.update(plans)
-    .set({ paid_until: unixToDate(periodEnd), stripe_status: "active" })
+    .set({ paid_until: unixToDate(periodEnd), stripe_status: "active", billing_paused_until: null })
     .where(eq(plans.id, plan.id))
     .run();
+  await pauseOffSeason(plan.id);
 
   await notify("plan_paid", {
     to: property.owner_id,
@@ -272,6 +301,56 @@ export async function onInvoicePaid(invoice: Stripe.Invoice) {
     link: propertyLink(property.id),
     attachments: invoiceAttachment(inv?.id),
   });
+}
+
+/**
+ * Сезонен пакет с карта (плаща се само в сезона): ако следващото теглене се
+ * пада извън сезона, Stripe спира да тегли до първия ден на следващия
+ * сезон — фактурите през паузата се анулират, абонаментът остава. Тегленето,
+ * започнало в сезона, покрива цял месец, затова пауза се слага чак когато
+ * следващото е извън него.
+ */
+export async function pauseOffSeason(planId: string): Promise<boolean> {
+  const plan = db.select().from(plans).where(eq(plans.id, planId)).get();
+  const next = plan?.paid_until;
+  if (!plan?.stripe_subscription_id || !plan.season_from || !plan.season_to || !next) return false;
+  if (plan.status === "cancelled" || inSeason(next, plan.season_from, plan.season_to)) return false;
+  const resumes = nextSeasonStart(next, plan.season_from);
+  if (plan.billing_paused_until === resumes) return false;
+  const stripe = getStripeOrNull();
+  if (!stripe) return false;
+  try {
+    await stripe.subscriptions.update(plan.stripe_subscription_id, {
+      pause_collection: { behavior: "void", resumes_at: sofiaMidnightUnix(resumes) },
+    });
+    db.update(plans).set({ billing_paused_until: resumes }).where(eq(plans.id, plan.id)).run();
+    return true;
+  } catch (err) {
+    console.error("[subscriptions] pause off-season failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Периодична задача: пауза извън сезона за сезонните абонаменти с карта
+ * (ако уебхукът я е пропуснал) и изчистване на минала пауза.
+ */
+export async function syncSeasonPauses(today: string = todaySofia()): Promise<number> {
+  db.update(plans)
+    .set({ billing_paused_until: null })
+    .where(and(isNotNull(plans.billing_paused_until), lte(plans.billing_paused_until, today)))
+    .run();
+  const seasonal = db
+    .select({ id: plans.id, paid_until: plans.paid_until })
+    .from(plans)
+    .where(and(inArray(plans.status, ["requested", "active"]), isNotNull(plans.stripe_subscription_id), isNotNull(plans.season_from)))
+    .all();
+  let paused = 0;
+  for (const p of seasonal) {
+    // Само за предстоящо теглене — платеното от миналия сезон не значи пауза.
+    if (p.paid_until && p.paid_until >= today && (await pauseOffSeason(p.id))) paused++;
+  }
+  return paused;
 }
 
 /** Неуспешно теглене — Stripe опитва пак ~7 дни; екипът и клиентът знаят. */
@@ -402,22 +481,26 @@ export async function settlePlanPayment(paymentId: string): Promise<{ ok: true; 
     return { ok: false, error: "Абонаментът е отказан преди първия обход — откажете превода и върнете сумата" };
   }
 
-  const period = billingPeriod(plan.paid_until, todaySofia());
+  const today = todaySofia();
+  const wasSuspended = Boolean(plan.suspended_at);
+  const period = billingPeriod(plan.paid_until, today, seasonOf(plan), { suspended: wasSuspended });
   const wasPending = plan.status === "pending_payment";
   db.transaction((tx) => {
     tx.update(payments).set({ status: "paid", paid_at: new Date().toISOString() }).where(eq(payments.id, payment.id)).run();
     tx.update(plans)
-      .set({ paid_until: period.until, ...(wasPending ? { status: "requested" as const } : {}) })
+      .set({ paid_until: period.until, suspended_at: null, ...(wasPending ? { status: "requested" as const } : {}) })
       .where(eq(plans.id, plan.id))
       .run();
   });
   if (wasPending) await expirePlanCheckout(plan.id);
+  // Спрените обходи се връщат в графика от днес нататък.
+  if (wasSuspended) generateForPlan(plan.id, today);
 
   const inv = ensureInvoice(
     payment.id,
     `Абонамент ${plan.name} — ${property.name}, ${formatDateOnly(period.from)}–${formatDateOnly(period.until)}`,
   );
-  await notify("plan_paid", {
+  await notify(wasSuspended ? "plan_resumed" : "plan_paid", {
     to: property.owner_id,
     vars: { amount: formatEur(payment.amount), package: plan.name, property: property.name, paid_until: formatDateOnly(period.until) },
     rows: [["Фактура", inv?.number]],
@@ -431,10 +514,12 @@ export async function settlePlanPayment(paymentId: string): Promise<{ ok: true; 
 /**
  * Периодична задача: 7 дни преди края на платения месец клиентите, които
  * плащат по банка, получават превод за следващия месец с данните за плащане.
+ * Сезонен пакет извън сезона не плаща — преводът се иска 7 дни преди
+ * началото на следващия сезон.
  * Идемпотентна — втори чакащ превод за същия план не се създава.
  */
 export async function billBankPlans(today: string = todaySofia()): Promise<number> {
-  const due = db
+  const candidates = db
     .select()
     .from(plans)
     .where(
@@ -442,12 +527,14 @@ export async function billBankPlans(today: string = todaySofia()): Promise<numbe
         inArray(plans.status, ["requested", "active"]),
         isNull(plans.stripe_subscription_id),
         isNull(plans.ends_at),
-        lte(plans.paid_until, addDays(today, 7)),
+        isNotNull(plans.paid_until),
       ),
     )
     .all();
   let created = 0;
-  for (const plan of due) {
+  for (const plan of candidates) {
+    const from = unpaidFrom(plan.paid_until, seasonOf(plan));
+    if (!from || from > addDays(today, 8)) continue;
     const hadPending = db
       .select({ id: payments.id })
       .from(payments)
@@ -460,7 +547,13 @@ export async function billBankPlans(today: string = todaySofia()): Promise<numbe
     created++;
     await notify("plan_next_payment", {
       to: property.owner_id,
-      vars: { paid_until: formatDateOnly(plan.paid_until), amount: formatEur(plan.price), package: plan.name, property: property.name },
+      vars: {
+        paid_until: formatDateOnly(plan.paid_until),
+        from: formatDateOnly(from),
+        amount: formatEur(plan.price),
+        package: plan.name,
+        property: property.name,
+      },
       rows: bankRows(bankReference("plan", plan.id), plan.price),
       link: propertyLink(property.id),
     });

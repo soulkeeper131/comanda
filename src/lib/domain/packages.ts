@@ -1,3 +1,5 @@
+import { parseAmount } from "./templates";
+
 export type PackageItemInput = {
   template_id: string;
   per_month: number;
@@ -32,9 +34,9 @@ export function parsePackageInput(body: unknown): Result {
   if (!(FREQUENCIES as readonly number[]).includes(perMonth)) {
     return { ok: false, error: "Честотата е 1, 2 или 4 обхода месечно" };
   }
-  const price = Number(b.price);
+  const price = parseAmount(b.price);
   if (!Number.isFinite(price) || price <= 0) return { ok: false, error: "Невалидна цена" };
-  const listPrice = b.list_price === undefined || b.list_price === null || b.list_price === "" ? null : Number(b.list_price);
+  const listPrice = b.list_price === undefined || b.list_price === null || b.list_price === "" ? null : parseAmount(b.list_price);
   if (listPrice !== null && (!Number.isFinite(listPrice) || listPrice < price)) {
     return { ok: false, error: "Цената без отстъпка трябва да е поне колкото цената" };
   }
@@ -55,12 +57,17 @@ export function parsePackageInput(body: unknown): Result {
     if (!(FREQUENCIES as readonly number[]).includes(itemPerMonth)) {
       return { ok: false, error: "Честотата на опцията е 1, 2 или 4 месечно" };
     }
-    const extra = optional ? Number(r.extra_price ?? 0) : 0;
+    const extra = optional ? parseAmount(r.extra_price ?? 0) : 0;
     if (!Number.isFinite(extra) || extra < 0) return { ok: false, error: "Невалидна добавка към цената" };
     items.push({ template_id: r.template_id, per_month: itemPerMonth, optional, extra_price: extra });
   }
   if (items.filter((i) => !i.optional).length !== 1) {
     return { ok: false, error: "Пакетът има точно една основна услуга (обходът)" };
+  }
+  // Една услуга два пъти в пакета дава един и същ график — втората не би
+  // създала нито един обход, а клиентът би я платил.
+  if (new Set(items.map((i) => i.template_id)).size !== items.length) {
+    return { ok: false, error: "Всяка услуга може да е в пакета само веднъж" };
   }
 
   return {
@@ -76,4 +83,17 @@ export function parsePackageInput(body: unknown): Result {
       items,
     },
   };
+}
+
+/** Избрана опция, записана в абонамента при заявката (не се мени с каталога). */
+export type OptionSnapshot = { template_id: string; per_month: number; name?: string; extra_price?: number };
+
+export function parseOptionSnapshot(raw: string | null | undefined): OptionSnapshot[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((o): o is OptionSnapshot => typeof o?.template_id === "string") : [];
+  } catch {
+    return [];
+  }
 }

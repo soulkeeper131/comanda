@@ -7,6 +7,7 @@ import { notify, propertyLink } from "@/lib/messages";
 import { withAuth, canOverride, isAdmin } from "@/lib/auth";
 import { distanceMeters } from "@/lib/geo";
 import { recordOverride, normalizeOverrideReason } from "@/lib/domain/overrides";
+import { stepApplies } from "@/lib/domain/schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -122,16 +123,19 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
       }
     }
 
-    // Get template items
+    // Стъпките от шаблона, които важат за сезона на обхода: зимните
+    // (отопление, тръби) само окт–апр, летните (тераса, двор) само май–сеп.
+    const today = todaySofia();
     const items = db
       .select()
       .from(templateItems)
       .where(eq(templateItems.template_id, job.template_id))
-      .all();
+      .all()
+      .filter((item) => stepApplies(item.season, today));
 
     if (items.length === 0) {
       return NextResponse.json(
-        { error: "Шаблонът няма дефинирани стъпки" },
+        { error: "Чек-листът на услугата няма точки за този сезон — добавете ги от Настройки → Услуги и чеклисти" },
         { status: 400 }
       );
     }

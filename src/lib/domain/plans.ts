@@ -1,3 +1,5 @@
+import { inSeason, nextSeasonStart } from "./schedule";
+
 export type PlanLike = { status: string | null; active?: boolean | null; ends_at?: string | null };
 
 /**
@@ -32,13 +34,52 @@ export function addDays(day: string, n: number): string {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
+/** Сезонът на плана ("MM-DD"–"MM-DD"); без него — целогодишен. */
+export type SeasonWindow = { from?: string | null; to?: string | null } | null | undefined;
+
+/** След толкова дни без превод бъдещите обходи спират до плащането. */
+export const SUSPEND_AFTER_DAYS = 14;
+
+/** Датата, ако е в сезона на плана; иначе първият ден на следващия сезон. */
+export function seasonDayOnOrAfter(date: string, season?: SeasonWindow): string {
+  if (!season?.from || !season.to || inSeason(date, season.from, season.to)) return date;
+  return nextSeasonStart(date, season.from);
+}
+
 /**
- * Периодът, който покрива едно месечно плащане по банка: от деня след
- * платеното досега (или от днес, ако няма платено или е изтекло) до същата
- * дата следващия месец минус ден. 31 януари → 28/29 февруари, не 3 март.
+ * Откога обслужването не е платено: денят след платеното, а при сезонен
+ * пакет извън сезона — началото на следващия сезон (тогава не се плаща).
  */
-export function billingPeriod(paidUntil: string | null | undefined, today: string): { from: string; until: string } {
-  const from = paidUntil && paidUntil >= today ? addDays(paidUntil, 1) : today;
+export function unpaidFrom(paidUntil: string | null | undefined, season?: SeasonWindow): string | null {
+  return paidUntil ? seasonDayOnOrAfter(addDays(paidUntil, 1), season) : null;
+}
+
+/** Ден на просрочие: 1 е първият неплатен ден в сезона, 0 — няма просрочие. */
+export function daysOverdue(paidUntil: string | null | undefined, today: string, season?: SeasonWindow): number {
+  const from = unpaidFrom(paidUntil, season);
+  if (!from || from > today) return 0;
+  return Math.round((Date.parse(today) - Date.parse(from)) / 86_400_000) + 1;
+}
+
+/**
+ * Периодът, който покрива едно месечно плащане по банка — до същата дата
+ * следващия месец минус ден (31 януари → 28/29 февруари, не 3 март).
+ *
+ * Започва от деня след платеното — и при закъснял превод в гратисните 14
+ * дни, защото обходите са продължили. От днес започва, ако не е плащано
+ * никога, ако обходите са били спрени или закъснението е по-голямо.
+ * Сезонен пакет плаща само месеците в сезона: период, който би започнал
+ * извън него, започва в първия ден на следващия сезон.
+ */
+export function billingPeriod(
+  paidUntil: string | null | undefined,
+  today: string,
+  season?: SeasonWindow,
+  opts: { suspended?: boolean } = {},
+): { from: string; until: string } {
+  const due = unpaidFrom(paidUntil, season);
+  const late = daysOverdue(paidUntil, today, season);
+  const from = due && !opts.suspended && late <= SUSPEND_AFTER_DAYS ? due : seasonDayOnOrAfter(today, season);
   const [y, m, d] = from.split("-").map(Number);
   const lastOfNext = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
   // Няма такъв ден следващия месец (31 → февруари) — до последния му ден.

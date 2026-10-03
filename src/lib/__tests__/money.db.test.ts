@@ -8,6 +8,7 @@ import type Stripe from "stripe";
 // отказ преди първия обход, оттеглена платена услуга, фактури и връщания.
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "komanda-money-"));
 fs.cpSync(path.join(process.cwd(), "drizzle"), path.join(dir, "drizzle"), { recursive: true });
+fs.cpSync(path.join(process.cwd(), "assets"), path.join(dir, "assets"), { recursive: true });
 process.chdir(dir);
 
 let db: typeof import("@/db")["db"];

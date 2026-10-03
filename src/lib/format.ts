@@ -122,3 +122,15 @@ export function fullAddress(city: string | null | undefined, address: string | n
   if (!city || address.toLowerCase().includes(city.toLowerCase())) return address;
   return `${city}, ${address}`;
 }
+
+const MONTHS_GEN = ["януари", "февруари", "март", "април", "май", "юни", "юли", "август", "септември", "октомври", "ноември", "декември"];
+
+/** Сезонът на пакет ("10-01", "04-30") → "1 октомври – 30 април". */
+export function seasonLabel(from: string | null | undefined, to: string | null | undefined): string {
+  if (!from || !to) return "целогодишно";
+  const part = (md: string) => {
+    const [m, d] = md.split("-").map(Number);
+    return `${d} ${MONTHS_GEN[m - 1] ?? ""}`.trim();
+  };
+  return `${part(from)} – ${part(to)}`;
+}

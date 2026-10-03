@@ -4,7 +4,7 @@ import { isHoliday } from "./holidays";
  * Генератор на дати за обходи (N7) — чиста функция, без база.
  *
  * Правилата от въпросника:
- * - честота по брой на месец: 4 → на 7 дни, 2 → на 14, 1 → на 30 (въпрос 3)
+ * - честота по брой на месец: 4 → на 7 дни, 2 → на 14, 1 → същият ден всеки месец (въпрос 3)
  * - админът насрочва първия обход, останалите следват от него (въпрос 7)
  * - три месеца напред (въпрос 8)
  * - официалните празници се пропускат — мести се САМО тази дата към
@@ -40,9 +40,37 @@ export function addMonths(date: string, months: number): string {
 /** Следващият ден, който не е празник (самата дата, ако не е). */
 export function nextWorkingDay(date: string): string {
   let d = date;
-  // Най-дългата поредица празници е 3 дни (Коледа) — 10 е с голям запас.
+  // Най-дългите поредици празници са 4 дни (Великден петък–понеделник) — 10 е с запас.
   for (let i = 0; i < 10 && isHoliday(d); i++) d = addDays(d, 1);
   return d;
+}
+
+/** Предишният ден, който не е празник (самата дата, ако не е). */
+export function prevWorkingDay(date: string): string {
+  let d = date;
+  for (let i = 0; i < 10 && isHoliday(d); i++) d = addDays(d, -1);
+  return d;
+}
+
+/**
+ * Сезонът на чек-листа за дадена дата: зима е октомври–април (отопление,
+ * тръби, влага), лято — май–септември (бури, тераса, двор).
+ */
+export function visitSeason(date: string): "winter" | "summer" {
+  const m = Number(date.slice(5, 7));
+  return m >= 10 || m <= 4 ? "winter" : "summer";
+}
+
+/** Важи ли точка от чек-листа за обход на тази дата. */
+export function stepApplies(stepSeason: string | null | undefined, date: string): boolean {
+  return !stepSeason || stepSeason === "all" || stepSeason === visitSeason(date);
+}
+
+/** Първият ден на сезона ("MM-DD") на или след дадена дата. */
+export function nextSeasonStart(date: string, from: string): string {
+  const year = Number(date.slice(0, 4));
+  const thisYear = `${year}-${from}`;
+  return thisYear >= date ? thisYear : `${year + 1}-${from}`;
 }
 
 export type ScheduleInput = {
@@ -64,12 +92,22 @@ export function scheduleVisits(input: ScheduleInput): ScheduledVisit[] {
   const step = intervalDays(input.perMonth);
   const horizon = addMonths(input.today, input.horizonMonths ?? HORIZON_MONTHS);
   const out: ScheduledVisit[] = [];
+  const ok = (d: string) =>
+    (!input.endsAt || d <= input.endsAt.slice(0, 10)) && (!input.season || inSeason(d, input.season.from, input.season.to));
 
   for (let seq = 0; seq < 1000; seq++) {
-    const nominal = addDays(input.firstDate, seq * step);
+    // Веднъж месечно = същият ден всеки месец (31 → последния ден), не „на
+    // 30 дни": иначе някой месец остава без обход, а е платен.
+    const nominal = input.perMonth <= 1 ? addMonths(input.firstDate, seq) : addDays(input.firstDate, seq * step);
     if (nominal > horizon) break;
     // Първата дата е изрично уговорена с клиента — не я местим.
-    const date = seq === 0 ? nominal : nextWorkingDay(nominal);
+    let date = seq === 0 ? nominal : nextWorkingDay(nominal);
+    // Месечният обход остава в своя месец (30.04 Велики петък → 29.04, не 04.05),
+    // а празник в края на сезона/абонамента го мести по-рано, вместо да изчезне.
+    if (seq > 0 && ((input.perMonth <= 1 && date.slice(0, 7) !== nominal.slice(0, 7)) || (!ok(date) && ok(nominal)))) {
+      const earlier = prevWorkingDay(nominal);
+      if (ok(earlier)) date = earlier;
+    }
     if (input.endsAt && date > input.endsAt.slice(0, 10)) break;
     if (date < input.today) continue;
     if (input.season && !inSeason(date, input.season.from, input.season.to)) continue;

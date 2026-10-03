@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import TemplateManager from "@/components/TemplateManager";
 import SmtpSettings from "@/components/SmtpSettings";
 import { formatMoney } from "@/lib/format";
 import { api } from "./api";
 import TeamPanel from "./TeamPanel";
 import MessagesPanel from "./MessagesPanel";
+import ServicesPanel from "./ServicesPanel";
 import { Chips, Field, SectionTitle, inputClass } from "./ui";
 import type { AdminData, Resource } from "./useAdminData";
 
@@ -49,8 +49,6 @@ export default function SettingsSection({
   const [settings, setSettings] = useState<Settings | null>(null);
   const [form, setForm] = useState({ prepay_threshold: "", bank_iban: "", bank_recipient: "", bank_name: "" });
   const [busy, setBusy] = useState(false);
-  const [newService, setNewService] = useState({ name: "", category: "inspection" });
-  const [templatesKey, setTemplatesKey] = useState(0);
 
   const loadSettings = () =>
     api<Settings>("/api/admin/settings").then((r) => {
@@ -100,13 +98,6 @@ export default function SettingsSection({
     toast(res.ok ? `Копие на базата: ${res.data.filename}` : res.error, res.ok ? "ok" : "error");
   };
 
-  const addService = async () => {
-    const res = await api("/api/templates", { body: { name: newService.name.trim(), category: newService.category } });
-    if (!res.ok) return toast(res.error, "error");
-    setNewService({ name: "", category: newService.category });
-    setTemplatesKey((k) => k + 1);
-    toast("Услугата е създадена — добавете стъпките ѝ");
-  };
 
   return (
     <div>
@@ -192,35 +183,7 @@ export default function SettingsSection({
 
       {tab === "templates" && (
         <div className="space-y-3">
-          <Card className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[180px] flex-1">
-              <Field label="Нова услуга">
-                <input
-                  className={inputClass}
-                  value={newService.name}
-                  onChange={(e) => setNewService({ ...newService, name: e.target.value })}
-                  placeholder="Напр. Почистване на прозорци"
-                />
-              </Field>
-            </div>
-            <select
-              className={`${inputClass} w-auto`}
-              aria-label="Вид"
-              value={newService.category}
-              onChange={(e) => setNewService({ ...newService, category: e.target.value })}
-            >
-              <option value="inspection">Обход</option>
-              <option value="cleaning">Почистване</option>
-              <option value="repair">Ремонт</option>
-              <option value="custom">Друго</option>
-            </select>
-            <Button disabled={!newService.name.trim()} onClick={addService}>
-              Добави
-            </Button>
-          </Card>
-          <Card padding="none">
-            <TemplateManager key={templatesKey} />
-          </Card>
+          <ServicesPanel toast={toast} />
         </div>
       )}
 

@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { formatDateOnly, formatMoney, perMonthLabel } from "@/lib/format";
+import { formatDateOnly, formatMoney, perMonthLabel, seasonLabel } from "@/lib/format";
+import { parseOptionSnapshot } from "@/lib/domain/packages";
 import { api } from "./api";
 import PackageEditorSheet from "./PackageEditorSheet";
 import PaymentsList from "./PaymentsList";
@@ -57,6 +58,9 @@ export default function PlansSection({
   const plans = useMemo(() => data.plans.filter((p) => p.status === filter), [data.plans, filter]);
   const count = (s: AdminPlan["status"]) => data.plans.filter((p) => p.status === s).length;
   const optionNames = (p: AdminPlan) => {
+    // Имената от заявката — каталогът може да се е променил оттогава.
+    const snap = parseOptionSnapshot(p.options_snapshot);
+    if (snap.some((o) => o.name)) return snap.map((o) => o.name).filter(Boolean).join(", ");
     const ids: string[] = (() => {
       try {
         return JSON.parse(p.options ?? "[]");
@@ -72,7 +76,7 @@ export default function PlansSection({
     const text =
       p.status === "active"
         ? `Прекратяване на абонамента за ${p.property_name}? Важи до края на платения период, бъдещите обходи се махат.`
-        : `Оттегляне на абонамента за ${p.property_name}?${p.stripe_subscription_id ? " Върнете платената сума от таблото на Stripe." : ""}`;
+        : `Оттегляне на абонамента за ${p.property_name}?${p.status === "requested" ? " Платеното отива в „Суми за връщане“ на таблото." : ""}`;
     if (!confirm(text)) return;
     const res = await api<{ ends_at: string; jobs_removed: number }>(`/api/plans/${p.id}`, {
       method: "PATCH",
@@ -152,9 +156,7 @@ export default function PlansSection({
                   {pkg.archived ? (
                     <Badge>Скрит</Badge>
                   ) : pkg.active_from ? (
-                    <Badge tone={pkg.in_season ? "ok" : "neutral"}>
-                      Сезон {pkg.active_from}–{pkg.active_to}
-                    </Badge>
+                    <Badge tone={pkg.in_season ? "ok" : "neutral"}>{seasonLabel(pkg.active_from, pkg.active_to)}</Badge>
                   ) : null}
                 </div>
               </Card>
@@ -184,8 +186,24 @@ export default function PlansSection({
                       {p.paid_until ? ` · платено до ${formatDateOnly(p.paid_until)}` : ""}
                       {p.stripe_subscription_id ? " · карта" : " · банка"}
                     </div>
+                    {p.season_from && (
+                      <div className="text-xs text-muted">Сезон {seasonLabel(p.season_from, p.season_to)}</div>
+                    )}
+                    {p.billing_paused_until && (
+                      <div className="text-xs text-muted">Картата не се таксува до {formatDateOnly(p.billing_paused_until)} (извън сезона)</div>
+                    )}
                     {p.stripe_status === "past_due" && (
                       <div className="mt-1 text-xs font-semibold text-state-danger">Последното теглене не мина — Stripe опитва пак</div>
+                    )}
+                    {p.suspended_at && p.status !== "cancelled" && (
+                      <div className="mt-1 text-xs font-semibold text-state-danger">
+                        Обходите са спрени — преводът закъснява. Връщат се сами при потвърждаване.
+                      </div>
+                    )}
+                    {!p.suspended_at && p.overdue_days > 0 && p.status !== "cancelled" && (
+                      <div className="mt-1 text-xs font-semibold text-state-warning">
+                        Преводът закъснява {p.overdue_days} {p.overdue_days === 1 ? "ден" : "дни"} — на 15-ия обходите спират
+                      </div>
                     )}
                   </div>
                   <Badge tone={st.tone}>{st.text}</Badge>

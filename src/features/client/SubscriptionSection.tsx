@@ -8,7 +8,10 @@ import { Icon } from "@/components/ui/Icon";
 import { Notice, Section } from "./Section";
 import BankDetails from "./BankDetails";
 import { api, getOr } from "./api";
-import { formatDateOnly, formatDay, formatMoney, perMonthLabel } from "./format";
+import { addDaysKey, formatDateOnly, formatDay, formatMoney, perMonthLabel, todayKey } from "./format";
+import { seasonLabel } from "@/lib/format";
+import { seasonDayOnOrAfter } from "@/lib/domain/plans";
+import { parseOptionSnapshot } from "@/lib/domain/packages";
 import type { ApprovalStatus, CatalogPackage, ClientJob, ClientPayment, ClientPlan } from "./types";
 
 function parseOptions(raw: string | null | undefined): string[] {
@@ -57,17 +60,21 @@ export default function SubscriptionSection({
   const bankPending = plan ? payments.find((p) => p.plan_id === plan.id && p.status === "pending" && p.method === "bank") : undefined;
 
   useEffect(() => {
-    if (optionIds.length === 0) return;
+    if (optionIds.length === 0 || plan?.options_snapshot?.includes('"name"')) return;
     getOr<CatalogPackage[]>("/api/packages", []).then(setCatalog);
-  }, [optionIds.length]);
+  }, [optionIds.length, plan?.options_snapshot]);
 
-  const optionNames = optionIds.map((id) => {
-    for (const p of catalog) {
-      const item = p.items.find((i) => i.id === id);
-      if (item) return item.template_name;
-    }
-    return null;
-  });
+  // Имената от заявката; за стари абонаменти без тях — от каталога.
+  const snapshot = parseOptionSnapshot(plan?.options_snapshot);
+  const optionNames = snapshot.some((o) => o.name)
+    ? snapshot.map((o) => o.name ?? null)
+    : optionIds.map((id) => {
+        for (const p of catalog) {
+          const item = p.items.find((i) => i.id === id);
+          if (item) return item.template_name;
+        }
+        return null;
+      });
 
   const cancel = async () => {
     if (!plan) return;
@@ -122,11 +129,20 @@ export default function SubscriptionSection({
     setError(res.ok ? "Опитайте отново" : res.error);
   };
 
+  const seasonal = Boolean(plan.season_from && plan.season_to);
+  const season = { from: plan.season_from, to: plan.season_to };
+  const seasonStart = seasonDayOnOrAfter(todayKey(), season);
+  const seasonStartsLater = seasonal && seasonStart > todayKey();
+  // Откога е следващият платен период (сезонният пакет прескача извън сезона).
+  const nextFrom = plan.paid_until ? seasonDayOnOrAfter(addDaysKey(plan.paid_until, 1), season) : null;
+
   const status =
     plan.status === "pending_payment"
       ? { badge: "Чака плащане", tone: "warning" as const, text: "Платете, за да потвърдите заявката." }
       : plan.status === "requested"
       ? { badge: "Заявен", tone: "warning" as const, text: "Ще ви се обадим, за да уговорим първия обход." }
+      : plan.suspended_at && plan.status === "active"
+        ? { badge: "Спрян", tone: "danger" as const, text: "Обходите са спрени до плащането." }
       : plan.status === "active"
         ? {
             badge: "Активен",
@@ -153,10 +169,18 @@ export default function SubscriptionSection({
           </div>
         </div>
 
-        {optionIds.length > 0 && (
+        {optionNames.length > 0 && (
           <div className="text-sm text-ink-2">
             Допълнително:{" "}
-            {optionNames.every((n) => n) ? optionNames.join(", ") : `${optionIds.length} опции`}
+            {optionNames.every((n) => n) ? optionNames.join(", ") : `${optionNames.length} опции`}
+          </div>
+        )}
+        {seasonal && (
+          <div className="flex items-start gap-1.5 text-sm text-ink-2">
+            <Icon name={plan.season_from! >= "05-01" && plan.season_from! < "10-01" ? "sun" : "snowflake"} size={16} className="mt-0.5 shrink-0 text-brand-secondary" />
+            <span>
+              Сезон {seasonLabel(plan.season_from, plan.season_to)} — обходи и плащане само в сезона.
+            </span>
           </div>
         )}
 
@@ -165,6 +189,12 @@ export default function SubscriptionSection({
           <span className="text-sm text-ink">{status.text}</span>
         </div>
 
+        {plan.suspended_at && plan.status === "active" && (
+          <Notice tone="danger">
+            Преводът за абонамента не е пристигнал повече от 14 дни, затова бъдещите обходи са спрени. Щом го потвърдим,
+            графикът се връща сам.
+          </Notice>
+        )}
         {plan.stripe_status === "past_due" && (
           <Notice tone="danger">Последното месечно плащане не мина. Обновете картата, за да не спират обходите.</Notice>
         )}
@@ -173,8 +203,12 @@ export default function SubscriptionSection({
           <div className="space-y-2">
             <p className="text-sm text-ink">
               {plan.status === "pending_payment"
-                ? "Очакваме превода за първия месец — щом пристигне, ще ви се обадим за първия обход."
-                : "Преведете сумата за следващия месец, за да продължат обходите без прекъсване."}
+                ? seasonStartsLater
+                  ? `Преводът покрива първия месец от сезона (от ${formatDateOnly(seasonStart)}). Щом пристигне, ще ви се обадим за първия обход.`
+                  : "Очакваме превода за първия месец — щом пристигне, ще ви се обадим за първия обход."
+                : plan.suspended_at
+                  ? "Преведете сумата — обходите продължават от деня, в който потвърдим превода."
+                  : "Преведете сумата за следващия месец, за да продължат обходите без прекъсване."}
             </p>
             <BankDetails kind="plan" id={plan.id} amount={bankPending.amount} label={plan.package_name || plan.name} />
           </div>
@@ -206,10 +240,16 @@ export default function SubscriptionSection({
             Карта и плащания
           </Button>
         )}
-        {plan.paid_until && plan.status !== "cancelled" && (
+        {plan.status !== "cancelled" && (plan.paid_until || plan.billing_paused_until) && (
           <p className="text-xs text-muted">
-            Платено до {formatDateOnly(plan.paid_until)}.{" "}
-            {plan.stripe_subscription_id ? "Следващото плащане е автоматично." : "Данните за следващия превод идват седмица преди това."}
+            {plan.paid_until && <>Платено до {formatDateOnly(plan.paid_until)}. </>}
+            {plan.stripe_subscription_id
+              ? plan.billing_paused_until
+                ? `Извън сезона картата не се таксува — следващото плащане е на ${formatDateOnly(plan.billing_paused_until)}.`
+                : "Следващото плащане е автоматично."
+              : nextFrom && nextFrom !== addDaysKey(plan.paid_until ?? "", 1)
+                ? `Извън сезона не се плаща — данните за превода идват седмица преди ${formatDateOnly(nextFrom)}.`
+                : "Данните за следващия превод идват седмица преди това."}
           </p>
         )}
 

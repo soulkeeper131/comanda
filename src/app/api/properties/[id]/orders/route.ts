@@ -66,13 +66,27 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session, pa
     }
 
     const today = todaySofia();
-    const date = typeof body.date === "string" ? body.date.slice(0, 10) : "";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date <= today || date > addDays(today, 60)) {
-      return NextResponse.json({ error: "Изберете дата от утре до 60 дни напред" }, { status: 400 });
-    }
     const method = body.method === "bank" ? "bank" : "card";
+    const date = typeof body.date === "string" ? body.date.slice(0, 10) : "";
+    // За днес — само с карта (спешно, напр. след буря); преводът идва след дни.
+    const earliest = method === "card" ? today : addDays(today, 1);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < earliest || date > addDays(today, 60)) {
+      return NextResponse.json(
+        { error: method === "card" ? "Изберете дата от днес до 60 дни напред" : "По банков път — дата от утре до 60 дни напред" },
+        { status: 400 },
+      );
+    }
     const price = Number(template.price);
     const note = typeof body.note === "string" ? body.note.trim().slice(0, 500) || null : null;
+
+    // Картата се проверява преди записа — иначе остава „чакаща" заявка без плащане.
+    const stripe = method === "card" ? getStripeOrNull() : null;
+    if (method === "card" && !stripe && process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "Плащането с карта не е настроено. Изберете превод." }, { status: 503 });
+    }
+    if (method === "card" && stripe && !validateStripeAmount(price)) {
+      return NextResponse.json({ error: "Сумата е под минимума за карта" }, { status: 400 });
+    }
 
     const [order] = db
       .insert(serviceOrders)
@@ -96,19 +110,11 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session, pa
       return NextResponse.json({ ...order, payment_id: payment.id, bank: true }, { status: 201 });
     }
 
-    const stripe = getStripeOrNull();
     if (!stripe) {
-      if (process.env.NODE_ENV === "production") {
-        return NextResponse.json({ error: "Плащането с карта не е настроено. Изберете превод." }, { status: 503 });
-      }
       // Локално без Stripe — симулирано плащане, същият път като webhook-а.
       await settleServiceOrder({ orderId: order.id, paymentId: payment.id, method: "card" });
       return NextResponse.json({ ...order, status: "paid", mock: true }, { status: 201 });
     }
-    if (!validateStripeAmount(price)) {
-      return NextResponse.json({ error: "Сумата е под минимума за карта" }, { status: 400 });
-    }
-
     const customer = await ensureStripeCustomer(stripe, session.uid);
     const checkout = await stripe.checkout.sessions.create({
       mode: "payment",

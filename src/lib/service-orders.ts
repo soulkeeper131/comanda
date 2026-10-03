@@ -45,9 +45,11 @@ export async function settleServiceOrder(opts: {
     : undefined;
   const assignee = inspector && inspector.active !== false ? inspector.id : null;
   const now = new Date().toISOString();
-  // Превод, потвърден след заявената дата — обходът е утре, не в миналото.
-  const tomorrow = addDays(todaySofia(), 1);
-  const plannedAt = order.requested_date < tomorrow ? tomorrow : order.requested_date;
+  // С карта може и за днес (проверка след буря); превод, потвърден в деня на
+  // услугата или след него — обходът е утре, не в миналото.
+  const today = todaySofia();
+  const earliest = opts.method === "card" ? today : addDays(today, 1);
+  const plannedAt = order.requested_date < earliest ? addDays(today, 1) : order.requested_date;
 
   const { jobId, paymentId } = db.transaction((tx) => {
     let pid = opts.paymentId;

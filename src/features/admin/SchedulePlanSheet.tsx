@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { formatMoney, perMonthLabel, todayKey } from "@/lib/format";
+import { formatMoney, perMonthLabel, seasonLabel, todayKey } from "@/lib/format";
+import { seasonDayOnOrAfter } from "@/lib/domain/plans";
+import { inSeason } from "@/lib/domain/schedule";
 import { api } from "./api";
 import { Field, inputClass } from "./ui";
 import type { AdminPlan, AdminProperty, AdminUser } from "./types";
@@ -33,9 +35,14 @@ export default function SchedulePlanSheet({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Сезонен пакет — първият обход е в сезона (сървърът също го проверява).
+  const season = plan ? { from: plan.season_from, to: plan.season_to } : null;
+  const firstAllowed = plan ? seasonDayOnOrAfter(todayKey(), season) : todayKey();
+  const outOfSeason = Boolean(plan?.season_from && plan.season_to && date && !inSeason(date, plan.season_from, plan.season_to));
+
   useEffect(() => {
     if (plan) {
-      setDate(todayKey());
+      setDate(seasonDayOnOrAfter(todayKey(), { from: plan.season_from, to: plan.season_to }));
       setInspectorId(plan.assigned_inspector_id ?? "");
       setError("");
     }
@@ -91,9 +98,20 @@ export default function SchedulePlanSheet({
               </a>
             )}
           </div>
-          <Field label="Дата на първия обход" hint="Следващите се насрочват автоматично; празниците се прескачат.">
-            <input type="date" className={inputClass} min={todayKey()} value={date} onChange={(e) => setDate(e.target.value)} />
+          <Field
+            label="Дата на първия обход"
+            hint={
+              plan.season_from
+                ? `Сезон ${seasonLabel(plan.season_from, plan.season_to)} — обходите вървят само в него; празниците се прескачат.`
+                : "Следващите се насрочват автоматично; празниците се прескачат."
+            }
+          >
+            <input type="date" className={inputClass} min={firstAllowed} value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
+          {outOfSeason && <p className="text-sm text-state-danger">Датата е извън сезона на пакета.</p>}
+          {plan.suspended_at && (
+            <p className="text-sm text-state-danger">Обходите са спрени заради закъснял превод — ще тръгнат, щом го потвърдите.</p>
+          )}
           <Field label="Инспектор на имота">
             <select className={inputClass} value={inspectorId} onChange={(e) => setInspectorId(e.target.value)}>
               <option value="">— без инспектор —</option>
@@ -112,7 +130,7 @@ export default function SchedulePlanSheet({
             <Button variant="secondary" fullWidth onClick={onClose}>
               Отказ
             </Button>
-            <Button fullWidth disabled={busy || !date} onClick={submit}>
+            <Button fullWidth disabled={busy || !date || outOfSeason} onClick={submit}>
               Насрочи
             </Button>
           </div>

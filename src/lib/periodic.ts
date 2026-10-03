@@ -1,13 +1,13 @@
 import { setSetting } from "@/lib/settings";
-import { billBankPlans } from "@/lib/subscriptions";
+import { billBankPlans, syncSeasonPauses } from "@/lib/subscriptions";
 import { db } from "@/db";
-import { offers, findings, properties, jobs, payments, plans } from "@/db/schema";
+import { offers, findings, properties, jobs, payments, plans, users } from "@/db/schema";
 import { and, eq, gte, inArray, isNull, lt, lte } from "drizzle-orm";
-import { generateAll, todaySofia } from "@/lib/jobs-generator";
+import { generateAll, removePlannedJobsAfter, todaySofia } from "@/lib/jobs-generator";
 import { formatEur } from "@/lib/mail-layout";
 import { bankRows, notify, propertyLink } from "@/lib/messages";
 import { bankReference, formatDateOnly } from "@/lib/format";
-import { addDays } from "@/lib/domain/plans";
+import { addDays, daysOverdue, SUSPEND_AFTER_DAYS, unpaidFrom } from "@/lib/domain/plans";
 import { dueOfferReminder, duePaymentReminder, offerPrepay } from "@/lib/domain/offers";
 import { getPrepayThreshold } from "@/lib/settings";
 
@@ -129,37 +129,104 @@ export async function remindVisitsTomorrow(today: string): Promise<number> {
   return due.length;
 }
 
-/**
- * Абонамент по банка с изтекъл платен период и непоявил се превод —
- * напомняне на 1-ия и 7-ия ден (обходите продължават; екипът вижда
- * абонамента в „Абонаменти без плащане").
- */
-export async function remindOverduePlans(today: string): Promise<number> {
-  const rows = db
-    .select({ payment: payments, plan: plans, property_name: properties.name, property_id: properties.id, owner_id: properties.owner_id })
+/** Абонаменти по банка с чакащ превод — за напомнянията и спирането. */
+function pendingBankPlans() {
+  return db
+    .select({
+      payment: payments,
+      plan: plans,
+      property_name: properties.name,
+      property_id: properties.id,
+      owner_id: properties.owner_id,
+      owner_name: users.full_name,
+      owner_email: users.email,
+    })
     .from(payments)
     .innerJoin(plans, eq(payments.plan_id, plans.id))
     .innerJoin(properties, eq(plans.property_id, properties.id))
-    .where(and(eq(payments.status, "pending"), eq(payments.method, "bank"), inArray(plans.status, ["requested", "active"])))
+    .innerJoin(users, eq(properties.owner_id, users.id))
+    .where(
+      and(
+        eq(payments.status, "pending"),
+        eq(payments.method, "bank"),
+        inArray(plans.status, ["requested", "active"]),
+        isNull(plans.stripe_subscription_id),
+        isNull(plans.ends_at),
+        isNull(plans.suspended_at),
+      ),
+    )
     .all();
+}
+
+const seasonOf = (plan: typeof plans.$inferSelect) => ({ from: plan.season_from, to: plan.season_to });
+
+/**
+ * Абонамент по банка с изтекъл платен период и непоявил се превод —
+ * напомняне на 1-ия и 7-ия ден (обходите продължават; екипът вижда
+ * абонамента в „Абонаменти без плащане"). Сезонен пакет извън сезона не е
+ * просрочен — просрочието тръгва от първия ден на следващия сезон.
+ */
+export async function remindOverduePlans(today: string): Promise<number> {
   let sent = 0;
-  for (const row of rows) {
-    const paidUntil = row.plan.paid_until;
-    if (!paidUntil || paidUntil >= today) continue;
-    const daysLate = Math.round((Date.parse(today) - Date.parse(paidUntil)) / 86_400_000);
+  for (const row of pendingBankPlans()) {
+    const late = daysOverdue(row.plan.paid_until, today, seasonOf(row.plan));
     const done = row.payment.reminders_sent ?? 0;
-    const next = done === 0 && daysLate >= 1 ? 1 : done === 1 && daysLate >= 7 ? 2 : 0;
-    if (!next) continue;
+    const next = done === 0 && late >= 1 ? 1 : done === 1 && late >= 7 ? 2 : 0;
+    if (!next || late > SUSPEND_AFTER_DAYS) continue;
+    const due = unpaidFrom(row.plan.paid_until, seasonOf(row.plan))!;
     db.update(payments).set({ reminders_sent: next }).where(eq(payments.id, row.payment.id)).run();
     await notify("plan_overdue", {
       to: row.owner_id,
-      vars: { property: row.property_name, paid_until: formatDateOnly(paidUntil), amount: formatEur(row.payment.amount) },
+      vars: {
+        property: row.property_name,
+        due: formatDateOnly(due),
+        suspend_on: formatDateOnly(addDays(due, SUSPEND_AFTER_DAYS - 1)),
+        amount: formatEur(row.payment.amount),
+      },
       rows: bankRows(bankReference("plan", row.plan.id), row.payment.amount),
       link: propertyLink(row.property_id),
     });
     sent++;
   }
   return sent;
+}
+
+/**
+ * 14 дни без превод → бъдещите обходи спират (днешният остава). Преводът
+ * остава чакащ; щом админът го потвърди, графикът се възстановява от деня
+ * на плащането (settlePlanPayment).
+ */
+export async function suspendOverduePlans(today: string): Promise<number> {
+  let suspended = 0;
+  for (const row of pendingBankPlans()) {
+    const late = daysOverdue(row.plan.paid_until, today, seasonOf(row.plan));
+    if (late <= SUSPEND_AFTER_DAYS) continue;
+    const due = formatDateOnly(unpaidFrom(row.plan.paid_until, seasonOf(row.plan)));
+    const marked = db.transaction((tx) => {
+      const res = tx
+        .update(plans)
+        .set({ suspended_at: new Date().toISOString() })
+        .where(and(eq(plans.id, row.plan.id), isNull(plans.suspended_at)))
+        .run();
+      if (res.changes === 0) return false;
+      removePlannedJobsAfter(row.plan.id, today, tx);
+      return true;
+    });
+    if (!marked) continue;
+    suspended++;
+    const amount = formatEur(row.payment.amount);
+    await notify("plan_suspended", {
+      to: row.owner_id,
+      vars: { property: row.property_name, due, amount },
+      rows: bankRows(bankReference("plan", row.plan.id), row.payment.amount),
+      link: propertyLink(row.property_id),
+    });
+    await notify("plan_suspended_team", {
+      to: "admins",
+      vars: { property: row.property_name, client: row.owner_name || row.owner_email, due, amount },
+    });
+  }
+  return suspended;
 }
 
 export type PeriodicResult = {
@@ -172,6 +239,8 @@ export type PeriodicResult = {
   plan_bank_payments: number;
   visit_reminders: number;
   plan_overdue_reminders: number;
+  plans_suspended: number;
+  season_pauses: number;
 };
 
 /** Един скрипт: генериране, изтичане, напомняния, преводи за абонаментите. */
@@ -184,6 +253,8 @@ export async function runPeriodic(now = new Date()): Promise<PeriodicResult> {
   const planBank = await billBankPlans(today);
   const visitReminders = await remindVisitsTomorrow(today);
   const overdue = await remindOverduePlans(today);
+  const suspended = await suspendOverduePlans(today);
+  const pauses = await syncSeasonPauses(today);
   // За панела „Готовност": кога периодичните задачи са минали за последно.
   setSetting("periodic_last_run", new Date().toISOString());
   return {
@@ -196,5 +267,7 @@ export async function runPeriodic(now = new Date()): Promise<PeriodicResult> {
     plan_bank_payments: planBank,
     visit_reminders: visitReminders,
     plan_overdue_reminders: overdue,
+    plans_suspended: suspended,
+    season_pauses: pauses,
   };
 }

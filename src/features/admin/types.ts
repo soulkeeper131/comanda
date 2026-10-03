@@ -119,6 +119,13 @@ export type AdminPlan = {
   ends_at: string | null;
   cancelled_at: string | null;
   started_at: string | null;
+  options_snapshot: string | null;
+  season_from: string | null;
+  season_to: string | null;
+  billing_paused_until: string | null;
+  suspended_at: string | null;
+  /** Ден на просрочие на превода (0 — няма); сезонът е отчетен на сървъра. */
+  overdue_days: number;
 };
 
 export type AdminUser = {

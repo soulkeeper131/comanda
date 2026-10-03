@@ -1,5 +1,6 @@
 "use client";
 
+import { parseAmount } from "@/lib/domain/templates";
 import { useEffect, useState } from "react";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
@@ -67,8 +68,8 @@ export default function PackageEditorSheet({
       name,
       description,
       per_month: Number(perMonth),
-      price: Number(price.replace(",", ".")),
-      list_price: listPrice ? Number(listPrice.replace(",", ".")) : null,
+      price: parseAmount(price),
+      list_price: listPrice ? parseAmount(listPrice) : null,
       active_from: seasonal ? from : null,
       active_to: seasonal ? to : null,
       items: [
@@ -77,7 +78,7 @@ export default function PackageEditorSheet({
           template_id: o.template_id,
           optional: true,
           per_month: Number(o.per_month),
-          extra_price: Number(o.extra_price.replace(",", ".")),
+          extra_price: parseAmount(o.extra_price),
         })),
       ],
     };
@@ -210,7 +211,7 @@ export default function PackageEditorSheet({
           <Button variant="secondary" className="ml-auto" onClick={onClose}>
             Отказ
           </Button>
-          <Button disabled={busy || !name.trim() || !core || !(Number(price) > 0)} onClick={submit}>
+          <Button disabled={busy || !name.trim() || !core || !(parseAmount(price) > 0)} onClick={submit}>
             Запази
           </Button>
         </div>

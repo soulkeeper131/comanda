@@ -101,7 +101,7 @@ export const POST = withAuth({ role: ["admin", "client"] }, async (request, { se
     }
     const snapshot = pkg.items
       .filter((i) => i.optional && optionIds.includes(i.id))
-      .map((i) => ({ template_id: i.template_id, per_month: i.per_month }));
+      .map((i) => ({ template_id: i.template_id, per_month: i.per_month, name: i.template_name, extra_price: i.extra_price }));
     const [plan] = db
       .insert(plans)
       .values({

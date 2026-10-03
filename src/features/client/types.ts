@@ -93,6 +93,15 @@ export type ClientPlan = {
   stripe_subscription_id?: string | null;
   stripe_status?: string | null;
   paid_until?: string | null;
+  /** Избраните опции, както са били при заявката (с имената). */
+  options_snapshot?: string | null;
+  /** Сезонен пакет — "MM-DD"; плаща се и се обслужва само в сезона. */
+  season_from?: string | null;
+  season_to?: string | null;
+  /** Картата не се таксува до тази дата (извън сезона). */
+  billing_paused_until?: string | null;
+  /** Обходите са спрени — преводът закъснява с повече от 14 дни. */
+  suspended_at?: string | null;
 };
 
 export type PackageItem = {
@@ -105,6 +114,7 @@ export type PackageItem = {
   optional: boolean;
   extra_price: number;
   steps: number;
+  checklist?: { zone: string | null; label: string; season: "all" | "winter" | "summer" }[];
 };
 
 export type CatalogPackage = {

@@ -3,6 +3,8 @@ import { plans, properties, packages, users } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
+import { daysOverdue } from "@/lib/domain/plans";
+import { todaySofia } from "@/lib/jobs-generator";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +31,15 @@ export const GET = withAuth({ role: ["admin"] }, async () => {
       .leftJoin(packages, eq(plans.package_id, packages.id))
       .orderBy(desc(plans.started_at))
       .all();
-    return NextResponse.json(rows.map(({ plan, ...rest }) => ({ ...plan, ...rest })));
+    // Просрочието се смята тук — сезонен пакет извън сезона не е „неплатен".
+    const today = todaySofia();
+    return NextResponse.json(
+      rows.map(({ plan, ...rest }) => ({
+        ...plan,
+        ...rest,
+        overdue_days: plan.stripe_subscription_id ? 0 : daysOverdue(plan.paid_until, today, { from: plan.season_from, to: plan.season_to }),
+      })),
+    );
   } catch (error) {
     console.error("GET /api/plans error:", error);
     return NextResponse.json({ error: "Грешка при зареждане на абонаментите" }, { status: 500 });
