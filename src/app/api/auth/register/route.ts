@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 // @public Регистрация на нов потребител — по дефиниция става преди да има сесия.
 export async function POST(request: Request) {
   let email = "", password = "", name = "", phone = "";
-  let is_company = false, company_name = "", eik = "", vat_number = "";
+  let is_company = false, company_name = "", eik = "", vat_number = "", billing_address = "";
   let accept_terms = false;
   try {
     const body = await request.json();
@@ -23,6 +23,7 @@ export async function POST(request: Request) {
     company_name = (body.company_name || "").trim();
     eik = (body.eik || "").trim();
     vat_number = (body.vat_number || "").trim();
+    billing_address = (body.billing_address || "").trim().slice(0, 200);
     accept_terms = body.accept_terms === true;
   } catch {
     return NextResponse.json({ error: "Невалидна заявка" }, { status: 400 });
@@ -44,6 +45,9 @@ export async function POST(request: Request) {
     }
     if (!eik) {
       return NextResponse.json({ error: "ЕИК е задължително" }, { status: 400 });
+    }
+    if (!billing_address) {
+      return NextResponse.json({ error: "Адресът на регистрация е задължителен за фактурите" }, { status: 400 });
     }
   }
 
@@ -70,6 +74,7 @@ export async function POST(request: Request) {
       company_name: is_company ? company_name : undefined,
       eik: is_company ? eik : undefined,
       vat_number: is_company ? (vat_number || undefined) : undefined,
+      billing_address: is_company ? billing_address : undefined,
     });
     db.update(users)
       .set({ terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION })

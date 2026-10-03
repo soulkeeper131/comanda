@@ -13,6 +13,7 @@ export type User = {
   company_name?: string;
   eik?: string;
   vat_number?: string;
+  billing_address?: string;
 };
 
 /** Query the DB for a user by email and verify password */
@@ -34,6 +35,7 @@ export async function validateUser(email: string, password: string): Promise<Use
     company_name: row.company_name ?? undefined,
     eik: row.eik ?? undefined,
     vat_number: row.vat_number ?? undefined,
+    billing_address: row.billing_address ?? undefined,
   };
 }
 
@@ -44,7 +46,7 @@ export async function createUser(
   name: string,
   role: User["role"] = "client",
   org_id?: string,
-  extra?: { phone?: string; company_name?: string; eik?: string; vat_number?: string },
+  extra?: { phone?: string; company_name?: string; eik?: string; vat_number?: string; billing_address?: string },
 ): Promise<User> {
   const hash = await bcrypt.hash(password, 10);
   const id = crypto.randomUUID();
@@ -59,6 +61,7 @@ export async function createUser(
     company_name: extra?.company_name ?? null,
     eik: extra?.eik ?? null,
     vat_number: extra?.vat_number ?? null,
+    billing_address: extra?.billing_address ?? null,
     active: true,
   }).run();
   return { id, email, name, role, org_id, phone: extra?.phone, company_name: extra?.company_name, eik: extra?.eik, vat_number: extra?.vat_number };

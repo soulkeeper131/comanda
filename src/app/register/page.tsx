@@ -28,6 +28,7 @@ function RegisterForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [eik, setEik] = useState("");
+  const [billingAddress, setBillingAddress] = useState("");
   const [vatNumber, setVatNumber] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -43,6 +44,7 @@ function RegisterForm() {
     if (accountType === "company") {
       if (!companyName.trim()) return "Името на фирмата е задължително";
       if (!eik.trim()) return "ЕИК е задължително";
+      if (!billingAddress.trim()) return "Адресът на регистрация е задължителен за фактурите";
     }
     return null;
   };
@@ -72,6 +74,7 @@ function RegisterForm() {
           company_name: accountType === "company" ? companyName.trim() : undefined,
           eik: accountType === "company" ? eik.trim() : undefined,
           vat_number: accountType === "company" ? vatNumber.trim() || undefined : undefined,
+          billing_address: accountType === "company" ? billingAddress.trim() : undefined,
           accept_terms: acceptTerms,
         }),
       });
@@ -215,6 +218,19 @@ function RegisterForm() {
                   onChange={(e) => setEik(e.target.value)}
                   placeholder="123456789"
                   required
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
+                  style={{ fontSize: "16px", minHeight: "44px" }}
+                />
+              </div>
+              <div className="mb-5">
+                <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Адрес на регистрация</label>
+                <input
+                  type="text"
+                  value={billingAddress}
+                  onChange={(e) => setBillingAddress(e.target.value)}
+                  placeholder="гр. София, ул. Пример 1"
+                  required
+                  autoComplete="street-address"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
                   style={{ fontSize: "16px", minHeight: "44px" }}
                 />

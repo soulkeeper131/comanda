@@ -16,6 +16,7 @@ type Me = {
   company_name: string | null;
   eik: string | null;
   vat_number: string | null;
+  billing_address: string | null;
 };
 type Payment = { id: string; amount: number; status: string; method: string; created_at: string | null; paid_at: string | null };
 type Invoice = { id: string; number: string; amount: number | null; description: string | null; created_at: string | null };
@@ -33,7 +34,7 @@ const PAYMENT_STATUS: Record<string, { text: string; tone: "ok" | "warning" | "d
 /** Профил: собствени данни, парола, а за клиента — плащания и фактури. */
 export default function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [me, setMe] = useState<Me | null>(null);
-  const [form, setForm] = useState({ full_name: "", phone: "", company_name: "", eik: "", vat_number: "" });
+  const [form, setForm] = useState({ full_name: "", phone: "", company_name: "", eik: "", vat_number: "", billing_address: "" });
   const [pw, setPw] = useState({ current_password: "", new_password: "" });
   const [payments, setPayments] = useState<Payment[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -55,6 +56,7 @@ export default function AccountSheet({ open, onClose }: { open: boolean; onClose
           company_name: d.company_name ?? "",
           eik: d.eik ?? "",
           vat_number: d.vat_number ?? "",
+          billing_address: d.billing_address ?? "",
         });
         if (d.role === "client") {
           fetch("/api/payments").then((r) => (r.ok ? r.json() : [])).then(setPayments).catch(() => {});
@@ -103,12 +105,19 @@ export default function AccountSheet({ open, onClose }: { open: boolean; onClose
           <input className={input} type="tel" placeholder="Телефон" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           {isClient && (
             <>
-              <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted">Данни за фактура (по желание)</p>
+              <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted">Данни за фактура</p>
               <input className={input} placeholder="Фирма" value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} />
               <div className="grid grid-cols-2 gap-2">
                 <input className={input} placeholder="ЕИК" value={form.eik} onChange={(e) => setForm({ ...form, eik: e.target.value })} />
                 <input className={input} placeholder="ДДС №" value={form.vat_number} onChange={(e) => setForm({ ...form, vat_number: e.target.value })} />
               </div>
+              <input
+                className={input}
+                placeholder="Адрес за фактура (на регистрация за фирма)"
+                autoComplete="street-address"
+                value={form.billing_address}
+                onChange={(e) => setForm({ ...form, billing_address: e.target.value })}
+              />
             </>
           )}
           <Button fullWidth disabled={busy || !form.full_name.trim()} onClick={() => save(form, "Данните са запазени")}>
@@ -202,7 +211,7 @@ export default function AccountSheet({ open, onClose }: { open: boolean; onClose
                 className="flex min-h-touch items-center justify-between gap-2 rounded-card border border-line px-3 text-sm"
               >
                 <span className="text-ink">
-                  {inv.number} · {formatMoney(inv.amount)}
+                  {(inv.amount ?? 0) < 0 ? "Кредитно известие" : "Фактура"} {inv.number} · {formatMoney(inv.amount)}
                 </span>
                 <Icon name="download" size={18} className="text-brand-primary" />
               </a>

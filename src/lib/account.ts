@@ -71,6 +71,7 @@ export function exportAccount(userId: string) {
       company_name: user.company_name,
       eik: user.eik,
       vat_number: user.vat_number,
+      billing_address: user.billing_address,
       email_verified_at: user.email_verified_at,
       terms_accepted_at: user.terms_accepted_at,
       terms_version: user.terms_version,
@@ -278,6 +279,8 @@ export async function deleteAccount(userId: string): Promise<{ ok: true } | { ok
         company_name: hasInvoices ? user.company_name : null,
         eik: hasInvoices ? user.eik : null,
         vat_number: hasInvoices ? user.vat_number : null,
+        // Фактурите вече пазят своя адрес; профилът не го държи повече.
+        billing_address: null,
         password_hash: bcrypt.hashSync(randomBytes(24).toString("hex"), 4),
         active: false,
         email_verified_at: null,

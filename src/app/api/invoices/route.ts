@@ -51,6 +51,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
         buyer_company: buyer?.company_name ?? null,
         buyer_eik: buyer?.eik ?? null,
         buyer_vat: buyer?.vat_number ?? null,
+        buyer_address: buyer?.billing_address ?? null,
       })
       .returning()
       .get();

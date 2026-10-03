@@ -28,6 +28,8 @@ export const users = sqliteTable("users", {
   company_name: text("company_name"),
   eik: text("eik"),
   vat_number: text("vat_number"),
+  // Адрес за фактурата (на регистрация за фирма) — ЗДДС чл. 114, ал. 1, т. 4
+  billing_address: text("billing_address"),
   active: integer("active", { mode: "boolean" }).default(true),
   // Потвърден имейл — без него клиентът не влиза (грешен адрес значи клиент,
   // който не получава оферти и фактури).
@@ -511,6 +513,7 @@ export const invoices = sqliteTable(
     buyer_company: text("buyer_company"),
     buyer_eik: text("buyer_eik"),
     buyer_vat: text("buyer_vat"),
+    buyer_address: text("buyer_address"),
     created_at: text("created_at").default(sql`(datetime('now'))`),
   },
   (t) => ({

@@ -1,3 +1,4 @@
+import { setSetting } from "@/lib/settings";
 import { billBankPlans } from "@/lib/subscriptions";
 import { db } from "@/db";
 import { offers, findings, properties } from "@/db/schema";
@@ -121,6 +122,8 @@ export async function runPeriodic(now = new Date()): Promise<PeriodicResult> {
   const offerReminders = remindPendingOffers(now);
   const paymentReminders = await remindUnpaidOffers(now);
   const planBank = await billBankPlans(today);
+  // За панела „Готовност": кога периодичните задачи са минали за последно.
+  setSetting("periodic_last_run", new Date().toISOString());
   return {
     today,
     plans: gen.plans,

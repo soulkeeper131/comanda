@@ -22,6 +22,7 @@ type Settings = {
   cron_configured: boolean;
   stripe_configured: boolean;
   push_configured: boolean;
+  readiness: { key: string; label: string; ok: boolean; level: "required" | "recommended"; detail: string }[];
 };
 
 type CronResult = {
@@ -29,6 +30,7 @@ type CronResult = {
   offers_expired: number;
   offer_reminders: number;
   payment_reminders: number;
+  plan_bank_payments?: number;
 };
 
 export default function SettingsSection({
@@ -42,14 +44,14 @@ export default function SettingsSection({
   toast: (text: string, tone?: "ok" | "error") => void;
   onThresholdChange: (n: number) => void;
 }) {
-  const [tab, setTab] = useState<Tab>("team");
+  const [tab, setTab] = useState<Tab>("business");
   const [settings, setSettings] = useState<Settings | null>(null);
   const [form, setForm] = useState({ prepay_threshold: "", bank_iban: "", bank_recipient: "", bank_name: "" });
   const [busy, setBusy] = useState(false);
   const [newService, setNewService] = useState({ name: "", category: "inspection" });
   const [templatesKey, setTemplatesKey] = useState(0);
 
-  useEffect(() => {
+  const loadSettings = () =>
     api<Settings>("/api/admin/settings").then((r) => {
       if (!r.ok) return;
       setSettings(r.data);
@@ -60,6 +62,8 @@ export default function SettingsSection({
         bank_name: r.data.bank_name,
       });
     });
+  useEffect(() => {
+    loadSettings();
   }, []);
 
   const saveBusiness = async () => {
@@ -72,6 +76,7 @@ export default function SettingsSection({
     if (!res.ok) return toast(res.error, "error");
     onThresholdChange(res.data.prepay_threshold);
     toast("Настройките са запазени");
+    loadSettings();
   };
 
   const runCron = async () => {
@@ -81,9 +86,10 @@ export default function SettingsSection({
     if (!res.ok) return toast(res.error, "error");
     const r = res.data;
     toast(
-      `Нови обходи: ${r.jobs_created} · изтекли оферти: ${r.offers_expired} · напомняния: ${r.offer_reminders + r.payment_reminders}`,
+      `Нови обходи: ${r.jobs_created} · изтекли оферти: ${r.offers_expired} · напомняния: ${r.offer_reminders + r.payment_reminders} · преводи за абонаменти: ${r.plan_bank_payments ?? 0}`,
     );
-    reload("jobs", "offers", "findings");
+    reload("jobs", "offers", "findings", "payments");
+    loadSettings();
   };
 
   const backup = async () => {
@@ -127,6 +133,7 @@ export default function SettingsSection({
 
       {tab === "business" && (
         <div className="space-y-3">
+          {settings?.readiness && <ReadinessCard checks={settings.readiness} />}
           <Card className="space-y-3">
             <h3 className="font-bold text-ink">Плащане на ремонти</h3>
             <Field
@@ -178,12 +185,6 @@ export default function SettingsSection({
             </Button>
           </Card>
 
-          <Card className="space-y-1 text-sm">
-            <h3 className="font-bold text-ink">Връзки</h3>
-            <Status ok={!!settings?.stripe_configured} label="Плащане с карта (Stripe)" />
-            <Status ok={!!settings?.push_configured} label="Push известия" />
-            <Status ok={!!settings?.cron_configured} label="Автоматични периодични задачи" />
-          </Card>
         </div>
       )}
 
@@ -230,13 +231,36 @@ export default function SettingsSection({
   );
 }
 
-function Status({ ok, label }: { ok: boolean; label: string }) {
+/**
+ * „Готово ли е за истински клиенти и пари" — задължителните неща първо.
+ * Подробностите казват какво точно липсва и къде се настройва.
+ */
+function ReadinessCard({ checks }: { checks: Settings["readiness"] }) {
+  const missing = checks.filter((c) => !c.ok && c.level === "required").length;
   return (
-    <div className="flex items-center gap-2">
-      <Icon name={ok ? "check-circle" : "x"} size={16} className={ok ? "text-state-ok" : "text-muted"} />
-      <span className={ok ? "text-ink" : "text-muted"}>
-        {label}: {ok ? "настроено" : "не е настроено"}
-      </span>
-    </div>
+    <Card className={`space-y-2 ${missing ? "border-state-warning/50" : "border-state-ok/40"}`}>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-bold text-ink">Готовност за работа</h3>
+        <span className={`text-sm font-semibold ${missing ? "text-state-warning" : "text-state-ok"}`}>
+          {missing ? `${missing} задължителни липсват` : "Всичко задължително е настроено"}
+        </span>
+      </div>
+      <ul className="space-y-2">
+        {checks.map((c) => (
+          <li key={c.key} className="flex items-start gap-2 text-sm">
+            <Icon
+              name={c.ok ? "check-circle" : c.level === "required" ? "alert" : "clock"}
+              size={18}
+              className={c.ok ? "text-state-ok" : c.level === "required" ? "text-state-warning" : "text-muted"}
+            />
+            <div className="min-w-0">
+              <div className="font-semibold text-ink">{c.label}</div>
+              <div className="break-words text-muted">{c.detail}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
+

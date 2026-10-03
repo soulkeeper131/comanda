@@ -35,6 +35,7 @@ function buyerSnapshot(userId: string) {
     buyer_company: u?.company_name ?? null,
     buyer_eik: u?.eik ?? null,
     buyer_vat: u?.vat_number ?? null,
+    buyer_address: u?.billing_address ?? null,
   };
 }
 
@@ -124,6 +125,7 @@ export function issueCreditNote(paymentId: string) {
         buyer_company: original.buyer_company,
         buyer_eik: original.buyer_eik,
         buyer_vat: original.buyer_vat,
+        buyer_address: original.buyer_address,
       })
       .returning()
       .get(),
