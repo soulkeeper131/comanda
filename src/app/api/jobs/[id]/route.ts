@@ -3,7 +3,8 @@ import { jobs, jobItems, properties, users, evidence, jobReschedules } from "@/d
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth, canViewProperty } from "@/lib/auth";
-import { createNotification } from "@/lib/notifications";
+import { notify } from "@/lib/messages";
+import { formatDateOnly } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -205,9 +206,12 @@ export const PATCH = withAuth({ role: ["admin"] }, async (request, { params }) =
     }
 
     db.update(jobs).set(updates).where(eq(jobs.id, job.id)).run();
-    if (updates.assignee_id && updates.assignee_id !== job.assignee_id) {
+    if (updates.assignee_id !== undefined && updates.assignee_id !== job.assignee_id) {
       const prop = db.select({ name: properties.name }).from(properties).where(eq(properties.id, job.property_id)).get();
-      createNotification(updates.assignee_id, "job_started", "Възложен ви е обход", `${prop?.name ?? "Имот"} — ${job.planned_at.slice(0, 10)}`, "/dashboard");
+      const vars = { property: prop?.name ?? "Имот", date: formatDateOnly(job.planned_at) };
+      if (updates.assignee_id) await notify("visit_assigned", { to: updates.assignee_id, vars });
+      // Предишният изпълнител разбира, че обходът вече не е негов.
+      if (job.assignee_id) await notify("visit_unassigned", { to: job.assignee_id, vars });
     }
     return NextResponse.json(db.select().from(jobs).where(eq(jobs.id, job.id)).get());
   } catch (error) {

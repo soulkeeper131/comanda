@@ -2,8 +2,8 @@ import crypto from "node:crypto";
 import { db } from "@/db";
 import { authTokens, users } from "@/db/schema";
 import { and, eq, gt, isNull } from "drizzle-orm";
-import { sendEmail, isEmailConfigured } from "@/lib/email";
-import { emailLayout } from "@/lib/mail-layout";
+import { isEmailConfigured } from "@/lib/email";
+import { notify } from "@/lib/messages";
 
 export type TokenType = "verify_email" | "reset_password";
 
@@ -18,7 +18,7 @@ export const TERMS_VERSION = "2026-09";
 const hash = (raw: string) => crypto.createHash("sha256").update(raw).digest("hex");
 
 /** Нов еднократен токен. В базата — само хешът; суровият отива в имейла. */
-export function createToken(userId: string, type: TokenType): string {
+export function createToken(userId: string, type: TokenType, ttlMs: number = TTL_MS[type]): string {
   const raw = crypto.randomBytes(32).toString("base64url");
   // Старите неизползвани токени от същия вид спират да важат.
   db.update(authTokens)
@@ -30,7 +30,7 @@ export function createToken(userId: string, type: TokenType): string {
       user_id: userId,
       type,
       token_hash: hash(raw),
-      expires_at: new Date(Date.now() + TTL_MS[type]).toISOString(),
+      expires_at: new Date(Date.now() + ttlMs).toISOString(),
     })
     .run();
   return raw;
@@ -75,14 +75,10 @@ export async function sendVerification(userId: string): Promise<boolean> {
     return false;
   }
   const token = createToken(userId, "verify_email");
-  await sendEmail({
-    to: user.email,
-    subject: "Потвърдете имейла си — Ко Манда",
-    html: emailLayout({
-      title: "Потвърдете имейла си",
-      intro: `Здравейте${user.full_name ? `, ${escapeName(user.full_name)}` : ""}! Натиснете бутона, за да потвърдите адреса си. Линкът важи 48 часа.`,
-      cta: { label: "Потвърждавам", path: `/verify-email?token=${token}` },
-    }),
+  await notify("account_verify", {
+    emailTo: user.email,
+    vars: { name: user.full_name ?? "" },
+    link: `/verify-email?token=${token}`,
   });
   return true;
 }
@@ -91,18 +87,25 @@ export async function sendPasswordReset(userId: string): Promise<void> {
   const user = db.select().from(users).where(eq(users.id, userId)).get();
   if (!user) return;
   const token = createToken(userId, "reset_password");
-  await sendEmail({
-    to: user.email,
-    subject: "Нова парола — Ко Манда",
-    html: emailLayout({
-      title: "Нова парола",
-      intro: "Получихме заявка за нова парола. Ако не сте вие — просто игнорирайте писмото. Линкът важи 1 час.",
-      cta: { label: "Задай нова парола", path: `/reset-password?token=${token}` },
-    }),
-  });
+  await notify("account_reset", { emailTo: user.email, vars: { email: user.email }, link: `/reset-password?token=${token}` });
 }
 
-function escapeName(s: string) {
-  return s.replace(/[<>&"']/g, "");
+const ROLE_LABEL: Record<string, string> = { admin: "администратор", inspector: "инспектор", client: "клиент" };
+
+/**
+ * Покана за профил, създаден от админ: връзка за задаване на парола (3 дни),
+ * вместо временна парола, която админът да предава на ръка. Връща true,
+ * ако имейлът е изпратен (без SMTP — няма как).
+ */
+export async function sendInvite(userId: string): Promise<boolean> {
+  const user = db.select().from(users).where(eq(users.id, userId)).get();
+  if (!user || !(await isEmailConfigured())) return false;
+  const token = createToken(userId, "reset_password", 3 * 24 * 60 * 60 * 1000);
+  await notify("account_invite", {
+    emailTo: user.email,
+    vars: { name: user.full_name ?? "", role: ROLE_LABEL[user.role] ?? user.role },
+    link: `/reset-password?token=${token}`,
+  });
+  return true;
 }
 

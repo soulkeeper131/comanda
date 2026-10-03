@@ -29,6 +29,7 @@ const TYPE_ICONS: Record<string, IconName> = {
   property_decided: "home",
   plan_requested: "package",
   plan_scheduled: "package",
+  payment: "card",
 };
 
 export default function NotificationBell() {

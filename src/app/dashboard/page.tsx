@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Topbar from "@/components/Topbar";
 import ClientHome from "@/features/client/ClientHome";
+import { Suspense } from "react";
 import InspectorHome from "@/features/inspector/InspectorHome";
 import AdminHome from "@/features/admin/AdminHome";
 
@@ -59,7 +60,11 @@ export default function DashboardPage() {
       }`}
     >
       <Topbar />
-      {role === "client" && <ClientHome />}
+      {role === "client" && (
+        <Suspense fallback={null}>
+          <ClientHome />
+        </Suspense>
+      )}
       {role === "inspector" && <InspectorHome />}
       {role === "admin" && <AdminHome />}
     </div>

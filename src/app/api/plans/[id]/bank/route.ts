@@ -4,7 +4,9 @@ import { db } from "@/db";
 import { plans, properties } from "@/db/schema";
 import { withAuth } from "@/lib/auth";
 import { expirePlanCheckout, requestPlanBankPayment } from "@/lib/subscriptions";
-import { notifyAdmins } from "@/lib/notifications";
+import { bankRows, notify, propertyLink } from "@/lib/messages";
+import { bankReference } from "@/lib/format";
+import { formatEur } from "@/lib/mail-layout";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,8 @@ export const POST = withAuth({ role: ["client"] }, async (_request, { session, p
   }
   await expirePlanCheckout(plan.id);
   const payment = requestPlanBankPayment(plan.id);
-  notifyAdmins("plan_requested", "Нов абонамент — чака превод", `${property.name} — ${plan.name}`, "/dashboard");
+  const vars = { property: property.name, package: plan.name, amount: formatEur(plan.price) };
+  await notify("plan_bank_requested", { to: session.uid, vars, rows: bankRows(bankReference("plan", plan.id), plan.price), link: propertyLink(property.id) });
+  await notify("plan_new_team", { to: "admins", vars });
   return NextResponse.json({ success: true, payment_id: payment?.id });
 });

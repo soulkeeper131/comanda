@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getDefaultOrgId } from "@/lib/org";
 import { NextResponse } from "next/server";
 import { sendVerification, TERMS_VERSION } from "@/lib/auth-tokens";
+import { notify } from "@/lib/messages";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,8 @@ export async function POST(request: Request) {
       .set({ terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION })
       .where(eq(users.id, user.id))
       .run();
+
+    await notify("account_new_team", { to: "admins", vars: { client: user.name, email: user.email } });
 
     // Потвърждение на имейла преди първия вход — грешен адрес значи клиент,
     // който не получава оферти, напомняния и фактури.

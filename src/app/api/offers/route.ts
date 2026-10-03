@@ -3,10 +3,10 @@ import { offers, findings, properties, offerPhotos } from "@/db/schema";
 import { and, eq, inArray, type SQL } from "drizzle-orm";
 import { expireOffers } from "@/lib/periodic";
 import { NextResponse } from "next/server";
-import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
-import { notifyOwner } from "@/lib/notifications";
+import { notify, propertyLink } from "@/lib/messages";
+import { formatDateOnly } from "@/lib/format";
 import { withAuth } from "@/lib/auth";
-import { emailLayout, formatEur } from "@/lib/mail-layout";
+import { formatEur } from "@/lib/mail-layout";
 import { getPrepayThreshold } from "@/lib/settings";
 import {
   awaitsPayment,
@@ -27,7 +27,7 @@ export const GET = withAuth({ role: ["admin", "client"] }, async (request, { ses
   try {
     // Изтеклите се маркират още при четене — клиентът не бива да вижда
     // „Приемам" на оферта, която вече не важи, само защото cron-ът не е минал.
-    expireOffers();
+    await expireOffers();
 
     const { searchParams } = new URL(request.url);
     const findingId = searchParams.get("finding_id");
@@ -134,25 +134,18 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
     db.update(findings).set({ status: "quoted" }).where(eq(findings.id, finding_id)).run();
 
     const property = db.select().from(properties).where(eq(properties.id, finding.property_id)).get();
-    const propertyName = property?.name || "Имот";
-    const html = emailLayout({
-      title: "Нова оферта",
-      intro: `Изготвихме оферта за <strong>${propertyName.replace(/</g, "&lt;")}</strong>. Валидна е 7 дни.`,
-      rows: [
-        ["Констатация", finding.title],
-        ["Цена", formatEur(price)],
-        ["Срок за изпълнение", `${daysNum} дни`],
-        ["Обхват", scope.trim()],
-        ["Плащане", prepay ? "Предварително, след приемане" : "След завършване на работата"],
-      ],
-      cta: { label: "Виж офертата" },
-    });
-    const subject = `Нова оферта за ${propertyName}: ${formatEur(price)}`;
-
-    sendEmail({ to: (await getNotifyEmail()) || "", subject, html }).catch(() => {});
-    const ownerEmail = ownerEmailFor(finding.property_id);
-    if (ownerEmail) sendEmail({ to: ownerEmail, subject, html }).catch(() => {});
-    notifyOwner(finding.property_id, "offer_new", "Нова оферта", `${finding.title} — ${formatEur(price)}`, "/dashboard");
+    if (property) {
+      await notify("offer_new", {
+        to: property.owner_id,
+        vars: { property: property.name, title: finding.title, amount: formatEur(price), until: formatDateOnly(offer.expires_at) },
+        rows: [
+          ["Срок за изпълнение", `${daysNum} дни`],
+          ["Обхват", scope.trim()],
+          ["Плащане", prepay ? "Предварително, след приемане" : "След завършване на работата"],
+        ],
+        link: propertyLink(property.id),
+      });
+    }
 
     return NextResponse.json(offer, { status: 201 });
   } catch (error) {

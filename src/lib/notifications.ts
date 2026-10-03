@@ -15,7 +15,8 @@ export type NotificationType =
   | "property_decided"
   | "plan_requested"
   | "plan_scheduled"
-  | "job_rescheduled";
+  | "job_rescheduled"
+  | "payment";
 
 /**
  * Insert an in-app notification for a specific user.
@@ -40,7 +41,7 @@ export function createNotification(
       })
       .run();
     // Същото известие и като push на устройствата на този потребител.
-    void sendPushToUsers([userId], title, body || "", link || "/dashboard");
+    void sendPushToUsers([userId], title, body || "", link || "/dashboard", { urgent: type === "finding_urgent" });
   } catch (e) {
     console.error("[notifications] Failed to create:", e);
   }

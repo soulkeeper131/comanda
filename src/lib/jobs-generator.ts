@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { jobs, jobReschedules, plans, properties, packages, packageItems, serviceTemplates, users } from "@/db/schema";
 import { and, eq, gt, inArray, isNotNull } from "drizzle-orm";
 import { scheduleVisits, genKey } from "@/lib/domain/schedule";
-import { createNotification } from "@/lib/notifications";
+import { notify } from "@/lib/messages";
 
 type Tx = Pick<typeof db, "select" | "delete">;
 
@@ -60,7 +60,7 @@ export type GenerateResult = { plans: number; created: number };
  * Идемпотентно: ключът е (план, услуга, поредност) с UNIQUE индекс —
  * второ пускане не дублира, а преместена от клиента задача не се пипа.
  */
-export function generateForPlan(planId: string, today = todaySofia()): number {
+export function generateForPlan(planId: string, today = todaySofia(), opts: { announce?: boolean } = {}): number {
   const plan = db.select().from(plans).where(eq(plans.id, planId)).get();
   if (!plan || !plan.first_job_at) return 0;
   if (plan.status === "requested" || plan.status === "pending_payment") return 0;
@@ -120,14 +120,14 @@ export function generateForPlan(planId: string, today = todaySofia()): number {
     }
   }
 
-  if (created > 0 && assignee) {
-    createNotification(
-      assignee,
-      "job_started",
-      "Нови обходи в графика",
-      `${created} ${created === 1 ? "обход" : "обхода"} — ${property.name}`,
-      "/dashboard",
-    );
+  // Само при насрочване на абонамента — не всеки път, когато периодичните
+  // задачи удължават графика с още седмица (иначе инспекторът получава
+  // „Нови обходи" всеки ден).
+  if (opts.announce && created > 0 && assignee) {
+    void notify("visits_generated", {
+      to: assignee,
+      vars: { count: `${created} ${created === 1 ? "обход" : "обхода"}`, property: property.name },
+    });
   }
   return created;
 }

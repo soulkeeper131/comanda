@@ -3,8 +3,7 @@ import { inquiries } from "@/db/schema";
 import { desc } from "drizzle-orm";
 import { withAuth } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import { sendEmail, getNotifyEmail } from "@/lib/email";
-import { emailLayout } from "@/lib/mail-layout";
+import { notify } from "@/lib/messages";
 
 export const dynamic = "force-dynamic";
 
@@ -47,23 +46,20 @@ export async function POST(request: Request) {
       .returning()
       .all();
 
-    // Полетата идват от публична форма — emailLayout ги екранира.
-    sendEmail({
-      to: (await getNotifyEmail()) || "",
-      subject: `Ново запитване от ${full_name.trim().slice(0, 80)}`,
-      html: emailLayout({
-        title: "Ново запитване",
-        rows: [
-          ["Име", full_name.trim()],
-          ["Имейл", email.trim()],
-          ["Телефон", phone],
-          ["Град", city],
-          ["Вид имот", property_kind],
-          ["Услуга", service],
-          ["Съобщение", message],
-        ],
-      }),
-    }).catch(() => {});
+    // Полетата идват от публична форма — шаблонът ги екранира. Отговорът
+    // („Reply") на имейла до екипа отива направо при човека.
+    await notify("inquiry_new", {
+      to: "admins",
+      vars: { name: record.full_name, service: record.service ?? "", city: record.city ?? "" },
+      rows: [
+        ["Телефон", record.phone],
+        ["Имейл", record.email],
+        ["Вид имот", record.property_kind],
+        ["Съобщение", record.message],
+      ],
+      replyTo: record.email ?? undefined,
+    });
+    if (record.email) await notify("inquiry_received", { emailTo: record.email, vars: { name: record.full_name } });
 
     return NextResponse.json({ success: true, id: record.id }, { status: 201 });
   } catch (error) {

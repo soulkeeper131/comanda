@@ -38,18 +38,28 @@ export function isPushConfigured(): boolean {
  * Push само до устройствата на конкретни потребители. За разлика от
  * sendPushToAll не издава чужди имоти/адреси на други клиенти.
  */
-export async function sendPushToUsers(userIds: string[], title: string, body: string, url: string = "/dashboard") {
+export async function sendPushToUsers(
+  userIds: string[],
+  title: string,
+  body: string,
+  url: string = "/dashboard",
+  opts: { urgent?: boolean } = {},
+) {
   if (!isPushConfigured() || userIds.length === 0) return;
   try {
     ensureWebpushConfigured();
     const subs = db.select().from(pushSubscriptions).where(inArray(pushSubscriptions.user_id, userIds)).all();
-    const payload = JSON.stringify({ title, body, url });
+    // Собствен tag за всяко известие — иначе новото заменя предишното на
+    // телефона и спешен сигнал може да бъде изтрит от следващото известие.
+    const payload = JSON.stringify({ title, body, url, tag: crypto.randomUUID(), urgent: !!opts.urgent });
     for (const row of subs) {
       try {
         await webpush.sendNotification(JSON.parse(row.subscription), payload);
       } catch (err: any) {
         if (err?.statusCode === 410 || err?.statusCode === 404) {
           db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, row.id)).run();
+        } else {
+          console.error("[push] send failed:", err?.statusCode ?? "", err?.body ?? err?.message ?? err);
         }
       }
     }

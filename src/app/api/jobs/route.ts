@@ -2,7 +2,8 @@ import { db } from "@/db";
 import { jobs, properties, users, serviceTemplates, jobItems, evidence } from "@/db/schema";
 import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { createNotification } from "@/lib/notifications";
+import { notify, propertyLink } from "@/lib/messages";
+import { formatDateOnly } from "@/lib/format";
 import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -211,17 +212,13 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
       .returning()
       .all();
 
-    // Notify assignee (worker) about new job
-    if (assigneeId) {
-      const prop = property;
-      createNotification(
-        assigneeId,
-        "job_started",
-        "Възложен нов обход",
-        `${jobTitle} — ${prop?.name || "Имот"}`,
-        "/dashboard",
-      );
-    }
+    const templateName = template_id
+      ? db.select({ name: serviceTemplates.name }).from(serviceTemplates).where(eq(serviceTemplates.id, template_id)).get()?.name
+      : undefined;
+    const vars = { property: property.name, date: formatDateOnly(planned_at), title: templateName ?? jobTitle };
+    if (assigneeId) await notify("visit_assigned", { to: assigneeId, vars });
+    // Обход извън абонамента (напр. проверка след ремонт) — клиентът знае кога.
+    await notify("visit_planned", { to: property.owner_id, vars, link: propertyLink(property.id) });
 
     return NextResponse.json(job, { status: 201 });
   } catch (error) {

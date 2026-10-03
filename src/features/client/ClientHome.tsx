@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import EmptyPropertyState, { createProperty } from "./EmptyPropertyState";
 import PropertyForm from "@/components/PropertyForm";
 import { Icon } from "@/components/ui/Icon";
@@ -19,6 +20,11 @@ export default function ClientHome() {
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState<ClientProperty[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Връзка от известие или имейл (?property=…) отваря точно този имот.
+  const linkedProperty = useSearchParams().get("property");
+  useEffect(() => {
+    if (linkedProperty) setSelectedId(linkedProperty);
+  }, [linkedProperty]);
   const [error, setError] = useState(false);
 
   // silent: презареждане без да сменяме екрана с „Зареждане…"

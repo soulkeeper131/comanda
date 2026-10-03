@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { users, properties, jobs } from "@/db/schema";
 import { and, asc, eq } from "drizzle-orm";
+import { sendInvite } from "@/lib/auth-tokens";
 import { withAuth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
@@ -96,7 +97,13 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
       .returning()
       .all();
 
-    return NextResponse.json({ ...view(created), temporary_password: given ? undefined : password }, { status: 201 });
+    // С имейл — покана с връзка за парола; без SMTP — временната парола се
+    // показва веднъж на админа.
+    const invited = !given && (await sendInvite(created.id));
+    return NextResponse.json(
+      { ...view(created), invited, temporary_password: given || invited ? undefined : password },
+      { status: 201 },
+    );
   } catch (err) {
     console.error("[USERS POST] Error:", err);
     return NextResponse.json({ error: "Грешка при създаване на потребител" }, { status: 500 });

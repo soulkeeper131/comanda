@@ -9,7 +9,8 @@ import { settleServiceOrder } from "@/lib/service-orders";
 import { appUrl } from "@/lib/mail-layout";
 import { todaySofia } from "@/lib/jobs-generator";
 import { addDays } from "@/lib/domain/schedule";
-import { notifyAdmins } from "@/lib/notifications";
+import { bankRows, notify } from "@/lib/messages";
+import { bankReference, formatDateOnly, formatMoney } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +86,13 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session, pa
       .all();
 
     if (method === "bank") {
-      notifyAdmins("plan_requested", "Допълнителна услуга — очаква превод", `${property.name} — ${template.name}`, "/dashboard");
+      const vars = { property: property.name, service: template.name, date: formatDateOnly(date) };
+      await notify("order_new_team", { to: "admins", vars });
+      await notify("bank_transfer_details", {
+        to: session.uid,
+        vars: { amount: formatMoney(price), what: `${template.name} — ${property.name}, ${formatDateOnly(date)}` },
+        rows: bankRows(bankReference("order", order.id), price),
+      });
       return NextResponse.json({ ...order, payment_id: payment.id, bank: true }, { status: 201 });
     }
 

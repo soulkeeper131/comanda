@@ -3,9 +3,7 @@ import { findings, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
-import { notifyAdmins } from "@/lib/notifications";
-import { sendEmail, getNotifyEmail } from "@/lib/email";
-import { emailLayout } from "@/lib/mail-layout";
+import { notify } from "@/lib/messages";
 import { canRequestQuote } from "@/lib/domain/findings";
 
 export const dynamic = "force-dynamic";
@@ -40,25 +38,11 @@ export const POST = withAuth({ role: ["client"] }, async (_request, { session, p
       .returning()
       .all();
 
-    notifyAdmins(
-      "quote_requested",
-      "Клиент иска оферта",
-      `${row.finding.title} — ${row.property.name}`,
-      "/dashboard",
-    );
-    sendEmail({
-      to: (await getNotifyEmail()) || "",
-      subject: `Заявка за оферта: ${row.finding.title} — ${row.property.name}`,
-      html: emailLayout({
-        title: "Клиент иска оферта",
-        rows: [
-          ["Имот", row.property.name],
-          ["Констатация", row.finding.title],
-          ["Описание", row.finding.body],
-        ],
-        cta: { label: "Изготви оферта" },
-      }),
-    }).catch(() => {});
+    await notify("quote_requested", {
+      to: "admins",
+      vars: { title: row.finding.title, property: row.property.name },
+      rows: [["Описание", row.finding.body]],
+    });
 
     return NextResponse.json(updated);
   } catch (error) {

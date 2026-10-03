@@ -4,7 +4,7 @@ import { jobs, payments, plans, properties } from "@/db/schema";
 import { removePlannedJobsAfter, todaySofia } from "@/lib/jobs-generator";
 import { endOfPaidPeriod } from "@/lib/domain/plans";
 import { cancelStripeSubscription, expirePlanCheckout } from "@/lib/subscriptions";
-import { createNotification, notifyAdmins } from "@/lib/notifications";
+import { notify, propertyLink } from "@/lib/messages";
 import { formatEur } from "@/lib/mail-layout";
 import { formatDateOnly } from "@/lib/format";
 
@@ -81,19 +81,27 @@ export async function cancelPlan(planId: string, opts: { byAdmin: boolean; endsA
 
   // Стари абонаменти с карта, платени преди плащанията да се връзват с плана.
   const legacyCardRefund = neverStarted && plan.stripe_subscription_id && refund === 0;
-  if (refund > 0 || legacyCardRefund) {
-    notifyAdmins(
-      "plan_requested",
-      "Отказан абонамент преди първия обход — върнете сумата",
-      `${property.name} — ${plan.name}${refund > 0 ? `: ${formatEur(refund)}` : " (първото плащане в Stripe)"}`,
-      "/dashboard",
-    );
+  const refundText = refund > 0 ? formatEur(refund) : legacyCardRefund ? "първото плащане в Stripe" : null;
+  const clientOutcome = neverStarted
+    ? refundText
+      ? `абонаментът е спрян. Още не сме идвали, затова ще ви върнем ${refundText}.`
+      : "заявката е оттеглена."
+    : `обслужването продължава до ${formatDateOnly(endsAt)}; обходите след това са махнати от графика.`;
+  const teamOutcome = neverStarted
+    ? refundText
+      ? `отказан преди първия обход — върнете ${refundText} от Табло → Суми за връщане`
+      : "заявката е оттеглена"
+    : `важи до ${formatDateOnly(endsAt)}`;
+  // Клиентът винаги получава потвърждение — и когато отказва сам.
+  await notify("plan_cancelled", { to: property.owner_id, vars: { property: property.name, outcome: clientOutcome }, link: propertyLink(property.id) });
+  if (!opts.byAdmin || refundText) {
+    await notify("plan_cancelled_team", { to: "admins", vars: { property: property.name, outcome: teamOutcome } });
   }
-  const until = neverStarted ? "" : ` — важи до ${formatDateOnly(endsAt)}`;
-  if (opts.byAdmin) {
-    createNotification(property.owner_id, "plan_scheduled", "Абонаментът е прекратен", `${property.name}${until}`, "/dashboard");
-  } else {
-    notifyAdmins("plan_requested", "Клиент отказа абонамент", `${property.name}${until}`, "/dashboard");
+  if (removed > 0 && property.assigned_inspector_id) {
+    await notify("visits_removed", {
+      to: property.assigned_inspector_id,
+      vars: { count: `${removed} ${removed === 1 ? "обход" : "обхода"}`, property: property.name, reason: "абонаментът е прекратен" },
+    });
   }
   return { ok: true, endsAt: neverStarted ? null : endsAt, refund, removed };
 }

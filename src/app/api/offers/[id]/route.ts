@@ -3,10 +3,10 @@ import { offers, findings, properties, offerPhotos } from "@/db/schema";
 import { settleOfferPayment } from "@/lib/payments";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
-import { notifyAdmins, notifyOwner } from "@/lib/notifications";
+import { bankRows, notify, propertyLink } from "@/lib/messages";
+import { bankReference, formatDateOnly } from "@/lib/format";
 import { withAuth, canDecideOffer, isAdmin } from "@/lib/auth";
-import { emailLayout, formatEur } from "@/lib/mail-layout";
+import { formatEur } from "@/lib/mail-layout";
 import { getPrepayThreshold } from "@/lib/settings";
 import {
   canTransition,
@@ -153,35 +153,49 @@ export const PATCH = withAuth({}, async (request, { session, params }) => {
         db.update(findings).set({ status: "closed" }).where(eq(findings.id, finding.id)).run();
       }
 
-      const subject = `Офертата за ${property.name} е ${LABELS[to]}`;
-      const html = emailLayout({
-        title: `Офертата е ${LABELS[to]}`,
-        rows: [
-          ["Имот", property.name],
-          ["Констатация", finding.title],
-          ["Цена", formatEur(existing.price)],
-          ["Обхват", existing.scope],
-        ],
-        color: to === "declined" ? "#dc2626" : "#16a34a",
-        cta: { label: "Отвори приложението" },
-      });
-
-      if (to === "accepted" || to === "declined") {
-        // Решението на клиента — към екипа (и в приложението, не само по имейл).
-        const notify = await getNotifyEmail();
-        if (notify) sendEmail({ to: notify, subject, html }).catch(() => {});
-        notifyAdmins(
-          "offer_decided",
-          to === "accepted" ? "Клиент прие оферта" : "Клиент отказа оферта",
-          `${property.name}: ${finding.title} — ${formatEur(existing.price)}`,
-          "/dashboard",
-        );
-      } else {
-        // Движение по ремонта — към клиента.
-        const ownerEmail = ownerEmailFor(property.id);
-        if (ownerEmail) sendEmail({ to: ownerEmail, subject, html }).catch(() => {});
-        notifyOwner(property.id, "offer_decided", `Ремонтът е ${LABELS[to]}`, finding.title, "/dashboard");
+      const prepay = offerPrepay(updated, threshold);
+      const vars = { property: property.name, title: finding.title, amount: formatEur(updated.price) };
+      if (to === "accepted") {
+        await notify("offer_accepted_team", {
+          to: "admins",
+          vars: { ...vars, next: prepay ? "С предплащане — започва след плащането." : "Плащане след ремонта — може да започне." },
+        });
+        // Над прага клиентът трябва да знае как да плати, иначе ремонтът стои.
+        if (prepay) {
+          await notify("offer_accepted_prepay", {
+            to: property.owner_id,
+            vars,
+            rows: bankRows(bankReference("offer", updated.id), updated.price),
+            link: propertyLink(property.id),
+          });
+        }
+      } else if (to === "declined") {
+        await notify("offer_declined_team", { to: "admins", vars });
+      } else if (to === "in_progress") {
+        await notify("repair_started", { to: property.owner_id, vars, link: propertyLink(property.id) });
+      } else if (to === "done") {
+        await notify("repair_done", {
+          to: property.owner_id,
+          vars: {
+            ...vars,
+            next: updated.decision === "done" && !prepay ? `Остава плащането — ${formatEur(updated.price)} (карта или превод от приложението).` : "",
+          },
+          rows: !prepay ? bankRows(bankReference("offer", updated.id), updated.price) : [],
+          link: propertyLink(property.id),
+        });
       }
+    } else if (body.price !== undefined || body.scope !== undefined || body.days !== undefined) {
+      // Променена изпратена оферта — клиентът не бива да остане с имейл със старата цена.
+      await notify("offer_updated", {
+        to: property.owner_id,
+        vars: { title: finding.title, property: property.name, amount: formatEur(updated.price), until: formatDateOnly(updated.expires_at) },
+        rows: [
+          ["Срок за изпълнение", updated.days ? `${updated.days} дни` : null],
+          ["Обхват", updated.scope],
+          ["Плащане", offerPrepay(updated, threshold) ? "Предварително, след приемане" : "След завършване на работата"],
+        ],
+        link: propertyLink(property.id),
+      });
     }
 
     return NextResponse.json(updated);
@@ -202,12 +216,20 @@ export const DELETE = withAuth({ role: ["admin"] }, async (_request, { params })
       return NextResponse.json({ error: "Може да се изтрие само оферта, която чака решение" }, { status: 400 });
     }
 
+    const row = loadOffer(existing.id);
     db.delete(offerPhotos).where(eq(offerPhotos.offer_id, existing.id)).run();
     db.delete(offers).where(eq(offers.id, existing.id)).run();
     db.update(findings)
       .set({ status: "open" })
       .where(eq(findings.id, existing.finding_id))
       .run();
+    if (row) {
+      await notify("offer_withdrawn", {
+        to: row.property.owner_id,
+        vars: { title: row.finding.title, property: row.property.name },
+        link: propertyLink(row.property.id),
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

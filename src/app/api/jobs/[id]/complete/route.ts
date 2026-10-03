@@ -1,10 +1,8 @@
 import { db } from "@/db";
-import { jobs, jobItems, properties, evidence, overrides } from "@/db/schema";
+import { jobs, jobItems, properties, evidence, overrides, findings } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
-import { notifyOwner } from "@/lib/notifications";
-import { emailLayout } from "@/lib/mail-layout";
+import { notify, propertyLink } from "@/lib/messages";
 import { withAuth, canCompleteJobItem } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -119,41 +117,26 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (_request, 
     const updatedJob = db.select().from(jobs).where(eq(jobs.id, id)).get();
     const items = db.select().from(jobItems).where(eq(jobItems.job_id, id)).all();
 
-    // Send email notification
-    const [prop] = db.select({ name: properties.name }).from(properties).where(eq(properties.id, job.property_id)).all();
-    const propertyName = prop?.name || "Имот";
-    const completeEmailSubject = `Обходът на ${propertyName} е завършен`;
-    const completeEmailHtml = emailLayout({
-      title: "Обходът е завършен",
-      color: "#16a34a",
-      intro: "Снимките от обхода са в приложението.",
-      rows: [
-        ["Имот", propertyName],
-        ["Задача", job.title || "Обход"],
-        ["Завършен на", new Date().toLocaleString("bg-BG", { timeZone: "Europe/Sofia" })],
-      ],
-      cta: { label: "Виж снимките" },
-    });
-
-    // Вътрешният адрес получава известие както досега.
-    sendEmail({
-      to: (await getNotifyEmail()) || "",
-      subject: completeEmailSubject,
-      html: completeEmailHtml,
-    }).catch(() => {});
-
-    // Клиентът (собственикът на имота) получава известие, че обходът е готов.
-    const ownerEmail = ownerEmailFor(job.property_id);
-    if (ownerEmail) {
-      sendEmail({
-        to: ownerEmail,
-        subject: completeEmailSubject,
-        html: completeEmailHtml,
-      }).catch(() => {});
+    // Клиентът: обходът е готов — колко е проверено, колко снимки, какво е
+    // отбелязано. Екипът вижда завършения обход в приложението (без имейл).
+    const prop = db.select({ name: properties.name, owner_id: properties.owner_id }).from(properties).where(eq(properties.id, job.property_id)).get();
+    if (prop) {
+      const photos = db.select({ id: evidence.id }).from(evidence).where(eq(evidence.job_id, id)).all().length;
+      const found = db.select({ title: findings.title, severity: findings.severity }).from(findings).where(eq(findings.job_id, id)).all();
+      await notify("visit_done", {
+        to: prop.owner_id,
+        vars: {
+          property: prop.name,
+          done: items.filter((i) => i.done).length,
+          total: items.length,
+          photos,
+        },
+        rows: [
+          ["Отбелязани проблеми", found.length ? found.map((f) => `${f.title}${f.severity === "urgent" ? " (спешно)" : ""}`).join("; ") : "няма"],
+        ],
+        link: propertyLink(job.property_id),
+      });
     }
-
-    // In-app + push: снимките са видими веднага (обещанието на продукта).
-    notifyOwner(job.property_id, "job_done", "Обходът е завършен", `${propertyName} — вижте снимките`, "/dashboard");
 
     return NextResponse.json({ ...updatedJob, items });
   } catch (error) {

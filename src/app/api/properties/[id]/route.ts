@@ -4,9 +4,7 @@ import { and, eq, gte, inArray } from "drizzle-orm";
 import { todaySofia } from "@/lib/jobs-generator";
 import { NextResponse } from "next/server";
 import { withAuth, canViewProperty, isAdmin } from "@/lib/auth";
-import { createNotification, notifyAdmins } from "@/lib/notifications";
-import { sendEmail } from "@/lib/email";
-import { emailLayout } from "@/lib/mail-layout";
+import { notify, propertyLink } from "@/lib/messages";
 import { normalizeOverrideReason } from "@/lib/domain/overrides";
 
 export const dynamic = "force-dynamic";
@@ -183,41 +181,32 @@ export const PATCH = withAuth({ role: ["admin", "client"] }, async (request, { s
       for (const j of future) {
         db.update(jobs).set({ assignee_id: updated.assigned_inspector_id }).where(eq(jobs.id, j.id)).run();
       }
+      // Двамата инспектори разбират какво се промени в графика им.
+      const count = (n: number) => `${n} ${n === 1 ? "обход" : "обхода"}`;
+      const moved = future.filter((j) => j.assignee_id === previousInspector).length;
+      if (updated.assigned_inspector_id && future.length) {
+        await notify("visits_generated", { to: updated.assigned_inspector_id, vars: { count: count(future.length), property: updated.name } });
+      }
+      if (previousInspector && moved) {
+        await notify("visits_removed", {
+          to: previousInspector,
+          vars: { count: count(moved), property: updated.name, reason: "имотът е даден на друг инспектор" },
+        });
+      }
     }
 
     if (resubmitted) {
-      notifyAdmins("property_pending", "Поправен имот чака одобрение", `${updated.name} — ${updated.address ?? ""}`, "/dashboard");
+      await notify("property_resubmitted", { to: "admins", vars: { property: updated.name, address: updated.address ?? "" } });
     }
 
     if (decided && decided !== property.status) {
-      const approved = decided === "active";
-      createNotification(
-        property.owner_id,
-        "property_decided",
-        approved ? "Имотът е одобрен" : "Имотът не е одобрен",
-        approved ? `${updated.name} — вече можете да изберете пакет.` : updated.rejection_reason ?? undefined,
-        "/dashboard",
-      );
-      const owner = db.select({ email: users.email }).from(users).where(eq(users.id, property.owner_id)).get();
-      if (owner?.email) {
-        sendEmail({
-          to: owner.email,
-          subject: approved ? `Имотът ${updated.name} е одобрен` : `Имотът ${updated.name} не е одобрен`,
-          html: emailLayout({
-            title: approved ? "Имотът е одобрен" : "Имотът не е одобрен",
-            intro: approved
-              ? "Адресът е проверен. Следващата стъпка е да изберете пакет за обслужване."
-              : "За съжаление не можем да обслужваме този имот.",
-            rows: [
-              ["Имот", updated.name],
-              ["Адрес", updated.address],
-              ["Причина", approved ? null : updated.rejection_reason],
-            ],
-            color: approved ? "#16a34a" : "#dc2626",
-            cta: approved ? { label: "Избери пакет" } : undefined,
-          }),
-        }).catch(() => {});
-      }
+      const vars = { property: updated.name, reason: updated.rejection_reason ?? "" };
+      await notify(decided === "active" ? "property_approved" : "property_rejected", {
+        to: property.owner_id,
+        vars,
+        rows: [["Адрес", updated.address]],
+        link: propertyLink(property.id),
+      });
     }
 
     return NextResponse.json(updated);

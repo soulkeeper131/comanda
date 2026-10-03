@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth, isAdmin } from "@/lib/auth";
 import { generateForPlan, todaySofia } from "@/lib/jobs-generator";
-import { createNotification } from "@/lib/notifications";
+import { notify, propertyLink } from "@/lib/messages";
+import { formatDateOnly } from "@/lib/format";
 import { cancelPlan } from "@/lib/plan-cancel";
 import { requestPlanBankPayment, settlePlanPayment } from "@/lib/subscriptions";
 
@@ -55,15 +56,13 @@ export const PATCH = withAuth({ role: ["admin", "client"] }, async (request, { s
       }
 
       db.update(plans).set({ first_job_at: first, status: "active" }).where(eq(plans.id, plan.id)).run();
-      const created = generateForPlan(plan.id, today);
+      const created = generateForPlan(plan.id, today, { announce: true });
 
-      createNotification(
-        property.owner_id,
-        "plan_scheduled",
-        "Първият обход е насрочен",
-        `${property.name} — ${new Date(first + "T12:00:00").toLocaleDateString("bg-BG")}`,
-        "/dashboard",
-      );
+      await notify("plan_scheduled", {
+        to: property.owner_id,
+        vars: { property: property.name, date: formatDateOnly(first) },
+        link: propertyLink(property.id),
+      });
       const updated = db.select().from(plans).where(eq(plans.id, plan.id)).get();
       return NextResponse.json({
         ...updated,

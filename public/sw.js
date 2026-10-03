@@ -87,8 +87,10 @@ self.addEventListener("push", (event) => {
       badge: "/logo.png",
       data: { url: data.url || "/dashboard" },
       vibrate: [200, 100, 200],
-      tag: "komanda-notification",
-      requireInteraction: true,
+      // Всяко известие е отделно (собствен tag); само спешните остават на
+      // екрана, докато не бъдат отворени.
+      tag: data.tag || "komanda-" + Date.now(),
+      requireInteraction: !!data.urgent,
     };
 
     event.waitUntil(

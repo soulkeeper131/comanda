@@ -30,7 +30,7 @@ export default function TeamPanel({
   const [filter, setFilter] = useState<"team" | "client" | "inactive">("team");
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ full_name: "", email: "", phone: "", role: "inspector" });
-  const [created, setCreated] = useState<{ email: string; password?: string } | null>(null);
+  const [created, setCreated] = useState<{ email: string; password?: string; invited?: boolean } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -46,10 +46,10 @@ export default function TeamPanel({
   const create = async () => {
     setBusy(true);
     setError("");
-    const res = await api<{ email: string; temporary_password?: string }>("/api/users", { body: form });
+    const res = await api<{ email: string; temporary_password?: string; invited?: boolean }>("/api/users", { body: form });
     setBusy(false);
     if (!res.ok) return setError(res.error);
-    setCreated({ email: res.data.email, password: res.data.temporary_password });
+    setCreated({ email: res.data.email, password: res.data.temporary_password, invited: res.data.invited });
     setForm({ full_name: "", email: "", phone: "", role: "inspector" });
     onChanged("Акаунтът е създаден");
   };
@@ -120,6 +120,11 @@ export default function TeamPanel({
           <div className="space-y-3">
             <h3 className="text-lg font-bold text-ink">Акаунтът е създаден</h3>
             <p className="text-sm text-muted">{created.email}</p>
+            {created.invited && (
+              <p className="rounded-card bg-state-ok/10 px-3 py-2 text-sm text-ink">
+                Изпратихме покана на имейла — човекът сам си задава парола (връзката важи 3 дни).
+              </p>
+            )}
             {created.password && (
               <div className="rounded-card bg-brand-bg p-3">
                 <div className="text-sm text-muted">Временна парола — покажете я само на човека, показва се веднъж:</div>

@@ -31,6 +31,7 @@ import { removePlannedJobsAfter, todaySofia } from "@/lib/jobs-generator";
 import { getStripeOrNull } from "@/lib/stripe";
 import { cancelStripeSubscription } from "@/lib/subscriptions";
 import { cancelPlan } from "@/lib/plan-cancel";
+import { notify } from "@/lib/messages";
 import { expireCheckoutSession } from "@/lib/stripe";
 
 const PHOTOS_DIR = path.join(process.cwd(), "data", "photos");
@@ -234,6 +235,8 @@ export async function deleteAccount(userId: string): Promise<{ ok: true } | { ok
   ].map((r) => r.p);
 
   const hasInvoices = !!db.select({ id: invoices.id }).from(invoices).where(eq(invoices.user_id, userId)).get();
+  // Потвърждение на стария адрес — след малко той вече няма да е в базата.
+  await notify("account_deleted", { emailTo: user.email, vars: {} });
   const now = new Date().toISOString();
 
   db.transaction((tx) => {

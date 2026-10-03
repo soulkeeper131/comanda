@@ -225,6 +225,8 @@ export const jobs = sqliteTable(
     title: text("title"),
     duration_min: integer("duration_min"),
     planned_at: text("planned_at").notNull(),
+    // Кога е пратено напомнянето „утре е обход" — за да не се праща всеки час.
+    reminder_sent_at: text("reminder_sent_at"),
     status: text("status")
       .$type<"planned" | "in_progress" | "completed" | "cancelled">()
       .default("planned"),
@@ -478,6 +480,8 @@ export const payments = sqliteTable("payments", {
   method: text("method").notNull().default("card"),
   stripe_session_id: text("stripe_session_id"),
   stripe_payment_intent_id: text("stripe_payment_intent_id"),
+  // Колко напомняния за неплатен превод са изпратени (абонамент по банка).
+  reminders_sent: integer("reminders_sent").default(0),
   paid_at: text("paid_at"),
   created_at: text("created_at").default(sql`(datetime('now'))`),
 });

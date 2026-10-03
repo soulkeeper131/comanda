@@ -2,9 +2,10 @@ import { db } from "@/db";
 import { serviceOrders, payments, properties, serviceTemplates, jobs, users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { ensureInvoice } from "@/lib/payments";
-import { createNotification, notifyAdmins } from "@/lib/notifications";
-import { sendEmail, getNotifyEmail } from "@/lib/email";
-import { emailLayout, formatEur } from "@/lib/mail-layout";
+import { formatEur } from "@/lib/mail-layout";
+import { notify, propertyLink } from "@/lib/messages";
+import { invoiceAttachment } from "@/lib/messages/attachments";
+import { formatDateOnly } from "@/lib/format";
 import { todaySofia } from "@/lib/jobs-generator";
 import { addDays } from "@/lib/domain/plans";
 
@@ -96,25 +97,21 @@ export async function settleServiceOrder(opts: {
   });
 
   const invoice = ensureInvoice(paymentId, `Допълнителна услуга: ${template.name} — ${property.name}`);
-  const day = new Date(plannedAt + "T12:00:00").toLocaleDateString("bg-BG");
-  createNotification(property.owner_id, "plan_scheduled", "Услугата е насрочена", `${template.name} — ${day}`, "/dashboard");
-  if (assignee) createNotification(assignee, "job_started", "Нова допълнителна услуга", `${template.name} — ${property.name}, ${day}`, "/dashboard");
-  else notifyAdmins("plan_requested", "Допълнителна услуга без инспектор", `${property.name} — ${template.name}, ${day}`, "/dashboard");
-
-  const html = emailLayout({
-    title: "Платена допълнителна услуга",
-    rows: [
-      ["Имот", property.name],
-      ["Услуга", template.name],
-      ["Дата", day],
-      ["Бележка", order.note],
-      ["Сума", formatEur(order.price)],
-      ["Фактура", invoice?.number],
-    ],
-    cta: { label: "Отвори" },
+  const day = formatDateOnly(plannedAt);
+  const vars = { service: template.name, property: property.name, date: day, amount: formatEur(order.price) };
+  await notify("order_scheduled", {
+    to: property.owner_id,
+    vars,
+    rows: [["Фактура", invoice?.number]],
+    link: propertyLink(property.id),
+    attachments: invoiceAttachment(invoice?.id),
   });
-  const notify = await getNotifyEmail();
-  if (notify) sendEmail({ to: notify, subject: `Допълнителна услуга: ${template.name} — ${property.name}`, html }).catch(() => {});
+  if (assignee) await notify("order_assigned", { to: assignee, vars });
+  await notify("order_scheduled_team", {
+    to: "admins",
+    vars: { ...vars, assignee: assignee ? `Изпълнител: ${inspector?.full_name ?? inspector?.email}.` : "Няма инспектор — възложете я от Обходи." },
+    rows: [["Бележка от клиента", order.note], ["Фактура", invoice?.number]],
+  });
   return { ok: true, jobId, invoiceNumber: invoice?.number ?? null };
 }
 
@@ -133,5 +130,5 @@ function markForRefund(
     })
     .where(eq(payments.id, paymentId))
     .run();
-  notifyAdmins("offer_decided", "Нужно е връщане на сума", `${title}: ${formatEur(payment.amount)}`, "/dashboard");
+  void notify("refund_needed_team", { to: "admins", vars: { reason: title, amount: formatEur(payment.amount) } });
 }

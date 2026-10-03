@@ -3,9 +3,9 @@ import { payments, invoices, offers, findings, properties, users, settings, plan
 import { and, eq, inArray } from "drizzle-orm";
 import { canTransition, offerPrepay, type OfferDecision } from "@/lib/domain/offers";
 import { getPrepayThreshold } from "@/lib/settings";
-import { createNotification, notifyAdmins } from "@/lib/notifications";
-import { sendEmail, getNotifyEmail } from "@/lib/email";
-import { emailLayout, formatEur } from "@/lib/mail-layout";
+import { formatEur } from "@/lib/mail-layout";
+import { notify, propertyLink } from "@/lib/messages";
+import { invoiceAttachment } from "@/lib/messages/attachments";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -183,12 +183,10 @@ export async function settleOfferPayment(opts: {
         })
         .where(eq(payments.id, opts.paymentId))
         .run();
-      notifyAdmins(
-        "offer_decided",
-        "Двойно плащане — нужно е възстановяване",
-        `${property.name}: ${finding.title} (${formatEur(offer.price)}) е платена повторно.`,
-        "/dashboard",
-      );
+      await notify("refund_needed_team", {
+        to: "admins",
+        vars: { reason: `Двойно плащане: ${finding.title} (${property.name})`, amount: formatEur(offer.price) },
+      });
       return { ok: false, reason: "duplicate" };
     }
     return { ok: false, reason: "not_payable" };
@@ -234,30 +232,19 @@ export async function settleOfferPayment(opts: {
 
   const invoice = ensureInvoice(paymentId, `Ремонт: ${finding.title} — ${property.name}`);
 
-  createNotification(
-    property.owner_id,
-    "offer_decided",
-    "Плащането е получено",
-    `${formatEur(offer.price)} — ${finding.title}${invoice ? ` · фактура ${invoice.number}` : ""}`,
-    "/dashboard",
-  );
   const owner = db.select({ email: users.email, name: users.full_name }).from(users).where(eq(users.id, property.owner_id)).get();
-  const html = emailLayout({
-    title: "Плащането е получено",
-    rows: [
-      ["Имот", property.name],
-      ["За", finding.title],
-      ["Сума", formatEur(offer.price)],
-      ["Начин", opts.method === "card" ? "Карта" : "Банков превод"],
-      ["Фактура", invoice?.number],
-    ],
-    color: "#16a34a",
-    cta: { label: "Фактурата е в Профил" },
+  const vars = { amount: formatEur(offer.price), title: finding.title, property: property.name, client: owner?.name ?? owner?.email ?? "" };
+  const rows: [string, string | null | undefined][] = [
+    ["Начин", opts.method === "card" ? "Карта" : "Банков превод"],
+    ["Фактура", invoice?.number],
+  ];
+  await notify("payment_received", {
+    to: property.owner_id,
+    vars,
+    rows,
+    link: propertyLink(property.id),
+    attachments: invoiceAttachment(invoice?.id),
   });
-  if (owner?.email) sendEmail({ to: owner.email, subject: `Плащането за ${finding.title} е получено`, html }).catch(() => {});
-  const notify = await getNotifyEmail();
-  if (notify) {
-    sendEmail({ to: notify, subject: `Плащане ${formatEur(offer.price)} — ${property.name} (${owner?.name ?? owner?.email ?? ""})`, html }).catch(() => {});
-  }
+  await notify("payment_received_team", { to: "admins", vars, rows });
   return { ok: true, invoiceNumber: invoice?.number ?? null };
 }

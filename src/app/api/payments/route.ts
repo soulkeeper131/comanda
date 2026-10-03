@@ -1,7 +1,8 @@
 import { db } from "@/db";
 import { payments, offers, findings, properties, users, invoices, serviceOrders, serviceTemplates, plans } from "@/db/schema";
 import { expireCheckoutSession } from "@/lib/stripe";
-import { paymentReference } from "@/lib/format";
+import { bankReference, formatMoney, paymentReference } from "@/lib/format";
+import { bankRows, notify } from "@/lib/messages";
 import { withAuth, isAdmin } from "@/lib/auth";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { awaitsPayment, offerPrepay, type OfferDecision } from "@/lib/domain/offers";
@@ -70,7 +71,7 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session }) 
   }
 
   const row = db
-    .select({ offer: offers, owner_id: properties.owner_id })
+    .select({ offer: offers, owner_id: properties.owner_id, finding_title: findings.title })
     .from(offers)
     .innerJoin(findings, eq(offers.finding_id, findings.id))
     .innerJoin(properties, eq(findings.property_id, properties.id))
@@ -110,5 +111,18 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session }) 
   }).run();
 
   const payment = db.select().from(payments).where(eq(payments.id, id)).get();
+  // Данните за превод и по имейл — клиентът не бива да ги търси в приложението;
+  // екипът знае, че трябва да очаква превод.
+  const client = db.select({ name: users.full_name, email: users.email }).from(users).where(eq(users.id, session.uid)).get();
+  const what = row.finding_title ?? "ремонт";
+  await notify("bank_transfer_details", {
+    to: session.uid,
+    vars: { amount: formatMoney(row.offer.price), what },
+    rows: bankRows(bankReference("offer", offerId), row.offer.price),
+  });
+  await notify("bank_transfer_team", {
+    to: "admins",
+    vars: { client: client?.name ?? client?.email ?? "", what, amount: formatMoney(row.offer.price) },
+  });
   return NextResponse.json(payment, { status: 201 });
 });

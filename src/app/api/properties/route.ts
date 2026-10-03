@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { properties, jobs, findings, users } from "@/db/schema";
 import { eq, and, lt, inArray } from "drizzle-orm";
-import { notifyAdmins } from "@/lib/notifications";
+import { notify } from "@/lib/messages";
 import { todaySofia } from "@/lib/jobs-generator";
 import { withAuth, canViewProperty } from "@/lib/auth";
 import { NextResponse } from "next/server";
@@ -154,7 +154,12 @@ export const POST = withAuth({ role: ["admin", "client"] }, async (request, { se
       .all();
 
     if (!isAdminCreate) {
-      notifyAdmins("property_pending", "Нов имот чака одобрение", `${property.name} — ${property.address}`, "/dashboard");
+      const owner = db.select({ name: users.full_name, email: users.email }).from(users).where(eq(users.id, property.owner_id)).get();
+      await notify("property_new", {
+        to: "admins",
+        vars: { property: property.name, address: property.address ?? "", client: owner?.name ?? owner?.email ?? "" },
+        rows: [["Контакт на място", [property.contact_name, property.contact_phone].filter(Boolean).join(", ")]],
+      });
     }
 
     return NextResponse.json(property, { status: 201 });

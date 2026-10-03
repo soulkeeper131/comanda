@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/format";
+import { companyInfo } from "@/lib/legal";
 /**
  * Общ вид на известията по имейл + екраниране.
  *
@@ -65,6 +66,40 @@ ${opts.intro ? `<p style="color:#334155">${opts.intro}</p>` : ""}
 ${rows}
 ${cta}
 <hr style="border:none;border-top:1px solid #e4e9f0;margin:20px 0" />
-<p style="color:#94a3b8;font-size:12px">Ко Манда — ${appHost()}</p>
+<p style="color:#94a3b8;font-size:12px;line-height:1.6">${footerLines().map(escapeHtml).join("<br>")}<br><a href="${appUrl()}/privacy" style="color:#94a3b8">Поверителност</a></p>
 </div>`;
+}
+
+/** Подписът под всеки имейл — фирмата и как да се свържат с нас. */
+export function footerLines(): string[] {
+  const c = companyInfo();
+  return [
+    [c.name || "Ко Манда", appHost()].join(" · "),
+    [c.email, c.phone].filter(Boolean).join(" · "),
+  ].filter(Boolean);
+}
+
+/** Текстовата версия на имейла — за пощенски програми без HTML и по-малко спам. */
+export function emailText(opts: {
+  title: string;
+  body?: string;
+  rows?: Row[];
+  cta?: { label: string; path?: string };
+}): string {
+  const rows = (opts.rows ?? [])
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([l, v]) => `${l}: ${v}`);
+  return [
+    opts.title,
+    "",
+    opts.body ?? "",
+    rows.length ? "" : null,
+    ...rows,
+    opts.cta ? `\n${opts.cta.label}: ${appUrl()}${opts.cta.path ?? "/dashboard"}` : null,
+    "",
+    "--",
+    ...footerLines(),
+  ]
+    .filter((l) => l !== null)
+    .join("\n");
 }

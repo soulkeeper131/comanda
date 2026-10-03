@@ -9,10 +9,11 @@ import SmtpSettings from "@/components/SmtpSettings";
 import { formatMoney } from "@/lib/format";
 import { api } from "./api";
 import TeamPanel from "./TeamPanel";
+import MessagesPanel from "./MessagesPanel";
 import { Chips, Field, SectionTitle, inputClass } from "./ui";
 import type { AdminData, Resource } from "./useAdminData";
 
-type Tab = "team" | "business" | "templates" | "email";
+type Tab = "team" | "business" | "templates" | "messages" | "email";
 
 type Settings = {
   prepay_threshold: number;
@@ -117,7 +118,8 @@ export default function SettingsSection({
           { value: "team", label: "Хора" },
           { value: "business", label: "Плащания и задачи" },
           { value: "templates", label: "Услуги и чеклисти" },
-          { value: "email", label: "Имейли" },
+          { value: "messages", label: "Съобщения" },
+          { value: "email", label: "Имейл сървър" },
         ]}
       />
 
@@ -221,6 +223,8 @@ export default function SettingsSection({
           </Card>
         </div>
       )}
+
+      {tab === "messages" && <MessagesPanel toast={toast} />}
 
       {tab === "email" && (
         <Card padding="none">

@@ -47,6 +47,13 @@ export default function PushBell() {
       .then((reg) => reg.pushManager.getSubscription())
       .then((sub) => {
         if (sub) {
+          // Устройството вече е абонирано — закачаме го за този потребител
+          // (на споделено устройство може да е било на друг).
+          void fetch("/api/push/subscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ subscription: sub.toJSON() }),
+          }).catch(() => {});
           setBellState("subscribed");
         } else if (permission === "granted") {
           // Granted but not subscribed (unusual, but treat as unsubscribed)
@@ -117,6 +124,11 @@ export default function PushBell() {
       const reg = await navigator.serviceWorker.ready;
       const subscription = await reg.pushManager.getSubscription();
       if (subscription) {
+        await fetch("/api/push/subscribe", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        }).catch(() => {});
         await subscription.unsubscribe();
       }
       setBellState("unsubscribed");

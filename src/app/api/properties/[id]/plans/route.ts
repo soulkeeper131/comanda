@@ -8,7 +8,8 @@ import { isLivePlan } from "@/lib/domain/plans";
 import { isStripeConfigured } from "@/lib/stripe";
 import { createSubscriptionCheckout, expirePlanCheckout, requestPlanBankPayment } from "@/lib/subscriptions";
 import { todaySofia } from "@/lib/jobs-generator";
-import { notifyAdmins } from "@/lib/notifications";
+import { bankRows, notify, propertyLink } from "@/lib/messages";
+import { bankReference } from "@/lib/format";
 import { formatEur } from "@/lib/mail-layout";
 
 export const dynamic = "force-dynamic";
@@ -126,7 +127,9 @@ export const POST = withAuth({ role: ["admin", "client"] }, async (request, { se
     }
 
     const payment = requestPlanBankPayment(plan.id);
-    notifyAdmins("plan_requested", "Нов абонамент — чака превод", `${prop.name} — ${pkg.name}, ${formatEur(price)}`, "/dashboard");
+    const vars = { property: prop.name, package: pkg.name, amount: formatEur(price) };
+    await notify("plan_bank_requested", { to: prop.owner_id, vars, rows: bankRows(bankReference("plan", plan.id), price), link: propertyLink(prop.id) });
+    await notify("plan_new_team", { to: "admins", vars });
     return NextResponse.json({ ...plan, bank: true, payment_id: payment?.id }, { status: 201 });
   } catch (error) {
     console.error("POST plan error:", error);

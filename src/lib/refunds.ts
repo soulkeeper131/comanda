@@ -3,8 +3,9 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { jobReschedules, jobs, payments, serviceOrders } from "@/db/schema";
 import { getStripeOrNull } from "@/lib/stripe";
-import { issueCreditNote } from "@/lib/payments";
-import { createNotification } from "@/lib/notifications";
+import { describePayment, issueCreditNote } from "@/lib/payments";
+import { notify } from "@/lib/messages";
+import { invoiceAttachment } from "@/lib/messages/attachments";
 import { formatEur } from "@/lib/mail-layout";
 
 /** PaymentIntent зад плащането — нужен е, за да се върнат парите в Stripe. */
@@ -37,7 +38,7 @@ export function markRefunded(paymentId: string) {
   if (!payment || payment.status === "refunded") return;
   const wasPaid = payment.status === "paid";
   db.update(payments).set({ status: "refunded" }).where(eq(payments.id, payment.id)).run();
-  issueCreditNote(payment.id);
+  const credit = issueCreditNote(payment.id);
 
   if (wasPaid && payment.order_id) {
     const order = db.select().from(serviceOrders).where(eq(serviceOrders.id, payment.order_id)).get();
@@ -53,7 +54,19 @@ export function markRefunded(paymentId: string) {
       }
     });
   }
-  createNotification(payment.user_id, "offer_decided", "Сумата е върната", formatEur(payment.amount), "/dashboard");
+  void notify("refund_done", {
+    to: payment.user_id,
+    vars: {
+      amount: formatEur(payment.amount),
+      what: describePayment(payment.id),
+      how:
+        payment.method === "card"
+          ? "Сумата ще се появи в картата ви до 5–10 работни дни."
+          : "Преведохме сумата по сметката, от която сте платили.",
+    },
+    rows: [["Кредитно известие", credit?.number]],
+    attachments: invoiceAttachment(credit?.id),
+  });
 }
 
 /**

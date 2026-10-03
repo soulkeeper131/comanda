@@ -3,7 +3,8 @@ import { jobs, properties, jobReschedules, plans } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth, isAdmin } from "@/lib/auth";
-import { createNotification, notifyAdmins } from "@/lib/notifications";
+import { notify, propertyLink } from "@/lib/messages";
+import { formatDateOnly } from "@/lib/format";
 import { todaySofia } from "@/lib/jobs-generator";
 import { canReschedule, rescheduleWindow } from "@/lib/domain/reschedule";
 
@@ -94,22 +95,16 @@ export const PATCH = withAuth({ role: ["admin", "client"] }, async (request, { s
         .run();
     });
 
-    const label = (d: string) => new Date(d.slice(0, 10) + "T12:00:00").toLocaleDateString("bg-BG");
-    if (job.assignee_id) {
-      createNotification(
-        job.assignee_id,
-        "job_rescheduled",
-        "Обход е преместен",
-        `${property.name}: ${label(from)} → ${label(to)}`,
-        "/dashboard",
-      );
-    }
+    const vars = { property: property.name, from: formatDateOnly(from), to: formatDateOnly(to) };
+    if (job.assignee_id) await notify("visit_moved_inspector", { to: job.assignee_id, vars });
     if (isAdmin(session)) {
-      createNotification(property.owner_id, "job_rescheduled", "Обходът е преместен", `${property.name}: ${label(to)}`, "/dashboard");
+      await notify("visit_moved_client", { to: property.owner_id, vars, link: propertyLink(property.id) });
     } else {
       // Екипът знае винаги — и когато обходът няма изпълнител.
-      notifyAdmins("job_rescheduled", "Клиент премести обход", `${property.name}: ${label(from)} → ${label(to)}`, "/dashboard");
+      await notify("visit_moved_team", { to: "admins", vars });
     }
+    // Ново напомняне „утре е обход" за новата дата.
+    db.update(jobs).set({ reminder_sent_at: null }).where(eq(jobs.id, job.id)).run();
 
     return NextResponse.json(db.select().from(jobs).where(eq(jobs.id, job.id)).get());
   } catch (error) {

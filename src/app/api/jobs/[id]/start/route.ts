@@ -3,7 +3,7 @@ import { jobs, templateItems, jobItems, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { todaySofia } from "@/lib/jobs-generator";
-import { notifyOwner } from "@/lib/notifications";
+import { notify, propertyLink } from "@/lib/messages";
 import { withAuth, canOverride, isAdmin } from "@/lib/auth";
 import { distanceMeters } from "@/lib/geo";
 import { recordOverride, normalizeOverrideReason } from "@/lib/domain/overrides";
@@ -177,15 +177,9 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
     const updatedJob = db.select().from(jobs).where(eq(jobs.id, id)).get();
     const updatedItems = db.select().from(jobItems).where(eq(jobItems.job_id, id)).all();
 
-    // Notify property owner about started job
-    const prop = db.select({ name: properties.name }).from(properties).where(eq(properties.id, job.property_id)).get();
-    notifyOwner(
-      job.property_id,
-      "job_started",
-      "Започна обход",
-      `${job.title || "Обход"} — ${prop?.name || "Имот"}`,
-      "/dashboard",
-    );
+    // Клиентът вижда, че някой е в имота му.
+    const prop = db.select({ name: properties.name, owner_id: properties.owner_id }).from(properties).where(eq(properties.id, job.property_id)).get();
+    if (prop) await notify("visit_started", { to: prop.owner_id, vars: { property: prop.name }, link: propertyLink(job.property_id) });
 
     return NextResponse.json({ ...updatedJob, items: updatedItems });
   } catch (error) {

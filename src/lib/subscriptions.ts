@@ -3,9 +3,9 @@ import { db } from "@/db";
 import { plans, properties, users, payments } from "@/db/schema";
 import { and, eq, inArray, isNull, lte } from "drizzle-orm";
 import { getStripeOrNull, eurToCents } from "@/lib/stripe";
-import { appUrl, emailLayout, formatEur } from "@/lib/mail-layout";
-import { createNotification, notifyAdmins } from "@/lib/notifications";
-import { sendEmail, getNotifyEmail } from "@/lib/email";
+import { appUrl, formatEur } from "@/lib/mail-layout";
+import { bankRows, notify, propertyLink } from "@/lib/messages";
+import { invoiceAttachment } from "@/lib/messages/attachments";
 import { ensureInvoice } from "@/lib/payments";
 import { removePlannedJobsAfter, todaySofia } from "@/lib/jobs-generator";
 import { addDays, billingPeriod } from "@/lib/domain/plans";
@@ -181,12 +181,13 @@ async function rejectOrphanSubscription(plan: typeof plans.$inferSelect, subscri
       })
       .run();
   }
-  notifyAdmins(
-    "plan_requested",
-    "Плащане за абонамент, който не чака плащане — върнете сумата",
-    `${property?.name ?? ""} — ${plan.name}: ${formatEur((session.amount_total ?? 0) / 100)}. Абонаментът в Stripe е спрян.`,
-    "/dashboard",
-  );
+  await notify("refund_needed_team", {
+    to: "admins",
+    vars: {
+      reason: `Плащане за абонамент, който не чака плащане (${property?.name ?? ""} — ${plan.name}); абонаментът в Stripe е спрян`,
+      amount: formatEur((session.amount_total ?? 0) / 100),
+    },
+  });
 }
 
 /** Първото плащане е минало → планът чака админа да насрочи първия обход. */
@@ -207,23 +208,17 @@ export async function announcePlanRequested(planId: string) {
   const plan = db.select().from(plans).where(eq(plans.id, planId)).get();
   const property = plan && db.select().from(properties).where(eq(properties.id, plan.property_id)).get();
   if (!plan || !property) return;
-  notifyAdmins("plan_requested", "Нов абонамент чака насрочване", `${property.name} — ${plan.name}`, "/dashboard");
-  sendEmail({
-    to: (await getNotifyEmail()) || "",
-    subject: `Нов абонамент: ${property.name} — ${plan.name}`,
-    html: emailLayout({
-      title: "Нов абонамент чака насрочване",
-      intro: "Обадете се на клиента и насрочете първия обход.",
-      rows: [
-        ["Имот", property.name],
-        ["Адрес", property.address],
-        ["Пакет", plan.name],
-        ["Месечно", formatEur(plan.price)],
-        ["Контакт", [property.contact_name, property.contact_phone].filter(Boolean).join(", ")],
-      ],
-      cta: { label: "Насрочи" },
-    }),
-  }).catch(() => {});
+  const owner = db.select({ name: users.full_name, phone: users.phone, email: users.email }).from(users).where(eq(users.id, property.owner_id)).get();
+  await notify("plan_to_schedule", {
+    to: "admins",
+    vars: { property: property.name, package: plan.name },
+    rows: [
+      ["Адрес", property.address],
+      ["Месечно", formatEur(plan.price)],
+      ["Клиент", [owner?.name, owner?.phone, owner?.email].filter(Boolean).join(", ")],
+      ["Контакт на място", [property.contact_name, property.contact_phone].filter(Boolean).join(", ")],
+    ],
+  });
 }
 
 /** Всяко месечно теглене → плащане + фактура; платено до края на периода. */
@@ -270,13 +265,13 @@ export async function onInvoicePaid(invoice: Stripe.Invoice) {
     .where(eq(plans.id, plan.id))
     .run();
 
-  createNotification(
-    property.owner_id,
-    "offer_decided",
-    "Абонаментът е платен",
-    `${formatEur(payment.amount)} — ${plan.name}${inv ? ` · фактура ${inv.number}` : ""}`,
-    "/dashboard",
-  );
+  await notify("plan_paid", {
+    to: property.owner_id,
+    vars: { amount: formatEur(payment.amount), package: plan.name, property: property.name, paid_until: formatDateOnly(unixToDate(periodEnd)) },
+    rows: [["Фактура", inv?.number]],
+    link: propertyLink(property.id),
+    attachments: invoiceAttachment(inv?.id),
+  });
 }
 
 /** Неуспешно теглене — Stripe опитва пак ~7 дни; екипът и клиентът знаят. */
@@ -288,25 +283,9 @@ export async function onInvoicePaymentFailed(invoice: Stripe.Invoice) {
   if (!plan || !property) return;
   db.update(plans).set({ stripe_status: "past_due" }).where(eq(plans.id, plan.id)).run();
 
-  notifyAdmins("plan_requested", "Неуспешно теглене на абонамент", `${property.name} — ${formatEur(invoice.amount_due / 100)}`, "/dashboard");
-  createNotification(property.owner_id, "plan_scheduled", "Плащането на абонамента не мина", "Обновете картата от Профил → Карта и плащания.", "/dashboard");
-  const owner = db.select({ email: users.email }).from(users).where(eq(users.id, property.owner_id)).get();
-  if (owner?.email) {
-    sendEmail({
-      to: owner.email,
-      subject: "Плащането на абонамента не мина",
-      html: emailLayout({
-        title: "Плащането не мина",
-        intro: "Банката отказа месечното плащане. Ще опитаме отново през следващите дни — обновете картата, за да не спират обходите.",
-        rows: [
-          ["Имот", property.name],
-          ["Сума", formatEur(invoice.amount_due / 100)],
-        ],
-        color: "#d97706",
-        cta: { label: "Обнови картата" },
-      }),
-    }).catch(() => {});
-  }
+  const vars = { property: property.name, amount: formatEur(invoice.amount_due / 100) };
+  await notify("plan_payment_failed_team", { to: "admins", vars });
+  await notify("plan_payment_failed", { to: property.owner_id, vars, link: propertyLink(property.id) });
 }
 
 /**
@@ -331,6 +310,20 @@ export async function onSubscriptionChanged(sub: Stripe.Subscription, deleted: b
     const today = todaySofia();
     const endsAt = deleted ? today : periodEnd ?? today;
     if (plan.status !== "cancelled" || plan.ends_at !== endsAt) {
+      // Спрян от страната на Stripe (изчерпани опити за плащане, портал,
+      // таблото на Stripe) — не от приложението: клиентът и екипът трябва
+      // да разберат, иначе обходите просто изчезват.
+      const fromStripe = plan.status !== "cancelled";
+      if (fromStripe) {
+        const property = db.select().from(properties).where(eq(properties.id, plan.property_id)).get();
+        if (property) {
+          const outcome = deleted
+            ? "абонаментът е спрян след неуспешни плащания с картата. Обходите след днес са махнати; можете да заявите пакет отново."
+            : `абонаментът е прекратен и важи до ${formatDateOnly(endsAt)}.`;
+          await notify("plan_cancelled", { to: property.owner_id, vars: { property: property.name, outcome }, link: propertyLink(property.id) });
+          await notify("plan_cancelled_team", { to: "admins", vars: { property: property.name, outcome: deleted ? "спрян от Stripe (неуспешни плащания)" : `прекратен през Stripe, важи до ${formatDateOnly(endsAt)}` } });
+        }
+      }
       db.transaction((tx) => {
         tx.update(plans)
           .set({
@@ -424,13 +417,13 @@ export async function settlePlanPayment(paymentId: string): Promise<{ ok: true; 
     payment.id,
     `Абонамент ${plan.name} — ${property.name}, ${formatDateOnly(period.from)}–${formatDateOnly(period.until)}`,
   );
-  createNotification(
-    property.owner_id,
-    "offer_decided",
-    "Абонаментът е платен",
-    `${plan.name} — до ${formatDateOnly(period.until)}${inv ? ` · фактура ${inv.number}` : ""}`,
-    "/dashboard",
-  );
+  await notify("plan_paid", {
+    to: property.owner_id,
+    vars: { amount: formatEur(payment.amount), package: plan.name, property: property.name, paid_until: formatDateOnly(period.until) },
+    rows: [["Фактура", inv?.number]],
+    link: propertyLink(property.id),
+    attachments: invoiceAttachment(inv?.id),
+  });
   if (wasPending) await announcePlanRequested(plan.id);
   return { ok: true, invoiceNumber: inv?.number ?? null };
 }
@@ -454,7 +447,6 @@ export async function billBankPlans(today: string = todaySofia()): Promise<numbe
     )
     .all();
   let created = 0;
-  const bank = getBankDetails();
   for (const plan of due) {
     const hadPending = db
       .select({ id: payments.id })
@@ -466,33 +458,12 @@ export async function billBankPlans(today: string = todaySofia()): Promise<numbe
     const property = db.select().from(properties).where(eq(properties.id, plan.property_id)).get();
     if (!payment || !property) continue;
     created++;
-    createNotification(
-      property.owner_id,
-      "plan_scheduled",
-      "Плащане за следващия месец",
-      `${plan.name} — ${formatEur(plan.price)} до ${formatDateOnly(addDays(plan.paid_until!, 1))}`,
-      "/dashboard",
-    );
-    const owner = db.select({ email: users.email }).from(users).where(eq(users.id, property.owner_id)).get();
-    if (owner?.email) {
-      sendEmail({
-        to: owner.email,
-        subject: `Абонамент ${plan.name}: плащане за следващия месец`,
-        html: emailLayout({
-          title: "Плащане за следващия месец",
-          intro: `Платеното досега важи до ${formatDateOnly(plan.paid_until)}. Преведете сумата, за да продължат обходите без прекъсване.`,
-          rows: [
-            ["Имот", property.name],
-            ["Сума", formatEur(plan.price)],
-            ["Получател", bank.recipient],
-            ["IBAN", bank.iban],
-            ["Банка", bank.bank],
-            ["Основание", bankReference("plan", plan.id)],
-          ],
-          cta: { label: "Отвори" },
-        }),
-      }).catch(() => {});
-    }
+    await notify("plan_next_payment", {
+      to: property.owner_id,
+      vars: { paid_until: formatDateOnly(plan.paid_until), amount: formatEur(plan.price), package: plan.name, property: property.name },
+      rows: bankRows(bankReference("plan", plan.id), plan.price),
+      link: propertyLink(property.id),
+    });
   }
   return created;
 }

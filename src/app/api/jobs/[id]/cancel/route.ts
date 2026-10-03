@@ -2,8 +2,8 @@ import { db } from "@/db";
 import { jobs, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { emailLayout } from "@/lib/mail-layout";
-import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
+import { notify, propertyLink } from "@/lib/messages";
+import { formatDateOnly } from "@/lib/format";
 import { withAuth } from "@/lib/auth";
 import { canCancelJob } from "@/lib/domain/jobs";
 import { normalizeOverrideReason } from "@/lib/domain/overrides";
@@ -58,34 +58,12 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
 
     const updatedJob = db.select().from(jobs).where(eq(jobs.id, id)).get();
 
-    // Клиентът е чакал обход, който няма да се случи — трябва да знае.
-    const [prop] = db.select({ name: properties.name }).from(properties).where(eq(properties.id, job.property_id)).all();
-    const propertyName = prop?.name || "Имот";
-    const cancelSubject = `Обходът на ${propertyName} е отменен`;
-    const cancelHtml = emailLayout({
-      title: "Обходът е отменен",
-      color: "#dc2626",
-      rows: [
-        ["Имот", propertyName],
-        ["Задача", job.title || "Обход"],
-        ["Причина", normalizedReason],
-      ],
-    });
-
-    sendEmail({
-      to: (await getNotifyEmail()) || "",
-      subject: cancelSubject,
-      html: cancelHtml,
-    }).catch(() => {});
-
-    const ownerEmail = ownerEmailFor(job.property_id);
-    if (ownerEmail) {
-      sendEmail({
-        to: ownerEmail,
-        subject: cancelSubject,
-        html: cancelHtml,
-      }).catch(() => {});
-    }
+    // Клиентът е чакал обход, който няма да се случи — трябва да знае;
+    // инспекторът — също, за да не отиде напразно.
+    const prop = db.select({ name: properties.name, owner_id: properties.owner_id }).from(properties).where(eq(properties.id, job.property_id)).get();
+    const vars = { property: prop?.name ?? "Имот", date: formatDateOnly(job.planned_at), reason: normalizedReason };
+    if (prop) await notify("visit_cancelled", { to: prop.owner_id, vars, link: propertyLink(job.property_id) });
+    if (job.assignee_id) await notify("visit_cancelled_inspector", { to: job.assignee_id, vars });
 
     return NextResponse.json(updatedJob);
   } catch (error) {

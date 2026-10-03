@@ -2,10 +2,8 @@ import { db } from "@/db";
 import { findings, findingPhotos, properties, users, jobItems, jobs, offers } from "@/db/schema";
 import { eq, desc, inArray, and, or, type SQL } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
-import { notifyOwner, notifyAdmins } from "@/lib/notifications";
+import { notify, propertyLink } from "@/lib/messages";
 import { withAuth, canCompleteJobItem } from "@/lib/auth";
-import { emailLayout } from "@/lib/mail-layout";
 import { claimUpload, uploadFilename } from "@/lib/uploads";
 import { isFindingStatus, isSeverity, sortFindings } from "@/lib/domain/findings";
 import { isClientId } from "@/lib/domain/idempotency";
@@ -176,35 +174,17 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
       db.insert(findingPhotos).values({ finding_id: finding.id, storage_path: uploadFilename(p) }).run();
     }
 
+    // Спешна — веднага до собственика и екипа (въпрос 17): в приложението,
+    // push и имейл. Нормалната — в приложението; клиентът може да поиска оферта.
     const urgent = severity === "urgent";
-    const subject = urgent
-      ? `СПЕШНО: ${title.trim()} — ${property.name}`
-      : `Нова констатация в ${property.name}: ${title.trim()}`;
-    const html = emailLayout({
-      title: urgent ? "Спешна констатация" : "Нова констатация",
-      intro: urgent
-        ? "Инспекторът отбеляза проблем, който не бива да чака. Екипът ни вече е уведомен."
-        : undefined,
-      color: urgent ? "#dc2626" : "#006494",
-      rows: [
-        ["Имот", property.name],
-        ["Проблем", title.trim()],
-        ["Описание", desc],
-      ],
-      cta: { label: urgent ? "Виж и реши" : "Виж в приложението" },
-    });
-
-    sendEmail({ to: (await getNotifyEmail()) || "", subject, html }).catch(() => {});
-
-    // Спешна — веднага до собственика и всички админи (въпрос 17): in-app,
-    // push и имейл. Нормалната стига до клиента в приложението.
+    const vars = { title: title.trim(), property: property.name };
+    const rows: [string, string][] = desc ? [["Описание", desc]] : [];
     if (urgent) {
-      const ownerEmail = ownerEmailFor(property.id);
-      if (ownerEmail) sendEmail({ to: ownerEmail, subject, html }).catch(() => {});
-      notifyAdmins("finding_urgent", "Спешна констатация", `${title.trim()} — ${property.name}`, "/dashboard");
-      notifyOwner(property.id, "finding_urgent", "Спешен проблем в имота", title.trim(), "/dashboard");
+      await notify("finding_urgent", { to: property.owner_id, vars, rows, link: propertyLink(property.id) });
+      await notify("finding_urgent_team", { to: "admins", vars, rows });
     } else {
-      notifyOwner(property.id, "finding_new", "Нова констатация", title.trim(), "/dashboard");
+      await notify("finding_new", { to: property.owner_id, vars, rows, link: propertyLink(property.id) });
+      await notify("finding_new_team", { to: "admins", vars, rows });
     }
 
     const savedPhotos = db.select().from(findingPhotos).where(eq(findingPhotos.finding_id, finding.id)).all();

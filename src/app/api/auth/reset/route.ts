@@ -5,6 +5,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { setSession } from "@/lib/auth";
 import { consumeToken } from "@/lib/auth-tokens";
+import { notify } from "@/lib/messages";
 import { getDefaultOrgId } from "@/lib/org";
 
 export const dynamic = "force-dynamic";
@@ -29,5 +30,6 @@ export async function POST(request: Request) {
     .all();
   if (!user || user.active === false) return NextResponse.json({ error: "Профилът не е активен" }, { status: 403 });
   await setSession({ uid: user.id, role: user.role as "client", org_id: user.org_id ?? getDefaultOrgId() });
+  await notify("account_password_changed", { emailTo: user.email, vars: { email: user.email } });
   return NextResponse.json({ success: true });
 }

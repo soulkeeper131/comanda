@@ -6,7 +6,8 @@ import { and, eq } from "drizzle-orm";
 import { getWebhookSecret, eurToCents } from "@/lib/stripe";
 import { ensureInvoice, settleOfferPayment } from "@/lib/payments";
 import { onChargeRefunded } from "@/lib/refunds";
-import { notifyAdmins } from "@/lib/notifications";
+import { notify } from "@/lib/messages";
+import { formatEur } from "@/lib/mail-layout";
 import { settleServiceOrder } from "@/lib/service-orders";
 import {
   onInvoicePaid,
@@ -124,7 +125,10 @@ async function onOfferCheckoutCompleted(session: Stripe.Checkout.Session) {
       .set({ status: "refund_needed", stripe_session_id: session.id, stripe_payment_intent_id: paymentIntent })
       .where(eq(payments.id, payment.id))
       .run();
-    notifyAdmins("offer_decided", "Плащане с грешна сума — върнете го", `Взети ${(session.amount_total ?? 0) / 100} € вместо ${payment.amount} €`, "/dashboard");
+    await notify("refund_needed_team", {
+      to: "admins",
+      vars: { reason: `Плащане с грешна сума (очаквани ${formatEur(payment.amount)})`, amount: formatEur((session.amount_total ?? 0) / 100) },
+    });
     return;
   }
 

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { notify } from "@/lib/messages";
 
 export const dynamic = "force-dynamic";
 
@@ -62,5 +63,8 @@ export const PATCH = withAuth({}, async (request, { session }) => {
   }
   updates.updated_at = new Date().toISOString();
   db.update(users).set(updates).where(eq(users.id, session.uid)).run();
+  if (updates.password_hash) {
+    await notify("account_password_changed", { emailTo: user.email, vars: { email: user.email } });
+  }
   return NextResponse.json({ success: true });
 });

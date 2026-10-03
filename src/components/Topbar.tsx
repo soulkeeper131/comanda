@@ -77,6 +77,20 @@ export default function Topbar() {
     ) {
       return;
     }
+    // Това устройство спира да получава известията на излизащия потребител.
+    try {
+      const reg = await navigator.serviceWorker?.ready;
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) {
+        await fetch("/api/push/subscribe", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+      }
+    } catch {
+      /* без push — нищо за махане */
+    }
     await fetch("/api/auth/logout", { method: "POST" });
     // Кешът за офлайн четене е на този потребител — триe се, освен ако има
     // неизпратена работа (тя е по-ценна от чистотата на кеша).
