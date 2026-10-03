@@ -9,7 +9,8 @@ export type AuthedContext = {
   params: Record<string, string>;
 };
 
-type RouteContext = { params?: Record<string, string> };
+// Next 15 подава параметрите на пътя като Promise.
+type RouteContext = { params: Promise<Record<string, string>> };
 
 type Handler = (
   request: Request,
@@ -30,7 +31,7 @@ export type AuthOptions = {
 export function withAuth(options: AuthOptions, handler: Handler) {
   return async function (
     request: Request,
-    ctx: RouteContext = {},
+    ctx: RouteContext,
   ): Promise<Response> {
     const raw = (await cookies()).get(SESSION_COOKIE)?.value;
     const token = raw ? verifySession(raw) : null;
@@ -53,7 +54,7 @@ export function withAuth(options: AuthOptions, handler: Handler) {
     }
 
     try {
-      return await handler(request, { session, params: ctx.params ?? {} });
+      return await handler(request, { session, params: (await ctx?.params) ?? {} });
     } catch (error) {
       console.error("[withAuth] Необработена грешка:", error);
       return NextResponse.json({ error: "Възникна грешка" }, { status: 500 });

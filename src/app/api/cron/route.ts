@@ -30,5 +30,5 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "cron failed" }, { status: 500 });
     }
   }
-  return asAdmin(request);
+  return asAdmin(request, { params: Promise.resolve({}) });
 }

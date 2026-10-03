@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
  * същите, които клиентът вижда след регистрация. Ако пакетът липсва в
  * каталога, остава цената от текста.
  */
-export default function Home({ searchParams }: { searchParams?: { deleted?: string } }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ deleted?: string }> }) {
+  const { deleted } = await searchParams;
   let catalog: { name: string; price: number }[] = [];
   try {
     catalog = loadCatalog();
@@ -44,7 +45,7 @@ export default function Home({ searchParams }: { searchParams?: { deleted?: stri
         </div>
       </nav>
 
-      {searchParams?.deleted === "1" && (
+      {deleted === "1" && (
         <p role="status" style={{ background: "#e8f1f2", color: "#006494", textAlign: "center", padding: "12px 16px", fontSize: 15 }}>
           Профилът ви е изтрит. Благодарим, че бяхте с нас.
         </p>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 
 /** Грешка при рендиране на страница — на български и с опция за нов опит. */
@@ -18,9 +19,9 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         <button onClick={reset} className="min-h-touch rounded-card bg-brand-primary px-4 font-semibold text-white">
           Опитай пак
         </button>
-        <a href="/" className="flex min-h-touch items-center rounded-card border border-line bg-white px-4 font-semibold text-brand-secondary">
+        <Link href="/" className="flex min-h-touch items-center rounded-card border border-line bg-white px-4 font-semibold text-brand-secondary">
           Начало
-        </a>
+        </Link>
       </div>
     </main>
   );

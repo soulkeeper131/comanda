@@ -35,7 +35,8 @@ export default function AdminQueues({ data, threshold, reload, toast, openProper
     if (!confirm("Сумата е постъпила по сметката?")) return;
     const res = await api<{ invoice: string | null }>("/api/payments/confirm", { body: { paymentId } });
     toast(res.ok ? `Потвърдено${res.data.invoice ? ` — фактура ${res.data.invoice}` : ""}` : res.error, res.ok ? "ok" : "error");
-    reload("payments", "offers", "findings");
+    // Платеният абонамент минава в „чака насрочване" — и плановете се презареждат.
+    reload("payments", "offers", "findings", "plans");
   };
   const paymentAction = async (id: string, status: string, message: string) => {
     const res = await api(`/api/payments/${id}`, { method: "PATCH", body: { status } });

@@ -42,7 +42,7 @@ export default function PropertyDetail({ property, onBack, onPropertyChanged, fo
   const [payments, setPayments] = useState<ClientPayment[]>([]);
   const [showPlanSelector, setShowPlanSelector] = useState(false);
   const [toast, setToast] = useState("");
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const loadJobs = useCallback(async () => {
     const all = await getOr<ClientJob[]>("/api/jobs", []);

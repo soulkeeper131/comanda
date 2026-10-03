@@ -42,10 +42,7 @@ const nextConfig = {
   images: { unoptimized: true },
   // Без ignoreBuildErrors / ignoreDuringBuilds — билдът трябва да се проваля
   // при типова грешка, а не да я крие. Криеше 16, сред тях счупени PDF отчети.
-  experimental: {
-    // src/instrumentation.ts — логване на неприхванати грешки
-    instrumentationHook: true,
-  },
+  // src/instrumentation.ts (логване на неприхванати грешки) се зарежда сам от Next 15.
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { isValidEmail } from "@/lib/domain/email";
@@ -339,9 +340,9 @@ function RegisterForm() {
 
           <p className="text-center text-sm mt-6" style={{ color: "#247ba0" }}>
             ← Обратно към{" "}
-            <a href="/" className="font-semibold hover:underline" style={{ color: "#1b98e0" }}>
+            <Link href="/" className="font-semibold hover:underline" style={{ color: "#1b98e0" }}>
               началната страница
-            </a>
+            </Link>
           </p>
         </form>
 

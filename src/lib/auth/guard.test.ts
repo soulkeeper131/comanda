@@ -29,7 +29,7 @@ describe("withAuth", () => {
   it("връща 401 без сесия", async () => {
     const { withAuth } = await import("./guard");
     const handler = withAuth({}, async () => Response.json({ ok: true }));
-    const res = await handler(new Request("http://localhost/api/x"), { params: {} });
+    const res = await handler(new Request("http://localhost/api/x"), { params: Promise.resolve({}) });
     expect(res.status).toBe(401);
   });
 
@@ -37,7 +37,7 @@ describe("withAuth", () => {
     const { withAuth } = await import("./guard");
     cookieValue = "боклук.боклук";
     const handler = withAuth({}, async () => Response.json({ ok: true }));
-    const res = await handler(new Request("http://localhost/api/x"), { params: {} });
+    const res = await handler(new Request("http://localhost/api/x"), { params: Promise.resolve({}) });
     expect(res.status).toBe(401);
   });
 
@@ -49,7 +49,7 @@ describe("withAuth", () => {
     const handler = withAuth({}, async (_req, ctx) =>
       Response.json({ uid: ctx.session.uid }),
     );
-    const res = await handler(new Request("http://localhost/api/x"), { params: {} });
+    const res = await handler(new Request("http://localhost/api/x"), { params: Promise.resolve({}) });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ uid: "u1" });
   });
@@ -62,7 +62,7 @@ describe("withAuth", () => {
     const handler = withAuth({ role: ["admin"] }, async () =>
       Response.json({ ok: true }),
     );
-    const res = await handler(new Request("http://localhost/api/x"), { params: {} });
+    const res = await handler(new Request("http://localhost/api/x"), { params: Promise.resolve({}) });
     expect(res.status).toBe(403);
   });
 
@@ -74,7 +74,7 @@ describe("withAuth", () => {
     const handler = withAuth({ role: ["admin"] }, async () =>
       Response.json({ ok: true }),
     );
-    const res = await handler(new Request("http://localhost/api/x"), { params: {} });
+    const res = await handler(new Request("http://localhost/api/x"), { params: Promise.resolve({}) });
     expect(res.status).toBe(200);
   });
 
@@ -87,7 +87,7 @@ describe("withAuth", () => {
       Response.json({ id: ctx.params.id }),
     );
     const res = await handler(new Request("http://localhost/api/x"), {
-      params: { id: "42" },
+      params: Promise.resolve({ id: "42" }),
     });
     expect(await res.json()).toEqual({ id: "42" });
   });
@@ -100,7 +100,7 @@ describe("withAuth", () => {
     const handler = withAuth({}, async () => {
       throw new Error("вътрешна тайна");
     });
-    const res = await handler(new Request("http://localhost/api/x"), { params: {} });
+    const res = await handler(new Request("http://localhost/api/x"), { params: Promise.resolve({}) });
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toContain("тайна");
   });
@@ -111,7 +111,7 @@ describe("withAuth", () => {
     dbUsers["gone"] = { active: false, role: "client", sessionVersion: 0 };
     cookieValue = signSession({ uid: "gone", role: "client", org_id: "org1" });
     const handler = withAuth({}, async () => Response.json({ ok: true }));
-    const res = await handler(new Request("http://localhost/api/x"), { params: {} });
+    const res = await handler(new Request("http://localhost/api/x"), { params: Promise.resolve({}) });
     expect(res.status).toBe(401);
   });
 
@@ -121,7 +121,7 @@ describe("withAuth", () => {
     dbUsers["demoted"] = { active: true, role: "client", sessionVersion: 0 };
     cookieValue = signSession({ uid: "demoted", role: "admin", org_id: "org1" });
     const handler = withAuth({ role: ["admin"] }, async () => Response.json({ ok: true }));
-    const res = await handler(new Request("http://localhost/api/x"), { params: {} });
+    const res = await handler(new Request("http://localhost/api/x"), { params: Promise.resolve({}) });
     expect(res.status).toBe(403);
   });
 
@@ -131,10 +131,10 @@ describe("withAuth", () => {
     dbUsers["moved"] = { active: true, role: "client", sessionVersion: 2 };
     const handler = withAuth({}, async () => Response.json({ ok: true }));
     cookieValue = signSession({ uid: "moved", role: "client", org_id: "org1", sv: 1 });
-    expect((await handler(new Request("http://localhost/api/x"), { params: {} })).status).toBe(401);
+    expect((await handler(new Request("http://localhost/api/x"), { params: Promise.resolve({}) })).status).toBe(401);
     cookieValue = signSession({ uid: "moved", role: "client", org_id: "org1" });
-    expect((await handler(new Request("http://localhost/api/x"), { params: {} })).status).toBe(401);
+    expect((await handler(new Request("http://localhost/api/x"), { params: Promise.resolve({}) })).status).toBe(401);
     cookieValue = signSession({ uid: "moved", role: "client", org_id: "org1", sv: 2 });
-    expect((await handler(new Request("http://localhost/api/x"), { params: {} })).status).toBe(200);
+    expect((await handler(new Request("http://localhost/api/x"), { params: Promise.resolve({}) })).status).toBe(200);
   });
 });
