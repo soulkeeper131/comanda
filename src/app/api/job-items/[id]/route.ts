@@ -12,7 +12,7 @@ export const PATCH = withAuth({ role: ["admin", "inspector"] }, async (request, 
   try {
     const { id } = params;
     const body = await request.json();
-    const { done, override_reason } = body;
+    const { done, override_reason, client_at } = body;
 
     if (done === undefined) {
       return NextResponse.json(
@@ -62,7 +62,14 @@ export const PATCH = withAuth({ role: ["admin", "inspector"] }, async (request, 
         return NextResponse.json({ error: verdict.error }, { status: 400 });
       }
 
-      db.update(jobItems).set({ done: true }).where(eq(jobItems.id, id)).run();
+      db.update(jobItems)
+        .set({
+          done: true,
+          done_at: new Date().toISOString(),
+          done_client_at: typeof client_at === "string" ? client_at : null,
+        })
+        .where(eq(jobItems.id, id))
+        .run();
 
       // Отмятането е сигурно — чак сега записваме прескачането, ако е имало.
       if (!photo && item.proof_type === "photo") {
@@ -74,7 +81,10 @@ export const PATCH = withAuth({ role: ["admin", "inspector"] }, async (request, 
         });
       }
     } else {
-      db.update(jobItems).set({ done: false }).where(eq(jobItems.id, id)).run();
+      db.update(jobItems)
+        .set({ done: false, done_at: null, done_client_at: null })
+        .where(eq(jobItems.id, id))
+        .run();
     }
 
     const updated = db.select().from(jobItems).where(eq(jobItems.id, id)).get();

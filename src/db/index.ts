@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import * as schema from "./schema";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 
 const dbDir = path.join(process.cwd(), "data");
@@ -24,6 +25,72 @@ if (!isBuildPhase) {
 
 export const db = drizzle(sqlite, { schema });
 
+/**
+ * Резервно копие през SQLite backup API — коректно при WAL режим и докато
+ * приложението пише (за разлика от копиране на файла).
+ */
+export async function backupDatabase(dest: string): Promise<void> {
+  await sqlite.backup(dest);
+}
+
+const IGNORABLE = /already exists|duplicate column/i;
+
+function applyMigrationsLeniently(folder: string) {
+  const files = fs.readdirSync(folder).filter((f) => f.endsWith(".sql")).sort();
+  let applied = 0;
+  let failed = 0;
+  for (const file of files) {
+    const statements = fs
+      .readFileSync(path.join(folder, file), "utf8")
+      .split("--> statement-breakpoint")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const stmt of statements) {
+      try {
+        sqlite.exec(stmt);
+        applied++;
+      } catch (err) {
+        if (!IGNORABLE.test(String(err))) {
+          failed++;
+          console.error(`[db] ${file}: изразът се провали:`, err);
+        }
+      }
+    }
+  }
+  console.log(`[db] Поправка на схемата: приложени ${applied} израза.`);
+
+  // Истинска грешка → журналът НЕ се записва, за да се опита пак при
+  // следващия старт, вместо схемата да остане тихо непълна.
+  if (failed > 0) {
+    console.error(`[db] ${failed} израза се провалиха — журналът на миграциите не е обновен.`);
+    return;
+  }
+
+  // Записваме миграциите като приложени, за да мине следващият старт по
+  // нормалния път. Drizzle сравнява само по created_at (`when` от журнала).
+  try {
+    const journal = JSON.parse(
+      fs.readFileSync(path.join(folder, "meta", "_journal.json"), "utf8"),
+    ) as { entries: { tag: string; when: number }[] };
+    sqlite.exec(
+      "CREATE TABLE IF NOT EXISTS __drizzle_migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, hash text NOT NULL, created_at numeric)",
+    );
+    const have = new Set(
+      (sqlite.prepare("SELECT created_at FROM __drizzle_migrations").all() as { created_at: number }[]).map(
+        (r) => Number(r.created_at),
+      ),
+    );
+    const insert = sqlite.prepare("INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)");
+    for (const entry of journal.entries) {
+      if (have.has(entry.when)) continue;
+      const content = fs.readFileSync(path.join(folder, `${entry.tag}.sql`), "utf8");
+      insert.run(crypto.createHash("sha256").update(content).digest("hex"), entry.when);
+    }
+  } catch (err) {
+    console.error("[db] Журналът на миграциите не можа да се обнови:", err);
+  }
+}
+
 if (!isBuildPhase) {
   // Auto-migrate при старт: прилага drizzle/ миграциите, ако още не са приложени.
   const migrationsFolder = path.join(process.cwd(), "drizzle");
@@ -32,7 +99,13 @@ if (!isBuildPhase) {
       migrate(db, { migrationsFolder });
       console.log("[db] Миграциите са приложени (или вече бяха).");
     } catch (e) {
-      console.error("[db] Миграцията се провали:", e);
+      // База, създадена преди журнала на миграциите (таблиците вече
+      // съществуват, но __drizzle_migrations е празна), проваля migrate() още
+      // на 0000 и никога не стига до новите колони. Тогава прилагаме всеки
+      // израз поотделно, прескачайки „вече съществува" — изразите са
+      // CREATE/ALTER ADD/идемпотентни UPDATE-и, така че повторът е безопасен.
+      console.error("[db] Миграцията се провали, минаваме в режим на поправка:", e);
+      applyMigrationsLeniently(migrationsFolder);
     }
   }
 
@@ -45,30 +118,30 @@ if (!isBuildPhase) {
         "INSERT OR IGNORE INTO organizations (id, name, slug) VALUES (?, ?, ?)"
       ).run(orgId, "КОМАНДА", "komanda");
 
+      // Админът е задължителен. Тестовият клиент и инспектор се създават само
+      // ако паролите им са зададени — в продукция не се задават и няма
+      // фалшив клиент в базата.
       const seedUsers = [
-        { id: "u1", email: "admin@komanda.bg", role: "admin", name: "Админ", env: "SEED_ADMIN_PASSWORD" },
+        { id: "u1", email: process.env.SEED_ADMIN_EMAIL || "admin@komanda.bg", role: "admin", name: "Админ", env: "SEED_ADMIN_PASSWORD" },
         { id: "u2", email: "client@komanda.bg", role: "client", name: "Клиент", env: "SEED_CLIENT_PASSWORD" },
         { id: "u4", email: "inspector@komanda.bg", role: "inspector", name: "Инспектор", env: "SEED_INSPECTOR_PASSWORD" },
-      ];
+      ].filter((u) => u.role === "admin" || process.env[u.env]);
 
       // Без парола по подразбиране. По-рано тук стоеше fallback "admin1234" —
       // ако променливата липсва на сървъра, продукцията тръгва с публично
       // известна админска парола. Празната база е по-безопасна от слаба.
-      const missing = seedUsers.filter((u) => !process.env[u.env]);
-      if (missing.length > 0) {
+      if (!process.env.SEED_ADMIN_PASSWORD) {
         console.error(
-          "[db] Seed при старт ПРОПУСНАТ: липсват " +
-            missing.map((u) => u.env).join(", ") +
-            ". Задайте ги и рестартирайте, или пуснете `npm run db:seed` локално."
+          "[db] Seed при старт ПРОПУСНАТ: липсва SEED_ADMIN_PASSWORD. Задайте я и рестартирайте, или пуснете `npm run db:seed` локално."
         );
       } else {
         for (const u of seedUsers) {
           const hash = bcrypt.hashSync(process.env[u.env] as string, 10);
           sqlite.prepare(
-            "INSERT OR IGNORE INTO users (id, org_id, email, password_hash, role, full_name, active) VALUES (?, ?, ?, ?, ?, ?, 1)"
+            "INSERT OR IGNORE INTO users (id, org_id, email, password_hash, role, full_name, active, email_verified_at) VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'))"
           ).run(u.id, orgId, u.email, hash, u.role, u.name);
         }
-        console.log("[db] Seed при старт: създадени тестови потребители.");
+        console.log(`[db] Seed при старт: ${seedUsers.map((u) => u.email).join(", ")}.`);
       }
     }
   } catch (e) {

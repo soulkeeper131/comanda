@@ -1,154 +1,92 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
-import type { Property } from "./types";
+import { useEffect, useRef, useState } from "react";
+import type * as Leaflet from "leaflet";
 
-interface MapViewProps {
-  properties: Property[];
-  onPropertyClick: (p: Property) => void;
-}
-
-const STATUS: Record<string, { color: string; emoji: string; label: string }> = {
-  ok:          { color: "#22c55e", emoji: "✓", label: "Активен" },
-  in_progress: { color: "#3b82f6", emoji: "🔄", label: "В процес" },
-  warning:     { color: "#f59e0b", emoji: "⚠", label: "Констатация" },
-  overdue:     { color: "#ef4444", emoji: "⏰", label: "Просрочен" },
+export type MapPoint = {
+  id: string;
+  name: string;
+  address: string | null;
+  lat: number;
+  lng: number;
+  /** ok | in_progress | warning | overdue | pending | rejected */
+  status: string;
 };
 
-const KIND_ICON: Record<string, string> = {
-  apartment: "🏢", house: "🏠", studio: "🛏️", villa: "🏡",
+const STATUS: Record<string, { color: string; label: string }> = {
+  ok: { color: "#16a34a", label: "Всичко е наред" },
+  in_progress: { color: "#1b98e0", label: "Обход в момента" },
+  warning: { color: "#d97706", label: "Отворена констатация" },
+  overdue: { color: "#dc2626", label: "Просрочен обход" },
+  pending: { color: "#a663cc", label: "Чака одобрение" },
+  rejected: { color: "#94a3b8", label: "Отказан" },
 };
 
-function daysAgo(iso: string): string {
-  if (!iso) return "—";
-  const d = Math.round((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (d === 0) return "днес";
-  if (d === 1) return "вчера";
-  if (d < 7) return `преди ${d} дни`;
-  return new Date(iso).toLocaleDateString("bg-BG");
-}
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-export default function MapView({ properties, onPropertyClick }: MapViewProps) {
-  const [L, setL] = useState<any>(null);
-  const mapRef = useRef<any>(null);
+/**
+ * Карта на имотите (Leaflet + OpenStreetMap). Името и адресът идват от
+ * клиента — затова минават през escapeHtml, преди да влязат в popup-а.
+ */
+export default function MapView({ points, onSelect }: { points: MapPoint[]; onSelect: (id: string) => void }) {
+  const [L, setL] = useState<typeof Leaflet | null>(null);
+  const mapRef = useRef<Leaflet.Map | null>(null);
+  const layerRef = useRef<Leaflet.LayerGroup | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
-  // Load Leaflet once
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const leaflet = await import("leaflet");
-      if (cancelled) return;
-      setL(leaflet);
-    })();
-    return () => { cancelled = true; };
+    import("leaflet").then((mod) => {
+      if (!cancelled) setL(mod);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Init map
   useEffect(() => {
-    if (!L || mapRef.current) return;
-
-    const m = L.map(containerRef.current!, {
-      center: [42.6977, 23.3219],
-      zoom: 13,
-      zoomControl: false,
-    });
-
+    if (!L || !containerRef.current || mapRef.current) return;
+    const m = L.map(containerRef.current, { center: [42.6977, 23.3219], zoom: 12 });
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "© OpenStreetMap",
       maxZoom: 19,
     }).addTo(m);
-
+    layerRef.current = L.layerGroup().addTo(m);
     setTimeout(() => m.invalidateSize(), 100);
     mapRef.current = m;
-
     return () => {
       m.remove();
       mapRef.current = null;
     };
   }, [L]);
 
-  // Stable callback
-  const onClickRef = useRef(onPropertyClick);
-  onClickRef.current = onPropertyClick;
-
-  // Update markers
   useEffect(() => {
     const m = mapRef.current;
-    if (!L || !m) return;
-
-    // Remove old markers
-    m.eachLayer((layer: any) => {
-      if (layer instanceof L.CircleMarker) m.removeLayer(layer);
-    });
-
-    properties.forEach((p) => {
-      const st = STATUS[p.status] || STATUS.ok;
-      const icon = KIND_ICON[p.kind] || "📍";
-      const addr = (p.address || "").split(",")[0];
-      const zoneCount = p.zones?.length || 0;
-
+    const layer = layerRef.current;
+    if (!L || !m || !layer) return;
+    layer.clearLayers();
+    for (const p of points) {
+      const st = STATUS[p.status] ?? STATUS.ok;
       const marker = L.circleMarker([p.lat, p.lng], {
-        radius: 16,
+        radius: 11,
         fillColor: st.color,
         color: "#fff",
         weight: 3,
-        opacity: 1,
-        fillOpacity: 0.85,
-      }).addTo(m);
-
-      // Smart popup
-      marker.bindPopup(
-        `<div class="map-popup-content">
-          <div class="map-popup-status" style="background:${st.color}15;color:${st.color}">
-            ${st.emoji} ${st.label}
-          </div>
-          <div class="map-popup-name">${icon} ${p.name}</div>
-          <div class="map-popup-addr">${addr}</div>
-          <div class="map-popup-meta">
-            <span>📅 ${daysAgo(p.lastVisit)}</span>
-            <span>📋 ${zoneCount} зони</span>
-          </div>
-          <div class="map-popup-detail-btn" data-prop-id="${p.id}">
-            Подробности →
-          </div>
-        </div>`,
-        {
-          className: "smart-popup",
-          closeButton: false,
-          autoPan: true,
-        }
-      );
-
-      // Click marker → open PropertySheet
-      marker.on("click", () => {
-        onClickRef.current(p);
+        fillOpacity: 0.9,
       });
+      marker.bindTooltip(
+        `<strong>${escapeHtml(p.name)}</strong><br/>${escapeHtml(p.address ?? "")}<br/><span style="color:${st.color}">${st.label}</span>`,
+      );
+      marker.on("click", () => onSelectRef.current(p.id));
+      marker.addTo(layer);
+    }
+    if (points.length > 0) {
+      m.fitBounds(L.latLngBounds(points.map((p) => [p.lat, p.lng] as [number, number])), { padding: [40, 40], maxZoom: 15 });
+    }
+  }, [L, points]);
 
-      // Popup "Подробности" button — handled via delegation on map container
-    });
-
-    // Delegate popup button clicks
-    const handlePopupClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.classList.contains("map-popup-detail-btn")) {
-        const propId = target.getAttribute("data-prop-id");
-        const prop = properties.find(p => p.id === propId);
-        if (prop) onClickRef.current(prop);
-      }
-    };
-    m.getContainer().addEventListener("click", handlePopupClick);
-
-    return () => {
-      m.getContainer()?.removeEventListener("click", handlePopupClick);
-    };
-  }, [L, properties]);
-
-  return (
-    <div
-      ref={containerRef}
-      className="w-full h-full"
-      style={{ background: "#e8f1f2", minHeight: "300px" }}
-    />
-  );
+  return <div ref={containerRef} className="h-full w-full" style={{ minHeight: 360 }} />;
 }

@@ -6,11 +6,15 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export const PATCH = withAuth({}, async (request, { session, params }) => {
+// Зоните на имота се менят от собственика и от админа — не от инспектор.
+export const PATCH = withAuth({ role: ["admin", "client"] }, async (request, { session, params }) => {
   try {
     const { id } = params;
-    const body = await request.json();
-    const { name, sort } = body;
+    const body = await request.json().catch(() => ({}));
+    const { name, sort } = body ?? {};
+    if ((name !== undefined && (typeof name !== "string" || !name.trim() || name.length > 60)) || (sort !== undefined && !Number.isInteger(sort))) {
+      return NextResponse.json({ error: "Невалидни данни" }, { status: 400 });
+    }
 
     const existing = db.select().from(zones).where(eq(zones.id, id)).get();
     if (!existing) {
@@ -54,7 +58,7 @@ export const PATCH = withAuth({}, async (request, { session, params }) => {
   }
 });
 
-export const DELETE = withAuth({}, async (_request, { session, params }) => {
+export const DELETE = withAuth({ role: ["admin", "client"] }, async (_request, { session, params }) => {
   try {
     const { id } = params;
 

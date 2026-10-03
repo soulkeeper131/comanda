@@ -3,7 +3,7 @@ import { jobs, properties, users, jobItems, evidence, findings, findingPhotos } 
 import { eq, inArray, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { generatePropertyReport } from "@/lib/pdf";
-import { withAuth, canViewProperty } from "@/lib/auth";
+import { withAuth, canAccessProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +22,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
       return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
     }
 
-    if (!canViewProperty(session, property)) {
+    if (!canAccessProperty(session, property)) {
       return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
     }
 
@@ -46,7 +46,9 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
       .leftJoin(users, eq(jobs.assignee_id, users.id))
       .where(eq(jobs.property_id, propertyId))
       .orderBy(desc(jobs.planned_at))
-      .all();
+      .all()
+      // Отчетът е за случилото се — предстоящите обходи не са история.
+      .filter((j) => !(j.status === "planned" && j.planned_at && j.planned_at > new Date().toISOString()));
 
     // Fetch all findings for this property
     const propertyFindings = db

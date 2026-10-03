@@ -38,7 +38,7 @@ export default function CancelPage() {
             style={{ background: "#fef2f2", border: "1px solid #fecaca" }}
           >
             <div className="flex items-start gap-2">
-              <span className="text-lg flex-shrink-0">💡</span>
+              <span className="text-lg flex-shrink-0"></span>
               <p className="text-xs leading-relaxed" style={{ color: "#991b1b" }}>
                 Ако си променил решението си или си срещнал проблем с плащането, можеш да се върнеш и да опиташ отново. При нужда от помощ, свържи се с нас.
               </p>
@@ -50,7 +50,7 @@ export default function CancelPage() {
             className="w-full min-h-[44px] py-3 rounded-xl text-sm font-semibold text-white transition"
             style={{ background: "linear-gradient(140deg, #1b98e0, #006494)" }}
           >
-            🔄 Опитай отново
+            Опитай отново
           </button>
 
           <button
@@ -58,7 +58,7 @@ export default function CancelPage() {
             className="w-full min-h-[44px] py-3 rounded-xl text-sm font-semibold border mt-3 transition hover:bg-gray-50"
             style={{ borderColor: "#e4e9f0", color: "#247ba0" }}
           >
-            ⬅️ Към таблото
+            Към таблото
           </button>
         </div>
       </div>

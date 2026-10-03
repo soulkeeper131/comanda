@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { zones, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { withAuth, canViewProperty } from "@/lib/auth";
+import { withAuth, canAccessProperty } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export const GET = withAuth({}, async (request, { session }) => {
     if (!property) {
       return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
     }
-    if (!canViewProperty(session, property)) {
+    if (!canAccessProperty(session, property)) {
       return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
     }
 

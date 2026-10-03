@@ -2,29 +2,11 @@ import { db } from "@/db";
 import { jobs, properties, users, serviceTemplates, jobItems, evidence } from "@/db/schema";
 import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { createNotification, notifyOwner } from "@/lib/notifications";
+import { notify, propertyLink } from "@/lib/messages";
+import { formatDateOnly } from "@/lib/format";
 import { withAuth, canViewProperty } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
-
-// Fire-and-forget push notification
-async function pushNotify(title: string, propertyId: string) {
-  try {
-    const prop = db.select().from(properties).where(eq(properties.id, propertyId)).get();
-    const propName = prop?.name || "Имот";
-    await fetch(`${process.env.NEXT_PUBLIC_APP_URL || "https://comanda.blv.bg"}/api/push/send`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: "📋 Нова задача",
-        body: `${title} — ${propName}`,
-        url: "/dashboard",
-      }),
-    });
-  } catch (e) {
-    // Silently fail — push is best-effort
-  }
-}
 
 // GET /api/jobs?assignee_id=X&status=Y
 export const GET = withAuth({}, async (request, { session }) => {
@@ -61,7 +43,9 @@ export const GET = withAuth({}, async (request, { session }) => {
         template_id: jobs.template_id,
         plan_id: jobs.plan_id,
         org_id: jobs.org_id,
+        rescheduled_from: jobs.rescheduled_from,
         property_name: properties.name,
+        property_address: properties.address,
         assignee_name: users.full_name,
       })
       .from(jobs)
@@ -88,6 +72,14 @@ export const GET = withAuth({}, async (request, { session }) => {
         const property = propertiesById.get(row.property_id);
         return property ? canViewProperty(session, property) : false;
       });
+    }
+
+    // Инспекторът вижда своите обходи и невъзложените (може да ги поеме),
+    // не графика на колегите си.
+    if (session.role === "inspector") {
+      // Само своите — невъзложеният обход носи кодове за вход и телефон на
+      // собственика; разпределя го админът (опашка „Обходи без изпълнител").
+      rows = rows.filter((row) => row.assignee_id === session.uid);
     }
 
     // Compute itemsChecked / itemsTotal / photoCount per job с групови (агрегиращи)
@@ -153,6 +145,26 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
       );
     }
 
+    const property = db.select().from(properties).where(eq(properties.id, property_id)).get();
+    if (!property || property.archived) {
+      return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
+    }
+    if (property.status !== "active") {
+      return NextResponse.json({ error: "Имотът още не е одобрен" }, { status: 409 });
+    }
+    if (assignee_id) {
+      const person = db.select().from(users).where(eq(users.id, assignee_id)).get();
+      if (!person || person.role !== "inspector" || person.active === false) {
+        return NextResponse.json({ error: "Изберете активен инспектор" }, { status: 400 });
+      }
+    }
+    // Без изрично избран изпълнител — инспекторът на имота (въпрос 10).
+    const propertyInspector = property.assigned_inspector_id
+      ? db.select().from(users).where(eq(users.id, property.assigned_inspector_id)).get()
+      : undefined;
+    const assigneeId: string | null =
+      assignee_id || (propertyInspector && propertyInspector.active !== false ? propertyInspector.id : null);
+
     let jobTitle = bodyTitle || null;
     let durationMin: number | null = null;
 
@@ -190,7 +202,7 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
       .values({
         org_id: session.org_id,
         property_id,
-        assignee_id: assignee_id || null,
+        assignee_id: assigneeId,
         template_id: template_id || null,
         title: jobTitle,
         duration_min: durationMin,
@@ -200,22 +212,13 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
       .returning()
       .all();
 
-    // Fire push notification (non-blocking)
-    pushNotify(jobTitle, property_id).catch((e) =>
-      console.error("Push notify error:", e)
-    );
-
-    // Notify assignee (worker) about new job
-    if (assignee_id) {
-      const prop = db.select({ name: properties.name }).from(properties).where(eq(properties.id, property_id)).get();
-      createNotification(
-        assignee_id,
-        "job_started",
-        "📋 Възложен нов обход",
-        `${jobTitle} — ${prop?.name || "Имот"}`,
-        "/dashboard",
-      );
-    }
+    const templateName = template_id
+      ? db.select({ name: serviceTemplates.name }).from(serviceTemplates).where(eq(serviceTemplates.id, template_id)).get()?.name
+      : undefined;
+    const vars = { property: property.name, date: formatDateOnly(planned_at), title: templateName ?? jobTitle };
+    if (assigneeId) await notify("visit_assigned", { to: assigneeId, vars });
+    // Обход извън абонамента (напр. проверка след ремонт) — клиентът знае кога.
+    await notify("visit_planned", { to: property.owner_id, vars, link: propertyLink(property.id) });
 
     return NextResponse.json(job, { status: 201 });
   } catch (error) {

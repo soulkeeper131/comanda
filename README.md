@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ко Манда
 
-## Getting Started
+Платформа за стопанисване на имоти: редовни обходи със снимково
+доказателство, констатации, оферти за ремонт. Три роли — клиент,
+инспектор, админ. Домейн: [comanda.bg](https://comanda.bg).
 
-First, run the development server:
+**Стек:** Next.js 14 (App Router) · TypeScript · Drizzle + SQLite ·
+Tailwind · деплой на Coolify.
+
+## Документи
+
+| | |
+|---|---|
+| [docs/PLAN.md](docs/PLAN.md) | Какво е направено, какво остава |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Настройка на сървъра: променливи, бекъп, периодични задачи |
+| [docs/DESIGN.md](docs/DESIGN.md) | Екрани, токени, примитиви |
+| [AGENTS.md](AGENTS.md) | Контекст за AI агенти |
+
+## Локално
 
 ```bash
+npm install
+echo "SESSION_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")" >> .env.local
+npm run db:seed        # тестови акаунти и имоти (отпечатва паролите)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Проверки
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm test               # vitest
+npx tsc --noEmit
+npm run lint
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Структура
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/app/api/        API (всеки route е зад withAuth — тест го проверява)
+src/features/       екраните по роля: client/, inspector/, admin/
+src/components/ui/  примитиви (Button, Card, Badge, Sheet, Icon…)
+src/lib/domain/     чиста бизнес логика с тестове (оферти, график, празници…)
+src/db/             схема и връзка; миграциите са в drizzle/
+scripts/            бекъп, възстановяване, периодични задачи (cron.mjs)
+```

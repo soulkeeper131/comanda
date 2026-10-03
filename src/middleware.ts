@@ -10,9 +10,20 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/logout",
+  "/api/auth/verify",
+  "/api/auth/resend-verification",
+  "/api/auth/forgot",
+  "/api/auth/reset",
+  "/verify-email",
+  "/forgot-password",
+  "/reset-password",
+  "/terms",
+  "/privacy",
   "/api/inquiries",
   "/api/stripe/webhook",
   "/api/push/vapid-public-key",
+  "/api/cron",
+  "/api/health",
 ];
 
 const STATIC_PATTERN =
@@ -26,15 +37,68 @@ function isPublic(pathname: string): boolean {
   return STATIC_PATTERN.test(pathname);
 }
 
+/** Най-голямото тяло, което приемаме — снимките до 10 MB, всичко друго е малко. */
+function maxBodyBytes(pathname: string): number {
+  if (pathname === "/api/upload" || pathname === "/api/finding-photos") return 11 * 1024 * 1024;
+  if (pathname === "/api/stripe/webhook") return 1024 * 1024;
+  return 256 * 1024;
+}
+
+/** Викат се от сървъри (Stripe, cron с ключ), не от браузър — без проверка на Origin. */
+const MACHINE_PATHS = ["/api/stripe/webhook", "/api/cron"];
+
+/**
+ * Заявка с Origin от друг сайт не се приема (CSRF — напр. скрита форма,
+ * която вписва жертвата в профила на нападателя). Без Origin — заявката не е
+ * от съвременен браузър; там пази бисквитката SameSite=Lax.
+ */
+function sameOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  let host: string;
+  try {
+    host = new URL(origin).host;
+  } catch {
+    return false;
+  }
+  const allowed = new Set<string>([request.nextUrl.host]);
+  for (const h of [request.headers.get("host"), request.headers.get("x-forwarded-host")]) if (h) allowed.add(h);
+  try {
+    if (process.env.APP_URL) allowed.add(new URL(process.env.APP_URL).host);
+  } catch {
+    /* невалиден APP_URL — само хостът на заявката */
+  }
+  return allowed.has(host);
+}
+
+function reject(status: number, error: string): Response {
+  return new Response(JSON.stringify({ error }), { status, headers: { "Content-Type": "application/json" } });
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Rate limiting — независимо от auth, не прекъсва потока
   let rateLimitRemaining: number | null = null;
-  if (pathname.startsWith("/api/") || pathname === "/login") {
+  if (pathname.startsWith("/api/")) {
     const rl = checkRateLimit(request, pathname);
     if (!rl.allowed) return rateLimitedResponse(rl.reset);
     rateLimitRemaining = rl.remaining;
+
+    // 1б. Тяло на заявката: с обявена дължина и в лимита — иначе няколко
+    // огромни заявки изяждат паметта; и само от нашия сайт.
+    if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+      const length = request.headers.get("content-length");
+      if (length === null && request.headers.get("transfer-encoding")) {
+        return reject(411, "Заявката трябва да има дължина");
+      }
+      if (length !== null && !(Number(length) <= maxBodyBytes(pathname))) {
+        return reject(413, "Заявката е твърде голяма");
+      }
+      if (!MACHINE_PATHS.includes(pathname) && !sameOrigin(request)) {
+        return reject(403, "Заявката не е от сайта на Ко Манда");
+      }
+    }
   }
 
   // 2. Публичните пътища минават нататък

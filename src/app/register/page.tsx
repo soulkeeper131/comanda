@@ -1,13 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { isValidEmail } from "@/lib/domain/email";
+
+const PLAN_NAMES: Record<string, string> = { year: "Пълен надзор", winter: "Зимен сезон", summer: "Летен сезон" };
 
 function RegisterForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const plan = searchParams.get("plan") || "";
+  // Пакетът от началната страница се помни до избора след одобрението на
+  // имота (цената идва от каталога тогава, не се показва тук твърдо).
+  // Старите връзки (year/winter/summer) и новите — с името на пакета от каталога.
+  const planName = PLAN_NAMES[plan] ?? (plan.length <= 80 ? plan : "");
+  useEffect(() => {
+    if (!planName) return;
+    try {
+      localStorage.setItem("komanda_preferred_plan", planName);
+    } catch {
+      /* private mode */
+    }
+  }, [planName]);
   const [accountType, setAccountType] = useState<"individual" | "company">("individual");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -16,18 +31,23 @@ function RegisterForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [eik, setEik] = useState("");
+  const [billingAddress, setBillingAddress] = useState("");
   const [vatNumber, setVatNumber] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [verifySentTo, setVerifySentTo] = useState<string | null>(null);
 
   const validate = (): string | null => {
     if (!name.trim()) return "Името е задължително";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Невалиден имейл адрес";
-    if (password.length < 6) return "Паролата трябва да е поне 6 символа";
+    if (!isValidEmail(email.trim().toLowerCase())) return "Невалиден имейл адрес";
+    if (password.length < 8) return "Паролата трябва да е поне 8 символа";
     if (password !== confirmPassword) return "Паролите не съвпадат";
+    if (!acceptTerms) return "Необходимо е съгласие с Общите условия и Политиката за поверителност";
     if (accountType === "company") {
       if (!companyName.trim()) return "Името на фирмата е задължително";
       if (!eik.trim()) return "ЕИК е задължително";
+      if (!billingAddress.trim()) return "Адресът на регистрация е задължителен за фактурите";
     }
     return null;
   };
@@ -57,15 +77,19 @@ function RegisterForm() {
           company_name: accountType === "company" ? companyName.trim() : undefined,
           eik: accountType === "company" ? eik.trim() : undefined,
           vat_number: accountType === "company" ? vatNumber.trim() || undefined : undefined,
+          billing_address: accountType === "company" ? billingAddress.trim() : undefined,
+          accept_terms: acceptTerms,
         }),
       });
 
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json();
         setError(data.error || "Грешка при регистрация");
+      } else if (data.verify_required) {
+        setVerifySentTo(data.email || email);
       } else {
-        const target = plan ? `/register/property?plan=${encodeURIComponent(plan)}` : "/dashboard";
-        window.location.href = target;
+        // Стъпка 2 — имотът. Без него няма какво да се одобри и избере.
+        window.location.href = "/register/property";
       }
     } catch {
       setError("Възникна грешка. Опитай отново.");
@@ -73,6 +97,20 @@ function RegisterForm() {
       setLoading(false);
     }
   };
+
+  if (verifySentTo) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center p-6" style={{ backgroundColor: "#e8f1f2" }}>
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-lg">
+          <h1 className="mb-3 text-xl font-bold" style={{ color: "#006494" }}>Проверете пощата си</h1>
+          <p className="text-sm" style={{ color: "#334155" }}>
+            Изпратихме линк за потвърждение на <strong>{verifySentTo}</strong>. Отворете го, за да продължите с
+            добавянето на имота. Ако не го виждате — проверете папка „Спам“.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[100dvh] flex items-center justify-center p-6" style={{ backgroundColor: "#e8f1f2" }}>
@@ -83,13 +121,16 @@ function RegisterForm() {
             alt="КОМАНДА"
             className="h-14 mx-auto mb-4"
           />
-          {plan && (
+          {planName && (
             <div className="inline-block px-4 py-2 rounded-full text-sm font-semibold mb-3" style={{ background: "#e0f2fe", color: "#1b98e0" }}>
-              {plan === "year" ? "🔄 Пълен надзор · 60€/мес" : plan === "winter" ? "❄️ Зимен сезон · 40€/мес" : "☀️ Летен сезон · 50€/мес"}
+              Избран пакет: {planName}
             </div>
           )}
           <p className="text-sm mt-2" style={{ color: "#247ba0" }}>
             Стъпка 1 от 3 — Създай своя профил
+          </p>
+          <p className="text-xs mt-1" style={{ color: "#64748b" }}>
+            След това: имотът → одобрение и избор на пакет
           </p>
         </div>
 
@@ -120,7 +161,7 @@ function RegisterForm() {
                   onChange={() => setAccountType("individual")}
                   className="sr-only"
                 />
-                👤 Физическо лице
+                Физическо лице
               </label>
               <label
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border cursor-pointer transition text-sm font-semibold ${
@@ -138,7 +179,7 @@ function RegisterForm() {
                   onChange={() => setAccountType("company")}
                   className="sr-only"
                 />
-                🏢 Фирма
+                Фирма
               </label>
             </div>
           </div>
@@ -180,6 +221,19 @@ function RegisterForm() {
                   onChange={(e) => setEik(e.target.value)}
                   placeholder="123456789"
                   required
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
+                  style={{ fontSize: "16px", minHeight: "44px" }}
+                />
+              </div>
+              <div className="mb-5">
+                <label className="block text-sm font-semibold mb-2" style={{ color: "#006494" }}>Адрес на регистрация</label>
+                <input
+                  type="text"
+                  value={billingAddress}
+                  onChange={(e) => setBillingAddress(e.target.value)}
+                  placeholder="гр. София, ул. Пример 1"
+                  required
+                  autoComplete="street-address"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base focus:outline-none focus:ring-2 transition"
                   style={{ fontSize: "16px", minHeight: "44px" }}
                 />
@@ -253,6 +307,25 @@ function RegisterForm() {
             />
           </div>
 
+          <label className="mb-5 flex items-start gap-3 text-sm" style={{ color: "#334155" }}>
+            <input
+              type="checkbox"
+              checked={acceptTerms}
+              onChange={(e) => setAcceptTerms(e.target.checked)}
+              className="mt-0.5 h-5 w-5 flex-shrink-0"
+            />
+            <span>
+              Съгласен съм с{" "}
+              <a href="/terms" target="_blank" className="font-semibold underline" style={{ color: "#1b98e0" }}>
+                Общите условия
+              </a>{" "}
+              и{" "}
+              <a href="/privacy" target="_blank" className="font-semibold underline" style={{ color: "#1b98e0" }}>
+                Политиката за поверителност
+              </a>
+            </span>
+          </label>
+
           <button
             type="submit"
             disabled={loading}
@@ -268,9 +341,9 @@ function RegisterForm() {
 
           <p className="text-center text-sm mt-6" style={{ color: "#247ba0" }}>
             ← Обратно към{" "}
-            <a href="/" className="font-semibold hover:underline" style={{ color: "#1b98e0" }}>
+            <Link href="/" className="font-semibold hover:underline" style={{ color: "#1b98e0" }}>
               началната страница
-            </a>
+            </Link>
           </p>
         </form>
 

@@ -1,63 +1,44 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
+import { formatWhen, todayKey as todayKeyOf } from "@/lib/format";
 import EmptyToursState from "./EmptyToursState";
 import InspectorChecklist from "./InspectorChecklist";
-import { dayKey, formatDayLabel, formatTime, startOfDay } from "./format";
+import JobCard from "./JobCard";
+import OfflineBar from "./OfflineBar";
+import { dayKey, formatDayLabel, sortValue } from "./format";
+import { useOfflineQueue, useOnline } from "./hooks";
+import { useJobsList } from "./useJobsList";
 import type { InspectorJob } from "./types";
 
-const STATUS_BADGE: Record<InspectorJob["status"], { text: string; tone: "ok" | "warning" | "danger" | "info" | "neutral" }> = {
-  planned: { text: "Предстои", tone: "neutral" },
-  in_progress: { text: "В момента", tone: "info" },
-  completed: { text: "Завършен", tone: "ok" },
-  cancelled: { text: "Отказан", tone: "neutral" },
-};
+const byPlanned = (a: InspectorJob, b: InspectorJob) => sortValue(a.planned_at) - sortValue(b.planned_at);
 
 /**
- * Инспекторският дом ("Моите обходи" — Task N1). Заменя таб-базирания
- * dashboard за роля inspector, по същия модел като ClientHome.
- *
- * Седмичен изглед, вертикален списък групиран по ден — НЕ календарна
- * решетка (нечетима на 375px). Днес е откроен и е позицията при отваряне.
- * Просрочените (planned, преди днес) са отделна група най-отгоре, не се
- * крият.
+ * Инспекторският дом ("Моите обходи"). Седмичен изглед, вертикален списък
+ * групиран по ден — НЕ календарна решетка (нечетима на 375px). Днес е
+ * откроен и е позицията при отваряне. Просрочените са най-отгоре.
+ * Без връзка — последно запазеният списък, с лента за това.
  */
 export default function InspectorHome() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [jobs, setJobs] = useState<InspectorJob[]>([]);
+  const { jobs, loading, refreshing, error, savedAt, refresh } = useJobsList();
+  const online = useOnline();
+  const queue = useOfflineQueue();
   const [activeJob, setActiveJob] = useState<InspectorJob | null>(null);
   const todayRef = useRef<HTMLDivElement | null>(null);
   const scrolledRef = useRef(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const res = await fetch("/api/jobs");
-      if (!res.ok) throw new Error("failed");
-      const data: InspectorJob[] = await res.json();
-      setJobs(data);
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const todayKey = todayKeyOf();
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const pendingByJob = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const a of queue.pending) if (a.jobId) m[a.jobId] = (m[a.jobId] ?? 0) + 1;
+    return m;
+  }, [queue.pending]);
 
-  const today = useMemo(() => startOfDay(new Date()), []);
-  const todayKey = useMemo(() => dayKey(today.toISOString()), [today]);
-
-  // Групиране: просрочени (planned, преди днес) отделно най-отгоре, после
-  // предстоящи дни (включително днес) в хронологичен ред. Завършени/отказани
-  // обходи от миналото не образуват отделни групи — обходът е за седмицата
-  // напред, не архив.
+  // Просрочени (planned/in_progress преди днес) отделно най-отгоре, после
+  // дните от днес нататък. Минали приключени не претрупват изгледа.
   const { overdue, dayGroups } = useMemo(() => {
     const overdueJobs: InspectorJob[] = [];
     const byDay = new Map<string, InspectorJob[]>();
@@ -65,40 +46,32 @@ export default function InspectorHome() {
     for (const job of jobs) {
       const key = dayKey(job.planned_at);
       const isPast = key < todayKey;
-
-      if (isPast && job.status === "planned") {
+      if (isPast && (job.status === "planned" || job.status === "in_progress")) {
         overdueJobs.push(job);
         continue;
       }
-      if (isPast && (job.status === "completed" || job.status === "cancelled")) {
-        // Минали и приключени — не претрупват седмичния изглед напред.
-        continue;
-      }
-
+      if (isPast) continue;
       if (!byDay.has(key)) byDay.set(key, []);
       byDay.get(key)!.push(job);
     }
 
-    overdueJobs.sort((a, b) => new Date(a.planned_at).getTime() - new Date(b.planned_at).getTime());
-
-    const sortedKeys = Array.from(byDay.keys()).sort();
-    const groups = sortedKeys.map((key) => ({
-      key,
-      label: formatDayLabel(key, today),
-      isToday: key === todayKey,
-      jobs: byDay.get(key)!.sort((a, b) => new Date(a.planned_at).getTime() - new Date(b.planned_at).getTime()),
-    }));
-
+    overdueJobs.sort(byPlanned);
+    const groups = Array.from(byDay.keys())
+      .sort()
+      .map((key) => ({
+        key,
+        label: formatDayLabel(key),
+        isToday: key === todayKey,
+        jobs: byDay.get(key)!.sort(byPlanned),
+      }));
     return { overdue: overdueJobs, dayGroups: groups };
-  }, [jobs, todayKey, today]);
+  }, [jobs, todayKey]);
 
   // При отваряне скролваме до днешния ден — той е позицията, не най-горе.
   useEffect(() => {
-    if (loading || scrolledRef.current) return;
-    if (todayRef.current) {
-      todayRef.current.scrollIntoView({ block: "start" });
-      scrolledRef.current = true;
-    }
+    if (loading || scrolledRef.current || !todayRef.current) return;
+    todayRef.current.scrollIntoView({ block: "start" });
+    scrolledRef.current = true;
   }, [loading, dayGroups]);
 
   if (loading) {
@@ -112,21 +85,56 @@ export default function InspectorHome() {
   if (error) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-        <p className="text-ink">Възникна грешка при зареждане.</p>
-        <button onClick={load} className="text-sm font-semibold text-brand-primary">
+        {!online && <Icon name="wifi-off" size={32} className="text-muted" />}
+        <p className="text-base text-ink">{error}</p>
+        <Button variant="secondary" onClick={refresh} disabled={refreshing}>
+          <Icon name="refresh" size={18} />
           Опитайте отново
-        </button>
+        </Button>
       </div>
     );
   }
+
+  const checklist = activeJob && (
+    <InspectorChecklist
+      job={activeJob}
+      onClose={() => {
+        setActiveJob(null);
+        void refresh();
+      }}
+      onCompleted={() => {
+        setActiveJob(null);
+        void refresh();
+      }}
+    />
+  );
 
   if (jobs.length === 0) {
     return <EmptyToursState />;
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
-      <h1 className="text-xl font-bold text-ink">Моите обходи</h1>
+    <div className="flex-1 space-y-6 overflow-y-auto px-4 py-4">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-bold text-ink">Моите обходи</h1>
+        <Button variant="secondary" size="md" onClick={refresh} disabled={refreshing} aria-label="Опресни">
+          <Icon name="refresh" size={18} className={refreshing ? "animate-spin" : ""} />
+          Опресни
+        </Button>
+      </div>
+
+      <OfflineBar
+        online={online}
+        pending={queue.pending}
+        rejected={queue.rejected}
+        syncing={queue.syncing}
+        onSync={async () => {
+          await queue.sync();
+          if (navigator.onLine) void refresh();
+        }}
+        onDismiss={queue.dismiss}
+        cacheNote={savedAt ? `Показан е списъкът, запазен ${formatWhen(savedAt)}.` : null}
+      />
 
       {overdue.length > 0 && (
         <section>
@@ -135,18 +143,24 @@ export default function InspectorHome() {
           </h2>
           <div className="space-y-2.5">
             {overdue.map((job) => (
-              <JobCard key={job.id} job={job} overdue onOpen={() => setActiveJob(job)} />
+              <JobCard
+                key={job.id}
+                job={job}
+                overdue
+                pendingCount={pendingByJob[job.id]}
+                onOpen={() => setActiveJob(job)}
+              />
             ))}
           </div>
         </section>
       )}
 
-      {dayGroups.length === 0 && overdue.length > 0 && (
+      {dayGroups.length === 0 && (
         <p className="text-sm text-muted">Няма предстоящи обходи тази седмица.</p>
       )}
 
       {dayGroups.map((group) => (
-        <section key={group.key} ref={group.isToday ? todayRef : undefined}>
+        <section key={group.key} ref={group.isToday ? todayRef : undefined} className="scroll-mt-4">
           <h2
             className={`mb-2 text-sm font-bold uppercase tracking-wide ${
               group.isToday ? "text-brand-primary" : "text-muted"
@@ -160,61 +174,13 @@ export default function InspectorHome() {
             }`}
           >
             {group.jobs.map((job) => (
-              <JobCard key={job.id} job={job} onOpen={() => setActiveJob(job)} />
+              <JobCard key={job.id} job={job} pendingCount={pendingByJob[job.id]} onOpen={() => setActiveJob(job)} />
             ))}
           </div>
         </section>
       ))}
 
-      {activeJob && (
-        <InspectorChecklist
-          job={activeJob}
-          onClose={() => setActiveJob(null)}
-          onCompleted={() => {
-            setActiveJob(null);
-            load();
-          }}
-        />
-      )}
+      {checklist}
     </div>
-  );
-}
-
-function JobCard({ job, overdue, onOpen }: { job: InspectorJob; overdue?: boolean; onOpen: () => void }) {
-  const status = STATUS_BADGE[job.status];
-  const total = job.itemsTotal ?? 0;
-  const checked = job.itemsChecked ?? 0;
-
-  return (
-    <button onClick={onOpen} className="block w-full text-left">
-      <Card
-        padding="md"
-        shadow="sm"
-        className={`transition hover:shadow-card-2 ${overdue ? "border-state-danger/40" : ""}`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-semibold text-ink">{job.property_name || "Имот"}</div>
-            <div className="truncate text-sm text-muted">{job.title || "Обход"}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-              <span>{formatTime(job.planned_at)}</span>
-              {total > 0 && (
-                <span>
-                  {checked}/{total} стъпки
-                </span>
-              )}
-              {(job.photoCount ?? 0) > 0 && (
-                <span>
-                  {job.photoCount} {job.photoCount === 1 ? "снимка" : "снимки"}
-                </span>
-              )}
-            </div>
-          </div>
-          <Badge tone={overdue ? "danger" : status.tone} className="shrink-0">
-            {overdue ? "Просрочен" : status.text}
-          </Badge>
-        </div>
-      </Card>
-    </button>
   );
 }

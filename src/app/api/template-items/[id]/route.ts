@@ -3,13 +3,14 @@ import { templateItems } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
+import { parseStepInput } from "@/lib/domain/templates";
 
 export const dynamic = "force-dynamic";
 
 export const PATCH = withAuth({ role: ["admin"] }, async (request, { params }) => {
   try {
     const { id } = params;
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
 
     // Check if item exists
     const item = db
@@ -25,13 +26,9 @@ export const PATCH = withAuth({ role: ["admin"] }, async (request, { params }) =
       );
     }
 
-    // Build update object from allowed fields
-    const updates: Record<string, unknown> = {};
-    if (body.zone_label !== undefined) updates.zone_label = body.zone_label || null;
-    if (body.label !== undefined) updates.label = body.label;
-    if (body.proof_type !== undefined) updates.proof_type = body.proof_type;
-    if (body.required !== undefined) updates.required = body.required;
-    if (body.sort !== undefined) updates.sort = body.sort;
+    const parsed = parseStepInput(body, { create: false });
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const updates = parsed.value;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(

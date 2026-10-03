@@ -2,10 +2,12 @@ import { db } from "@/db";
 import { jobs, templateItems, jobItems, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { notifyOwner } from "@/lib/notifications";
-import { withAuth, canOverride } from "@/lib/auth";
+import { todaySofia } from "@/lib/jobs-generator";
+import { notify, propertyLink } from "@/lib/messages";
+import { withAuth, canOverride, isAdmin } from "@/lib/auth";
 import { distanceMeters } from "@/lib/geo";
 import { recordOverride, normalizeOverrideReason } from "@/lib/domain/overrides";
+import { stepApplies } from "@/lib/domain/schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +15,7 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
   try {
     const { id } = params;
     const body = await request.json().catch(() => ({}));
-    const { lat, lng, override_reason } = body ?? {};
+    const { lat, lng, override_reason, client_at } = body ?? {};
 
     // Get the job
     const job = db.select().from(jobs).where(eq(jobs.id, id)).get();
@@ -26,6 +28,22 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
         { error: "Задачата няма свързан шаблон" },
         { status: 400 }
       );
+    }
+
+    // Инспектор стартира само своя обход; невъзложен разпределя админът.
+    if (job.assignee_id !== session.uid && !isAdmin(session)) {
+      return NextResponse.json({ error: "Обходът не е възложен на вас" }, { status: 403 });
+    }
+    // Не и преди деня му — иначе обходите за месеца се „правят" наведнъж.
+    if (!isAdmin(session) && job.status === "planned" && job.planned_at.slice(0, 10) > todaySofia()) {
+      return NextResponse.json({ error: "Обходът е насрочен за по-късна дата" }, { status: 409 });
+    }
+
+    // Повторен старт от същия човек (изгубен отговор, офлайн опашка) е
+    // успех, не грешка — иначе отхвърлянето повлича и всичките му снимки.
+    if (job.status === "in_progress" && (job.assignee_id === session.uid || isAdmin(session))) {
+      const items = db.select().from(jobItems).where(eq(jobItems.job_id, id)).all();
+      return NextResponse.json({ ...job, items, already_started: true });
     }
 
     if (job.status !== "planned") {
@@ -105,16 +123,19 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
       }
     }
 
-    // Get template items
+    // Стъпките от шаблона, които важат за сезона на обхода: зимните
+    // (отопление, тръби) само окт–апр, летните (тераса, двор) само май–сеп.
+    const today = todaySofia();
     const items = db
       .select()
       .from(templateItems)
       .where(eq(templateItems.template_id, job.template_id))
-      .all();
+      .all()
+      .filter((item) => stepApplies(item.season, today));
 
     if (items.length === 0) {
       return NextResponse.json(
-        { error: "Шаблонът няма дефинирани стъпки" },
+        { error: "Чек-листът на услугата няма точки за този сезон — добавете ги от Настройки → Услуги и чеклисти" },
         { status: 400 }
       );
     }
@@ -140,6 +161,8 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
         check_in: now,
         check_in_lat: hasCoords ? lat : null,
         check_in_lng: hasCoords ? lng : null,
+        check_in_client_at: typeof client_at === "string" ? client_at : null,
+        assignee_id: job.assignee_id ?? (session.role === "inspector" ? session.uid : null),
       })
       .where(eq(jobs.id, id))
       .run();
@@ -158,15 +181,9 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
     const updatedJob = db.select().from(jobs).where(eq(jobs.id, id)).get();
     const updatedItems = db.select().from(jobItems).where(eq(jobItems.job_id, id)).all();
 
-    // Notify property owner about started job
-    const prop = db.select({ name: properties.name }).from(properties).where(eq(properties.id, job.property_id)).get();
-    notifyOwner(
-      job.property_id,
-      "job_started",
-      "🔧 Започнат обход",
-      `${job.title || "Обход"} — ${prop?.name || "Имот"}`,
-      "/dashboard",
-    );
+    // Клиентът вижда, че някой е в имота му.
+    const prop = db.select({ name: properties.name, owner_id: properties.owner_id }).from(properties).where(eq(properties.id, job.property_id)).get();
+    if (prop) await notify("visit_started", { to: prop.owner_id, vars: { property: prop.name }, link: propertyLink(job.property_id) });
 
     return NextResponse.json({ ...updatedJob, items: updatedItems });
   } catch (error) {

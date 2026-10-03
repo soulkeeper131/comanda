@@ -1,5 +1,7 @@
 "use client";
 
+import { Icon, type IconName } from "./ui/Icon";
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
@@ -14,12 +16,20 @@ interface Notification {
   created_at: string;
 }
 
-const TYPE_ICONS: Record<string, string> = {
-  job_started: "📋",
-  job_done: "✅",
-  finding_new: "⚠️",
-  offer_new: "💰",
-  offer_decided: "✅",
+const TYPE_ICONS: Record<string, IconName> = {
+  job_started: "calendar",
+  job_done: "check-circle",
+  job_rescheduled: "calendar",
+  finding_new: "alert",
+  finding_urgent: "alert",
+  offer_new: "wrench",
+  offer_decided: "check-circle",
+  quote_requested: "wrench",
+  property_pending: "home",
+  property_decided: "home",
+  plan_requested: "package",
+  plan_scheduled: "package",
+  payment: "card",
 };
 
 export default function NotificationBell() {
@@ -139,9 +149,7 @@ export default function NotificationBell() {
         }}
         title="Нотификации"
       >
-        <span className="text-xl" style={{ lineHeight: 1 }}>
-          {unreadCount > 0 ? "🔔" : "🔕"}
-        </span>
+        <Icon name="bell" size={22} className={unreadCount > 0 ? "text-brand-dark" : "text-muted"} />
         {unreadCount > 0 && (
           <span
             className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1.5 rounded-full text-white text-xs font-bold flex items-center justify-center"
@@ -197,14 +205,14 @@ export default function NotificationBell() {
               </div>
             ) : notifications.length === 0 ? (
               <div className="px-4 py-8 text-center">
-                <div className="text-3xl mb-2">🔕</div>
+                <Icon name="bell" size={28} className="mx-auto mb-2 text-muted" />
                 <div className="text-sm" style={{ color: "#247ba0" }}>
                   Няма нови нотификации
                 </div>
               </div>
             ) : (
               notifications.map((n) => {
-                const icon = TYPE_ICONS[n.type] || "📌";
+                const icon: IconName = TYPE_ICONS[n.type] || "bell";
                 return (
                   <button
                     key={n.id}
@@ -215,8 +223,8 @@ export default function NotificationBell() {
                       opacity: n.read ? 0.6 : 1,
                     }}
                   >
-                    <span className="text-lg flex-shrink-0 mt-0.5">
-                      {icon}
+                    <span className={`mt-0.5 flex-shrink-0 ${n.type === "finding_urgent" ? "text-state-danger" : "text-brand-secondary"}`}>
+                      <Icon name={icon} size={18} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div

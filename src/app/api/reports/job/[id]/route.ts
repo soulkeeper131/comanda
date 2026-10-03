@@ -28,6 +28,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
         property_name: properties.name,
         property_addr: properties.address,
         property_owner_id: properties.owner_id,
+        property_inspector_id: properties.assigned_inspector_id,
         assignee_name: users.full_name,
       })
       .from(jobs)
@@ -40,10 +41,13 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
       return NextResponse.json({ error: "Обходът не е намерен" }, { status: 404 });
     }
 
-    if (
-      !job.property_owner_id ||
-      !canViewProperty(session, { owner_id: job.property_owner_id })
-    ) {
+    // Инспекторът — само своя обход (както jobs/[id]); другите — по имота.
+    const allowed =
+      session.role === "inspector"
+        ? job.assignee_id === session.uid
+        : !!job.property_owner_id &&
+          canViewProperty(session, { id: job.property_id, owner_id: job.property_owner_id, assigned_inspector_id: job.property_inspector_id });
+    if (!allowed) {
       return NextResponse.json({ error: "Обходът не е намерен" }, { status: 404 });
     }
 
@@ -63,11 +67,16 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
       .all()
       .map((p) => {
         const filename = p.storage_path.split("/").pop() || p.storage_path;
+        const step = items.find((i) => i.id === p.job_item_id);
         return {
           url: `/api/photos/${filename}`,
           taken_at: p.taken_at,
+          zone_label: step?.zone_label ?? null,
+          label: step?.label ?? null,
+          sort: step?.sort ?? Number.MAX_SAFE_INTEGER,
         };
-      });
+      })
+      .sort((a, b) => a.sort - b.sort);
 
     const pdfBuffer = await generateJobReport({
       ...job,

@@ -12,9 +12,11 @@ describe("session", () => {
 
   it("подписва и разчита обратно същите данни", async () => {
     const { signSession, verifySession } = await import("./session");
-    const data = { uid: "u1", role: "client" as const, org_id: "org1" };
+    const data = { uid: "u1", role: "client" as const, org_id: "org1", sv: 3 };
     const token = signSession(data);
     expect(verifySession(token)).toEqual(data);
+    // Стара бисквитка без версия се чете като версия 0.
+    expect(verifySession(signSession({ uid: "u1", role: "client", org_id: "org1" }))?.sv).toBe(0);
   });
 
   it("отхвърля токен с подправен payload", async () => {

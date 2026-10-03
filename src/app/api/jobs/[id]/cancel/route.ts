@@ -2,7 +2,8 @@ import { db } from "@/db";
 import { jobs, properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { sendEmail, getNotifyEmail, ownerEmailFor } from "@/lib/email";
+import { notify, propertyLink } from "@/lib/messages";
+import { formatDateOnly } from "@/lib/format";
 import { withAuth } from "@/lib/auth";
 import { canCancelJob } from "@/lib/domain/jobs";
 import { normalizeOverrideReason } from "@/lib/domain/overrides";
@@ -57,35 +58,12 @@ export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, {
 
     const updatedJob = db.select().from(jobs).where(eq(jobs.id, id)).get();
 
-    // Клиентът е чакал обход, който няма да се случи — трябва да знае.
-    const [prop] = db.select({ name: properties.name }).from(properties).where(eq(properties.id, job.property_id)).all();
-    const propertyName = prop?.name || "Имот";
-    const cancelSubject = `❌ Обходът на ${propertyName} е отменен`;
-    const cancelHtml = `
-        <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
-          <h2 style="color: #dc2626;">❌ Обходът е отменен</h2>
-          <p style="color: #247ba0;"><strong>Имот:</strong> ${propertyName}</p>
-          <p style="color: #247ba0;"><strong>Задача:</strong> ${job.title || "Обход"}</p>
-          <p style="color: #247ba0;"><strong>Причина:</strong> ${normalizedReason}</p>
-          <hr style="border: none; border-top: 1px solid #e4e9f0; margin: 20px 0;" />
-          <p style="color: #94a3b8; font-size: 12px;">Ко Манда — comanda.blv.bg</p>
-        </div>
-      `;
-
-    sendEmail({
-      to: (await getNotifyEmail()) || "",
-      subject: cancelSubject,
-      html: cancelHtml,
-    }).catch(() => {});
-
-    const ownerEmail = ownerEmailFor(job.property_id);
-    if (ownerEmail) {
-      sendEmail({
-        to: ownerEmail,
-        subject: cancelSubject,
-        html: cancelHtml,
-      }).catch(() => {});
-    }
+    // Клиентът е чакал обход, който няма да се случи — трябва да знае;
+    // инспекторът — също, за да не отиде напразно.
+    const prop = db.select({ name: properties.name, owner_id: properties.owner_id }).from(properties).where(eq(properties.id, job.property_id)).get();
+    const vars = { property: prop?.name ?? "Имот", date: formatDateOnly(job.planned_at), reason: normalizedReason };
+    if (prop) await notify("visit_cancelled", { to: prop.owner_id, vars, link: propertyLink(job.property_id) });
+    if (job.assignee_id) await notify("visit_cancelled_inspector", { to: job.assignee_id, vars });
 
     return NextResponse.json(updatedJob);
   } catch (error) {

@@ -1,0 +1,1 @@
+ALTER TABLE `payments` ADD `reminded_at` text;

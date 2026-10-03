@@ -19,17 +19,49 @@ const windows = new Map<string, WindowEntry>();
 
 /** Max requests per minute per endpoint type */
 function getLimit(pathname: string): number {
-  if (pathname === "/api/auth/login" || pathname.startsWith("/login")) {
+  // Само опитите за вход — зареждането на страницата /login не е опит.
+  if (
+    pathname === "/api/auth/login" ||
+    pathname === "/api/auth/register" ||
+    pathname === "/api/auth/forgot" ||
+    pathname === "/api/auth/resend-verification" ||
+    pathname === "/api/auth/reset" ||
+    pathname === "/api/auth/verify" ||
+    // Публичната форма праща имейли до въведения адрес и до целия екип.
+    pathname === "/api/inquiries"
+  ) {
     return 5;
   }
   return 60;
 }
 
-/** Extract client IP, respecting x-forwarded-for */
+/**
+ * Ключът за лимита: IPv4 адресът, а при IPv6 — мрежата /64. Един абонат
+ * получава цяла /64 и иначе сменя адреса си при всеки опит.
+ */
+export function ipKey(ip: string): string {
+  const v = ip.trim().toLowerCase();
+  if (!v.includes(":")) return v;
+  if (v.startsWith("::ffff:") && v.includes(".")) return v.slice(7); // IPv4 през IPv6
+  const [head, tail] = v.split("::");
+  const h = head ? head.split(":") : [];
+  const t = tail !== undefined && tail ? tail.split(":") : [];
+  const groups = tail !== undefined ? [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t] : h;
+  return `${groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "") || "0").join(":")}::/64`;
+}
+
+/**
+ * IP на клиента. Първата стойност в X-Forwarded-For се задава от клиента и
+ * е подправима — с въртене на хедъра лимитът за вход се заобикаля. Traefik
+ * (Coolify) слага реалния адрес в X-Real-Ip и го добавя НАКРАЯ на XFF.
+ */
 function getIP(request: Request): string {
+  const realIp = request.headers.get("x-real-ip");
+  if (realIp) return realIp.trim();
   const xff = request.headers.get("x-forwarded-for");
   if (xff) {
-    return xff.split(",")[0].trim();
+    const hops = xff.split(",").map((h) => h.trim()).filter(Boolean);
+    if (hops.length) return hops[hops.length - 1];
   }
   // In Edge/Node, fallback to connection info if available
   const req = request as Request & { ip?: string };
@@ -45,7 +77,7 @@ export function checkRateLimit(request: Request, pathname: string): {
   remaining: number;
   reset: number; // ms until reset
 } {
-  const ip = getIP(request);
+  const ip = ipKey(getIP(request));
   const key = `${ip}:${pathname}`;
   const now = Date.now();
   const limit = getLimit(pathname);

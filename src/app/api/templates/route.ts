@@ -3,6 +3,7 @@ import { serviceTemplates, templateItems } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
+import { parseTemplatePatch } from "@/lib/domain/templates";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,9 @@ export const GET = withAuth({}, async (_request, { session }) => {
       }
     }
 
-    return NextResponse.json(Array.from(templateMap.values()));
+    const list = Array.from(templateMap.values());
+    for (const t of list) t.items.sort((a: { sort: number | null }, b: { sort: number | null }) => (a.sort ?? 0) - (b.sort ?? 0));
+    return NextResponse.json(list);
   } catch (error) {
     console.error("GET /api/templates error:", error);
     return NextResponse.json({ error: "Грешка при зареждане на шаблони" }, { status: 500 });
@@ -51,31 +54,30 @@ export const GET = withAuth({}, async (_request, { session }) => {
 
 export const POST = withAuth({ role: ["admin"] }, async (request, { session }) => {
   try {
-    const body = await request.json();
-    const { category, name, description, icon, duration_min, price } = body;
-
+    const body = await request.json().catch(() => null);
+    const parsed = parseTemplatePatch(body);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const { name, category } = parsed.value;
     if (!category || !name) {
-      return NextResponse.json(
-        { error: "Категория и име са задължителни" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Вид и име са задължителни" }, { status: 400 });
     }
 
-    db
+    // Нова услуга не се вижда от клиентите, докато админът не ѝ даде цена и
+    // чек-лист и не я пусне („Клиентът може да я заяви").
+    const [template] = db
       .insert(serviceTemplates)
       .values({
         org_id: session.org_id,
         category,
         name,
-        description: description || null,
-        icon: icon || "🧹",
-        duration_min: duration_min ?? 60,
-        price: price ?? 0,
+        description: parsed.value.description ?? null,
+        icon: category,
+        duration_min: parsed.value.duration_min ?? 60,
+        price: parsed.value.price ?? 0,
+        bookable: parsed.value.bookable ?? false,
       })
-      .run();
-
-    // SQLite doesn't support RETURNING — fetch by name
-    const [template] = db.select().from(serviceTemplates).where(eq(serviceTemplates.name, name)).limit(1).all();
+      .returning()
+      .all();
 
     return NextResponse.json(template, { status: 201 });
   } catch (error) {

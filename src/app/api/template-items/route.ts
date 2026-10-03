@@ -1,8 +1,9 @@
 import { db } from "@/db";
-import { templateItems } from "@/db/schema";
+import { serviceTemplates, templateItems } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
+import { parseStepInput } from "@/lib/domain/templates";
 
 export const dynamic = "force-dynamic";
 
@@ -35,39 +36,39 @@ export const GET = withAuth({ role: ["admin"] }, async (request) => {
   }
 });
 
+/** Нова точка в чек-листа — най-отдолу, ако не е казано друго. */
 export const POST = withAuth({ role: ["admin"] }, async (request) => {
   try {
-    const body = await request.json();
-    const { template_id, zone_label, label, proof_type, required, sort } = body;
+    const body = await request.json().catch(() => null);
+    const templateId = typeof body?.template_id === "string" ? body.template_id : "";
+    const template = templateId
+      ? db.select({ id: serviceTemplates.id }).from(serviceTemplates).where(eq(serviceTemplates.id, templateId)).get()
+      : undefined;
+    if (!template) return NextResponse.json({ error: "Услугата не е намерена" }, { status: 404 });
 
-    if (!template_id || !label) {
-      return NextResponse.json(
-        { error: "template_id и label са задължителни" },
-        { status: 400 }
-      );
-    }
+    const parsed = parseStepInput(body, { create: true });
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-    db
+    const last = db
+      .select({ sort: templateItems.sort })
+      .from(templateItems)
+      .where(eq(templateItems.template_id, template.id))
+      .all()
+      .reduce((max, i) => Math.max(max, i.sort ?? 0), 0);
+
+    const [created] = db
       .insert(templateItems)
       .values({
-        template_id,
-        zone_label: zone_label || null,
-        label,
-        proof_type: proof_type || "photo",
-        required: required !== undefined ? required : true,
-        sort: sort ?? 0,
+        template_id: template.id,
+        label: parsed.value.label!,
+        zone_label: parsed.value.zone_label ?? null,
+        proof_type: parsed.value.proof_type ?? "photo",
+        required: parsed.value.required ?? true,
+        season: parsed.value.season ?? "all",
+        sort: parsed.value.sort ?? last + 1,
       })
-      .run();
-
-    // SQLite doesn't support RETURNING — fetch the last inserted item by querying all for this template
-    const items = db
-      .select()
-      .from(templateItems)
-      .where(eq(templateItems.template_id, template_id))
-      .orderBy(asc(templateItems.sort))
+      .returning()
       .all();
-
-    const created = items[items.length - 1];
 
     return NextResponse.json(created, { status: 201 });
   } catch (error) {

@@ -59,3 +59,18 @@ export function eurToCents(eur: number): number {
 export function getWebhookSecret(): string {
   return process.env.STRIPE_WEBHOOK_SECRET || "";
 }
+
+/**
+ * Затваря отворена страница за плащане (стар таб не може да бъде платен
+ * след отказ). Безопасно за вече платена/изтекла сесия и без Stripe.
+ */
+export async function expireCheckoutSession(sessionId: string | null | undefined): Promise<void> {
+  const stripe = getStripeOrNull();
+  if (!stripe || !sessionId || !sessionId.startsWith("cs_")) return;
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.status === "open") await stripe.checkout.sessions.expire(sessionId);
+  } catch (err) {
+    console.error("[stripe] expire session failed:", err);
+  }
+}

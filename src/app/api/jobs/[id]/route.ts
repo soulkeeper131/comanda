@@ -1,8 +1,10 @@
 import { db } from "@/db";
-import { jobs, jobItems, properties, users, evidence } from "@/db/schema";
+import { jobs, jobItems, properties, users, evidence, jobReschedules } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withAuth, canViewProperty } from "@/lib/auth";
+import { notify } from "@/lib/messages";
+import { formatDateOnly } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,12 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
         org_id: jobs.org_id,
         property_name: properties.name,
         property_address: properties.address,
+        property_lat: properties.lat,
+        property_lng: properties.lng,
+        access_notes: properties.access_notes,
+        contact_name: properties.contact_name,
+        contact_phone: properties.contact_phone,
+        rescheduled_from: jobs.rescheduled_from,
         assignee_name: users.full_name,
       })
       .from(jobs)
@@ -41,7 +49,9 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
     }
 
     const property = db.select().from(properties).where(eq(properties.id, job.property_id)).get();
-    if (!property || !canViewProperty(session, property)) {
+    // Инспекторът вижда своя обход (и имота му), независимо на кого е имотът.
+    const allowed = session.role === "inspector" ? job.assignee_id === session.uid : canViewProperty(session, property ?? { owner_id: "" });
+    if (!property || !allowed) {
       // 404, не 403 — не издаваме, че задачата съществува
       return NextResponse.json({ error: "Задачата не е намерена" }, { status: 404 });
     }
@@ -71,6 +81,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
         job_item_id: evidence.job_item_id,
         storage_path: evidence.storage_path,
         taken_at: evidence.taken_at,
+        client_taken_at: evidence.client_taken_at,
         lat: evidence.lat,
         lng: evidence.lng,
       })
@@ -104,13 +115,18 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
         id: p.id,
         storage_path: p.storage_path,
         taken_at: p.taken_at,
+        client_taken_at: p.client_taken_at,
         lat: p.lat,
         lng: p.lng,
       })),
     }));
 
+    // Кодовете за вход и телефонът на място — на инспектора само докато
+    // обходът предстои или тече; в стар обход не му трябват.
+    const hideAccess = session.role === "inspector" && job.status !== "planned" && job.status !== "in_progress";
     const result = {
       ...job,
+      ...(hideAccess ? { access_notes: null, contact_name: null, contact_phone: null } : {}),
       started_at: job.check_in,
       completed_at: job.check_out,
       items: itemsWithPhotos,
@@ -127,5 +143,84 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
   } catch (error) {
     console.error("GET /api/jobs/[id] error:", error);
     return NextResponse.json({ error: "Грешка при зареждане на задача" }, { status: 500 });
+  }
+});
+
+/**
+ * DELETE /api/jobs/[id] — само грешно създаден, още нестартиран обход.
+ * Стартиран или завършен е история — той се отказва (/cancel), не се трие.
+ */
+export const DELETE = withAuth({ role: ["admin"] }, async (_request, { params }) => {
+  try {
+    const job = db.select().from(jobs).where(eq(jobs.id, params.id)).get();
+    if (!job) return NextResponse.json({ error: "Задачата не е намерена" }, { status: 404 });
+    if (job.status !== "planned") {
+      return NextResponse.json(
+        { error: "Изтрива се само планирана задача. Стартираната се отказва." },
+        { status: 400 },
+      );
+    }
+    // Обход от абонамент не се трие — генераторът би го създал отново.
+    // Отказва се (остава в историята) или се мести.
+    if (job.gen_key) {
+      return NextResponse.json(
+        { error: "Обходът е от абонамента — откажете го или го преместете." },
+        { status: 400 },
+      );
+    }
+    db.transaction((tx) => {
+      tx.delete(jobReschedules).where(eq(jobReschedules.job_id, job.id)).run();
+      tx.delete(jobs).where(eq(jobs.id, job.id)).run();
+    });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("DELETE /api/jobs/[id] error:", error);
+    return NextResponse.json({ error: "Грешка при изтриване" }, { status: 500 });
+  }
+});
+
+/**
+ * PATCH /api/jobs/[id] — админът сменя изпълнителя/заглавието на конкретен
+ * обход, без да пипа инспектора на имота (въпрос 10). Датата се мести през
+ * /reschedule (там се пази история).
+ */
+export const PATCH = withAuth({ role: ["admin"] }, async (request, { params }) => {
+  try {
+    const job = db.select().from(jobs).where(eq(jobs.id, params.id)).get();
+    if (!job) return NextResponse.json({ error: "Задачата не е намерена" }, { status: 404 });
+    const body = await request.json().catch(() => ({}));
+    const updates: Partial<typeof jobs.$inferInsert> = {};
+
+    if (body.assignee_id !== undefined) {
+      if (job.status === "completed" || job.status === "cancelled") {
+        return NextResponse.json({ error: "Обходът е приключил" }, { status: 400 });
+      }
+      if (body.assignee_id === null || body.assignee_id === "") {
+        updates.assignee_id = null;
+      } else {
+        const person = db.select().from(users).where(eq(users.id, body.assignee_id)).get();
+        if (!person || person.role !== "inspector" || person.active === false) {
+          return NextResponse.json({ error: "Изберете активен инспектор" }, { status: 400 });
+        }
+        updates.assignee_id = person.id;
+      }
+    }
+    if (typeof body.title === "string" && body.title.trim()) updates.title = body.title.trim();
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "Няма полета за обновяване" }, { status: 400 });
+    }
+
+    db.update(jobs).set(updates).where(eq(jobs.id, job.id)).run();
+    if (updates.assignee_id !== undefined && updates.assignee_id !== job.assignee_id) {
+      const prop = db.select({ name: properties.name }).from(properties).where(eq(properties.id, job.property_id)).get();
+      const vars = { property: prop?.name ?? "Имот", date: formatDateOnly(job.planned_at) };
+      if (updates.assignee_id) await notify("visit_assigned", { to: updates.assignee_id, vars });
+      // Предишният изпълнител разбира, че обходът вече не е негов.
+      if (job.assignee_id) await notify("visit_unassigned", { to: job.assignee_id, vars });
+    }
+    return NextResponse.json(db.select().from(jobs).where(eq(jobs.id, job.id)).get());
+  } catch (error) {
+    console.error("PATCH /api/jobs/[id] error:", error);
+    return NextResponse.json({ error: "Грешка при промяна на обхода" }, { status: 500 });
   }
 });
