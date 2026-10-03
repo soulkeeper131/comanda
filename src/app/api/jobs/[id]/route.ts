@@ -121,8 +121,12 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
       })),
     }));
 
+    // Кодовете за вход и телефонът на място — на инспектора само докато
+    // обходът предстои или тече; в стар обход не му трябват.
+    const hideAccess = session.role === "inspector" && job.status !== "planned" && job.status !== "in_progress";
     const result = {
       ...job,
+      ...(hideAccess ? { access_notes: null, contact_name: null, contact_phone: null } : {}),
       started_at: job.check_in,
       completed_at: job.check_out,
       items: itemsWithPhotos,

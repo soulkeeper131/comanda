@@ -161,27 +161,46 @@ function pendingBankPlans() {
 
 const seasonOf = (plan: typeof plans.$inferSelect) => ({ from: plan.season_from, to: plan.season_to });
 
+/** Дни между две дати "YYYY-MM-DD". */
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+const laterOf = (a: string, b: string) => (a > b ? a : b);
+/** created_at от SQLite ("YYYY-MM-DD HH:MM:SS", UTC) → българската дата. */
+const sofiaDateOf = (sqliteTime: string | null) => (sqliteTime ? todaySofia(new Date(`${sqliteTime.replace(" ", "T")}Z`)) : null);
+
+/**
+ * Денят, в който обходите ще спрат, ако преводът не дойде: 15-ият ден от
+ * неплатеното — но никога по-рано от 7 дни след второто напомняне (то идва
+ * 6 дни след първото). Така и абонамент, закъснял отдавна (напр. преди тази
+ * версия), получава двете напомняния, преди да спре.
+ */
+function suspensionDay(due: string, today: string, reminder: 1 | 2): string {
+  return laterOf(addDays(due, SUSPEND_AFTER_DAYS), addDays(today, reminder === 1 ? 13 : 7));
+}
+
 /**
  * Абонамент по банка с изтекъл платен период и непоявил се превод —
  * напомняне на 1-ия и 7-ия ден (обходите продължават; екипът вижда
  * абонамента в „Абонаменти без плащане"). Сезонен пакет извън сезона не е
- * просрочен — просрочието тръгва от първия ден на следващия сезон.
+ * просрочен — просрочието тръгва от първия ден на следващия сезон. Превод,
+ * поискан днес, не получава още и напомняне същия ден.
  */
 export async function remindOverduePlans(today: string): Promise<number> {
   let sent = 0;
   for (const row of pendingBankPlans()) {
     const late = daysOverdue(row.plan.paid_until, today, seasonOf(row.plan));
+    if (late < 1 || sofiaDateOf(row.payment.created_at) === today) continue;
     const done = row.payment.reminders_sent ?? 0;
-    const next = done === 0 && late >= 1 ? 1 : done === 1 && late >= 7 ? 2 : 0;
-    if (!next || late > SUSPEND_AFTER_DAYS) continue;
+    const sinceLast = row.payment.reminded_at ? daysBetween(row.payment.reminded_at.slice(0, 10), today) : Infinity;
+    const next = done === 0 ? 1 : done === 1 && late >= 7 && sinceLast >= 6 ? 2 : 0;
+    if (!next) continue;
     const due = unpaidFrom(row.plan.paid_until, seasonOf(row.plan))!;
-    db.update(payments).set({ reminders_sent: next }).where(eq(payments.id, row.payment.id)).run();
+    db.update(payments).set({ reminders_sent: next, reminded_at: today }).where(eq(payments.id, row.payment.id)).run();
     await notify("plan_overdue", {
       to: row.owner_id,
       vars: {
         property: row.property_name,
         due: formatDateOnly(due),
-        suspend_on: formatDateOnly(addDays(due, SUSPEND_AFTER_DAYS - 1)),
+        suspend_on: formatDateOnly(addDays(suspensionDay(due, today, next), -1)),
         amount: formatEur(row.payment.amount),
       },
       rows: bankRows(bankReference("plan", row.plan.id), row.payment.amount),
@@ -193,15 +212,17 @@ export async function remindOverduePlans(today: string): Promise<number> {
 }
 
 /**
- * 14 дни без превод → бъдещите обходи спират (днешният остава). Преводът
- * остава чакащ; щом админът го потвърди, графикът се възстановява от деня
- * на плащането (settlePlanPayment).
+ * Над 14 дни без превод и след двете напомняния (второто — поне преди 7
+ * дни) → бъдещите обходи спират (днешният остава). Преводът остава чакащ;
+ * щом админът го потвърди, графикът се възстановява от деня на плащането
+ * (settlePlanPayment).
  */
 export async function suspendOverduePlans(today: string): Promise<number> {
   let suspended = 0;
   for (const row of pendingBankPlans()) {
     const late = daysOverdue(row.plan.paid_until, today, seasonOf(row.plan));
-    if (late <= SUSPEND_AFTER_DAYS) continue;
+    if (late <= SUSPEND_AFTER_DAYS || (row.payment.reminders_sent ?? 0) < 2) continue;
+    if (!row.payment.reminded_at || daysBetween(row.payment.reminded_at.slice(0, 10), today) < 7) continue;
     const due = formatDateOnly(unpaidFrom(row.plan.paid_until, seasonOf(row.plan)));
     const marked = db.transaction((tx) => {
       const res = tx
@@ -253,9 +274,10 @@ export async function runPeriodic(now = new Date()): Promise<PeriodicResult> {
   const offerReminders = await remindPendingOffers(now);
   const paymentReminders = await remindUnpaidOffers(now);
   const planBank = await billBankPlans(today);
-  const visitReminders = await remindVisitsTomorrow(today);
   const overdue = await remindOverduePlans(today);
   const suspended = await suspendOverduePlans(today);
+  // След спирането — „утре е обход" не бива да тръгне за току-що махнат обход.
+  const visitReminders = await remindVisitsTomorrow(today);
   const pauses = await syncSeasonPauses(today);
   const orphanUploads = await cleanupOrphanUploads(now);
   // За панела „Готовност": кога периодичните задачи са минали за последно.

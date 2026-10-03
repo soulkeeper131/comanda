@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 /**
  * POST /api/upload — снимка, която после се закача към доказателство,
  * констатация или оферта (claimUpload). Качват само инспектори и админ;
- * незакачените се трият след 24 часа.
+ * незакачените се трият след 7 дни.
  */
 export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, { session }) => {
   try {

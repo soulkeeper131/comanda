@@ -28,16 +28,32 @@ export type LoginResult =
   | { ok: false; reason: "invalid" }
   | { ok: false; reason: "locked"; minutes: number };
 
+// Грешните опити за имейли без профил — в паметта, само за да отговаряме
+// еднакво („заключено" след 5), иначе заключването издава кои имейли имат профил.
+const ghostFailures = new Map<string, { failed: number; lockedUntil: number }>();
+
+function ghostAttempt(email: string, now: number): LoginResult {
+  const g = ghostFailures.get(email) ?? { failed: 0, lockedUntil: 0 };
+  if (g.lockedUntil > now) return { ok: false, reason: "locked", minutes: Math.ceil((g.lockedUntil - now) / 60_000) };
+  g.failed += 1;
+  const lock = g.failed % LOCK_AFTER_FAILURES === 0;
+  if (lock) g.lockedUntil = now + LOCK_MINUTES * 60_000;
+  ghostFailures.set(email, g);
+  if (ghostFailures.size > 10_000) ghostFailures.clear();
+  return lock ? { ok: false, reason: "locked", minutes: LOCK_MINUTES } : { ok: false, reason: "invalid" };
+}
+
 /**
  * Проверка на имейл и парола. След всеки 5 поредни грешни опита профилът се
- * заключва — 15 минути, после 30, 45… (до денонощие); успешен вход или нова
- * парола нулират брояча. Така отгатването с много адреси не помага.
+ * заключва за 15 минути (не повече — иначе всеки може да държи чужд профил
+ * заключен с часове); успешен вход или нова парола нулират брояча. С 5
+ * опита на 15 минути отгатването на парола е безнадеждно бавно.
  */
 export async function validateUser(email: string, password: string, now = new Date()): Promise<LoginResult> {
   const row = db.select().from(users).where(eq(users.email, email)).get();
   if (!row) {
     await bcrypt.compare(password, DUMMY_HASH);
-    return { ok: false, reason: "invalid" };
+    return ghostAttempt(email, now.getTime());
   }
   const lockedFor = row.locked_until ? Date.parse(row.locked_until) - now.getTime() : 0;
   if (lockedFor > 0) return { ok: false, reason: "locked", minutes: Math.ceil(lockedFor / 60_000) };
@@ -46,12 +62,11 @@ export async function validateUser(email: string, password: string, now = new Da
   if (!ok) {
     const failed = (row.failed_logins ?? 0) + 1;
     const lock = failed % LOCK_AFTER_FAILURES === 0;
-    const minutes = Math.min((failed / LOCK_AFTER_FAILURES) * LOCK_MINUTES, 24 * 60);
     db.update(users)
-      .set({ failed_logins: failed, ...(lock ? { locked_until: new Date(now.getTime() + minutes * 60_000).toISOString() } : {}) })
+      .set({ failed_logins: failed, ...(lock ? { locked_until: new Date(now.getTime() + LOCK_MINUTES * 60_000).toISOString() } : {}) })
       .where(eq(users.id, row.id))
       .run();
-    return lock ? { ok: false, reason: "locked", minutes } : { ok: false, reason: "invalid" };
+    return lock ? { ok: false, reason: "locked", minutes: LOCK_MINUTES } : { ok: false, reason: "invalid" };
   }
   if (!row.active) return { ok: false, reason: "invalid" };
   if (row.failed_logins || row.locked_until) {

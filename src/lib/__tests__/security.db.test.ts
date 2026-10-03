@@ -68,8 +68,22 @@ describe("вход: заключване след грешни пароли и �
     expect(row.locked_until).toBeNull();
   });
 
-  it("непознат имейл — същият отговор, без заключване", async () => {
-    expect(await users.validateUser("nobody@x.bg", "x")).toEqual({ ok: false, reason: "invalid" });
+  it("непознат имейл — същите отговори като истински профил (и „заключено“ след 5)", async () => {
+    const t0 = new Date("2026-10-03T10:00:00Z");
+    for (let i = 0; i < 4; i++) expect(await users.validateUser("nobody@x.bg", "x", t0)).toEqual({ ok: false, reason: "invalid" });
+    expect(await users.validateUser("nobody@x.bg", "x", t0)).toEqual({ ok: false, reason: "locked", minutes: 15 });
+    expect((await users.validateUser("nobody@x.bg", "x", new Date(t0.getTime() + 5 * 60_000))).ok).toBe(false);
+  });
+
+  it("заключването не расте — винаги 15 минути", async () => {
+    await users.createUser("lock2@x.bg", "правилна-парола", "Тест", "client", "o");
+    let t = new Date("2026-10-04T10:00:00Z").getTime();
+    for (let round = 0; round < 3; round++) {
+      let last;
+      for (let i = 0; i < 5; i++) last = await users.validateUser("lock2@x.bg", "грешна", new Date(t));
+      expect(last).toEqual({ ok: false, reason: "locked", minutes: 15 });
+      t += 16 * 60_000;
+    }
   });
 
   it("отменените сесии вдигат версията", () => {
@@ -95,7 +109,7 @@ describe("качени файлове", () => {
     expect(uploads.claimUpload("stray.jpg", "i1")).toBe(false);
   });
 
-  it("запис + собственик → веднъж; незакачените след 24 часа се трият", async () => {
+  it("запис + собственик → веднъж; незакачените след 7 дни се трият", async () => {
     const file = new File([Buffer.from([0xff, 0xd8, 0xff, 0xdb, 1, 2, 3])], "x.png", { type: "image/png" });
     const saved = await uploads.saveImageUpload(file, "i1");
     expect(saved.ok).toBe(true);
@@ -108,7 +122,8 @@ describe("качени файлове", () => {
     const orphan = await uploads.saveImageUpload(new File([Buffer.from("GIF89a..")], "a.gif"), "i1");
     expect(orphan.ok).toBe(true);
     if (!orphan.ok) return;
-    expect(await uploads.cleanupOrphanUploads(new Date(Date.now() + 25 * 3600_000))).toBe(1);
+    expect(await uploads.cleanupOrphanUploads(new Date(Date.now() + 2 * 24 * 3600_000))).toBe(0);
+    expect(await uploads.cleanupOrphanUploads(new Date(Date.now() + 8 * 24 * 3600_000))).toBe(1);
     expect(fs.existsSync(path.join(uploads.UPLOAD_DIR, orphan.filename))).toBe(false);
     expect(fs.existsSync(path.join(uploads.UPLOAD_DIR, saved.filename))).toBe(true);
   });

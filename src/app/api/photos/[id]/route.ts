@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
 import { db } from "@/db";
-import { properties } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { evidence, jobs, properties } from "@/db/schema";
+import { and, eq, like, or } from "drizzle-orm";
 import { withAuth, canAccessProperty } from "@/lib/auth";
 import { propertyIdForPhoto } from "@/lib/domain/photos";
 
@@ -24,7 +24,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
     const { id } = params;
 
     // Basic path traversal protection
-    if (id.includes("..") || id.includes("/") || id.includes("\\")) {
+    if (id.includes("..") || !/^[\w.-]+$/.test(id)) {
       return NextResponse.json(
         { error: "Невалиден идентификатор" },
         { status: 400 },
@@ -47,7 +47,17 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
       .where(eq(properties.id, propertyId))
       .get();
 
-    if (!property || !canAccessProperty(session, property)) {
+    // Инспекторът вижда и снимките от свои стари обходи (сам ги е правил),
+    // макар имотът вече да не е в обсега му.
+    const ownEvidence =
+      session.role === "inspector" &&
+      !!db
+        .select({ id: evidence.id })
+        .from(evidence)
+        .innerJoin(jobs, eq(evidence.job_id, jobs.id))
+        .where(and(eq(jobs.assignee_id, session.uid), or(eq(evidence.storage_path, id), like(evidence.storage_path, `%/${id}`))))
+        .get();
+    if (!property || (!ownEvidence && !canAccessProperty(session, property))) {
       // 404, не 403 — не издаваме, че снимката съществува
       return NextResponse.json(
         { error: "Файлът не е намерен" },

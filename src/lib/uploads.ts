@@ -9,8 +9,12 @@ import { uploads } from "@/db/schema";
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 /** Снимки на човек за денонощие — обход е ~20, с голям запас. */
 const DAILY_UPLOADS = 300;
-/** Качена и незакачена снимка се трие след толкова часа. */
-const ORPHAN_HOURS = 24;
+/**
+ * Качена и незакачена снимка се трие след толкова часа. С запас: офлайн
+ * опашката на инспектора качва снимката и чак после я закача — ако между
+ * двете падне връзката за дни, снимката трябва още да е тук.
+ */
+const ORPHAN_HOURS = 7 * 24;
 
 /** "YYYY-MM-DD HH:MM:SS" (UTC) — форматът на datetime('now') в SQLite. */
 const sqliteTime = (d: Date) => d.toISOString().replace("T", " ").slice(0, 19);
@@ -53,7 +57,7 @@ export async function saveImageUpload(file: File, userId: string, opts: { attach
   return { ok: true, filename };
 }
 
-/** Периодична задача: качени преди повече от 24 часа и незакачени никъде снимки се трият. */
+/** Периодична задача: качени преди повече от 7 дни и незакачени никъде снимки се трият. */
 export async function cleanupOrphanUploads(now = new Date()): Promise<number> {
   const stale = db
     .select({ filename: uploads.filename })

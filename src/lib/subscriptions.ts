@@ -17,7 +17,10 @@ import { bankReference, formatDateOnly } from "@/lib/format";
  * после Stripe тегли всеки месец. Отказът важи до края на платения период.
  */
 
-const unixToDate = (s: number | null | undefined) => (s ? new Date(s * 1000).toISOString().slice(0, 10) : null);
+// Датата е българската, не UTC: период, който свършва в 00:00 София (= 21:00
+// или 22:00 UTC предния ден), иначе излиза ден по-рано — и тегленето на
+// 1 октомври се брои за 30 септември, т.е. „в сезона" на летния пакет.
+const unixToDate = (s: number | null | undefined) => (s ? todaySofia(new Date(s * 1000)) : null);
 
 /** 00:00 българско време на дадена дата, в секунди (за Stripe). */
 export function sofiaMidnightUnix(date: string): number {

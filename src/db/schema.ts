@@ -494,8 +494,10 @@ export const payments = sqliteTable("payments", {
   method: text("method").notNull().default("card"),
   stripe_session_id: text("stripe_session_id"),
   stripe_payment_intent_id: text("stripe_payment_intent_id"),
-  // Колко напомняния за неплатен превод са изпратени (абонамент по банка).
+  // Колко напомняния за неплатен превод са изпратени (абонамент по банка)
+  // и кога е последното — спирането на обходите идва поне 7 дни след него.
   reminders_sent: integer("reminders_sent").default(0),
+  reminded_at: text("reminded_at"),
   paid_at: text("paid_at"),
   created_at: text("created_at").default(sql`(datetime('now'))`),
 });

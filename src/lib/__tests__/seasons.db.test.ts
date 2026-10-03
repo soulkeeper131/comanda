@@ -193,6 +193,32 @@ describe("неплатен превод: напомняния, спиране с
     expect(notes("Обходите продължават")).toHaveLength(1);
   });
 
+  it("абонамент, закъснял отдавна (напр. преди тази версия) — първо двете напомняния, после спиране", async () => {
+    const tpl = catalog.coreItem(catalog.loadCatalog().find((p) => p.name === "Пълен надзор")!)!;
+    db.insert(s.properties).values({ id: "pold", org_id: "o", owner_id: "c", name: "Стар", lat: 1, lng: 1, status: "active" }).run();
+    db.insert(s.plans)
+      .values({ id: "old1", property_id: "pold", template_id: tpl.template_id, name: "Пълен надзор", per_month: 2, price: 60, status: "active", first_job_at: "2026-06-01", paid_until: "2026-08-01" })
+      .run();
+    db.insert(s.payments)
+      .values({ user_id: "c", plan_id: "old1", amount: 60, method: "bank", status: "pending", created_at: "2026-07-25 08:00:00" })
+      .run();
+    const onlyOld = async (fn: () => Promise<number>) => {
+      const before = planRow("old1").suspended_at;
+      const n = await fn();
+      return { n, suspendedNow: !before && !!planRow("old1").suspended_at };
+    };
+    expect((await onlyOld(() => periodic.suspendOverduePlans("2026-11-20"))).suspendedNow).toBe(false);
+    await periodic.remindOverduePlans("2026-11-20");
+    expect(notes("Абонаментът не е платен").at(-1)!.body).toContain("02.12.2026");
+    await periodic.remindOverduePlans("2026-11-23");
+    const pay = () => db.select().from(s.payments).where(eq(s.payments.plan_id, "old1")).get()!;
+    expect(pay().reminders_sent).toBe(1);
+    await periodic.remindOverduePlans("2026-11-26");
+    expect(pay().reminders_sent).toBe(2);
+    expect((await onlyOld(() => periodic.suspendOverduePlans("2026-12-02"))).suspendedNow).toBe(false);
+    expect((await onlyOld(() => periodic.suspendOverduePlans("2026-12-03"))).suspendedNow).toBe(true);
+  });
+
   it("закъснял превод в гратиса продължава без дупка", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-12-28T10:00:00Z"));
@@ -246,7 +272,28 @@ describe("сезонен абонамент с карта", () => {
     } as unknown as Stripe.Invoice;
     await subs.onInvoicePaid(zero);
     expect(db.select().from(s.payments).where(eq(s.payments.plan_id, "k1")).all()).toHaveLength(0);
-    expect(planRow("k1").billing_paused_until).toBe("2027-09-30");
+    // Първото теглене е на 1 октомври (00:00 София), не на 30 септември.
+    expect(planRow("k1").billing_paused_until).toBe("2027-10-01");
+  });
+
+  it("последното теглене в сезона, подравнено на 00:00 София → пауза, не теглене извън сезона", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2028-04-01T10:00:00Z"));
+    stripeCalls.length = 0;
+    db.update(s.plans).set({ billing_paused_until: null }).where(eq(s.plans.id, "k1")).run();
+    // Тегленето на 1 април покрива до 1 май 00:00 София = 30 април 21:00 UTC.
+    const end = Date.parse("2028-04-30T21:00:00Z") / 1000;
+    await subs.onInvoicePaid({
+      id: "in_apr_aligned",
+      amount_paid: 4000,
+      amount_due: 4000,
+      period_end: end,
+      parent: { subscription_details: { subscription: "sub_k1" } },
+      lines: { data: [{ period: { end } }] },
+    } as unknown as Stripe.Invoice);
+    expect(planRow("k1").paid_until).toBe("2028-05-01");
+    expect(planRow("k1").billing_paused_until).toBe("2028-10-01");
+    expect(stripeCalls.some((c) => c.kind === "subscriptions.update")).toBe(true);
   });
 
   it("теглене, чийто следващ месец е извън сезона → пауза до следващия сезон", async () => {

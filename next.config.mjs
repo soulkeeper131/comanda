@@ -40,6 +40,13 @@ const nextConfig = {
   // Без сървърна обработка на снимки (/_next/image) — не я ползваме, а
   // оптимизаторът на Next е имал сериозни уязвимости.
   images: { unoptimized: true },
+  experimental: {
+    // Next копира тялото на заявката за middleware и по подразбиране го реже
+    // на 10 MB — снимка от 10 MB + обвивката на формата пристигаше счупена и
+    // връщаше 500 (офлайн опашката тогава спира). Лимитът за снимки е в
+    // middleware.ts (11 MB) и в uploads.ts (10 MB).
+    middlewareClientMaxBodySize: "12mb",
+  },
   // Без ignoreBuildErrors / ignoreDuringBuilds — билдът трябва да се проваля
   // при типова грешка, а не да я крие. Криеше 16, сред тях счупени PDF отчети.
   // src/instrumentation.ts (логване на неприхванати грешки) се зарежда сам от Next 15.
