@@ -10,6 +10,8 @@ export type SessionData = {
   uid: string;
   role: Role;
   org_id: string;
+  /** users.session_version при входа — по-стара бисквитка не важи. */
+  sv?: number;
 };
 
 type Payload = SessionData & { ts: number };
@@ -61,7 +63,7 @@ export function verifySession(token: string): SessionData | null {
     if (typeof payload.ts !== "number") return null;
     if (Date.now() - payload.ts > MAX_AGE_MS) return null;
     if (!payload.uid || !payload.role) return null;
-    return { uid: payload.uid, role: payload.role, org_id: payload.org_id };
+    return { uid: payload.uid, role: payload.role, org_id: payload.org_id, sv: typeof payload.sv === "number" ? payload.sv : 0 };
   } catch {
     return null;
   }

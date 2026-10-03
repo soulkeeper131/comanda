@@ -2,6 +2,7 @@ import webpush from "web-push";
 import { db } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
+import { isAllowedPushEndpoint } from "@/lib/domain/push-endpoint";
 
 export function getVapidKeys() {
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -54,7 +55,13 @@ export async function sendPushToUsers(
     const payload = JSON.stringify({ title, body, url, tag: crypto.randomUUID(), urgent: !!opts.urgent });
     for (const row of subs) {
       try {
-        await webpush.sendNotification(JSON.parse(row.subscription), payload);
+        const sub = JSON.parse(row.subscription);
+        // Само към push услугите на браузърите (виж push-endpoint.ts).
+        if (!isAllowedPushEndpoint(sub?.endpoint)) {
+          db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, row.id)).run();
+          continue;
+        }
+        await webpush.sendNotification(sub, payload);
       } catch (err: any) {
         if (err?.statusCode === 410 || err?.statusCode === 404) {
           db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, row.id)).run();
@@ -68,40 +75,3 @@ export async function sendPushToUsers(
   }
 }
 
-/**
- * Изпраща push нотификация до всички абонирани устройства.
- * Може да се вика директно от API routes (без междинен HTTP call).
- */
-export async function sendPushToAll(title: string, body: string, url: string = "/") {
-  try {
-    ensureWebpushConfigured();
-
-    const subs = db.select().from(pushSubscriptions).all();
-
-    if (subs.length === 0) return;
-
-    const payload = JSON.stringify({ title, body, url });
-
-    for (const row of subs) {
-      try {
-        const subscription = JSON.parse(row.subscription);
-        await webpush.sendNotification(subscription, payload);
-      } catch (err: any) {
-        console.error(`Push failed for subscription ${row.id}:`, err.message || err);
-
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          try {
-            db.delete(pushSubscriptions)
-              .where(eq(pushSubscriptions.id, row.id))
-              .run();
-          } catch (cleanupErr) {
-            console.error("Failed to clean up expired subscription:", cleanupErr);
-          }
-        }
-      }
-    }
-  } catch (error) {
-    // Не fail-ваме основната операция заради push
-    console.error("sendPushToAll error:", error);
-  }
-}

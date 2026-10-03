@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { overrides, jobItems, jobs, properties } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { withAuth, canViewProperty } from "@/lib/auth";
+import { withAuth, canViewProperty, propertyScope } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -78,12 +78,13 @@ export const GET = withAuth({}, async (request, { session }) => {
           ? db.select().from(properties).where(inArray(properties.id, propertyIds)).all()
           : [];
       const propertyById = new Map(relatedProperties.map((p) => [p.id, p]));
+      const scope = propertyScope(session);
 
       rows = rows.filter((o) => {
         const jobId = entityType === "job_checkin" ? o.entity_id : jobIdByItem.get(o.entity_id);
         const propertyId = jobId ? propertyIdByJob.get(jobId) : undefined;
         const property = propertyId ? propertyById.get(propertyId) : undefined;
-        return property ? canViewProperty(session, property) : false;
+        return property ? canViewProperty(session, property, scope) : false;
       });
     }
 

@@ -11,10 +11,10 @@ vi.mock("next/headers", () => ({
 }));
 
 // Базата е заменена с таблица: a1 е админ, останалите — клиенти.
-const dbUsers: Record<string, { active: boolean; role: string }> = {};
+const dbUsers: Record<string, { active: boolean; role: string; sessionVersion: number }> = {};
 vi.mock("./user-state", () => ({
   currentUserState: (uid: string) =>
-    dbUsers[uid] ?? { active: true, role: uid === "a1" ? "admin" : "client" },
+    dbUsers[uid] ?? { active: true, role: uid === "a1" ? "admin" : "client", sessionVersion: 0 },
 }));
 
 describe("withAuth", () => {
@@ -108,7 +108,7 @@ describe("withAuth", () => {
   it("връща 401 за деактивиран потребител с валидна бисквитка", async () => {
     const { withAuth } = await import("./guard");
     const { signSession } = await import("./session");
-    dbUsers["gone"] = { active: false, role: "client" };
+    dbUsers["gone"] = { active: false, role: "client", sessionVersion: 0 };
     cookieValue = signSession({ uid: "gone", role: "client", org_id: "org1" });
     const handler = withAuth({}, async () => Response.json({ ok: true }));
     const res = await handler(new Request("http://localhost/api/x"), { params: {} });
@@ -118,10 +118,23 @@ describe("withAuth", () => {
   it("ролята идва от базата, не от бисквитката", async () => {
     const { withAuth } = await import("./guard");
     const { signSession } = await import("./session");
-    dbUsers["demoted"] = { active: true, role: "client" };
+    dbUsers["demoted"] = { active: true, role: "client", sessionVersion: 0 };
     cookieValue = signSession({ uid: "demoted", role: "admin", org_id: "org1" });
     const handler = withAuth({ role: ["admin"] }, async () => Response.json({ ok: true }));
     const res = await handler(new Request("http://localhost/api/x"), { params: {} });
     expect(res.status).toBe(403);
+  });
+
+  it("отменена сесия (нова парола, изход от всички устройства) не важи", async () => {
+    const { withAuth } = await import("./guard");
+    const { signSession } = await import("./session");
+    dbUsers["moved"] = { active: true, role: "client", sessionVersion: 2 };
+    const handler = withAuth({}, async () => Response.json({ ok: true }));
+    cookieValue = signSession({ uid: "moved", role: "client", org_id: "org1", sv: 1 });
+    expect((await handler(new Request("http://localhost/api/x"), { params: {} })).status).toBe(401);
+    cookieValue = signSession({ uid: "moved", role: "client", org_id: "org1" });
+    expect((await handler(new Request("http://localhost/api/x"), { params: {} })).status).toBe(401);
+    cookieValue = signSession({ uid: "moved", role: "client", org_id: "org1", sv: 2 });
+    expect((await handler(new Request("http://localhost/api/x"), { params: {} })).status).toBe(200);
   });
 });

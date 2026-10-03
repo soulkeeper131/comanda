@@ -93,7 +93,7 @@ export default function SettingsSection({
 
   const backup = async () => {
     setBusy(true);
-    const res = await api<{ filename: string }>("/api/admin/backup");
+    const res = await api<{ filename: string }>("/api/admin/backup", { method: "POST" });
     setBusy(false);
     toast(res.ok ? `Копие на базата: ${res.data.filename}` : res.error, res.ok ? "ok" : "error");
   };

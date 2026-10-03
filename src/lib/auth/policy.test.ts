@@ -22,8 +22,12 @@ describe("canViewProperty", () => {
   it("позволява на админ", () => {
     expect(canViewProperty(admin, property)).toBe(true);
   });
-  it("позволява на инспектор", () => {
-    expect(canViewProperty(inspector, property)).toBe(true);
+  it("инспектор — само възложен имот или имот с негов обход", () => {
+    expect(canViewProperty(inspector, property)).toBe(false);
+    expect(canViewProperty(inspector, { ...property, id: "p1", assigned_inspector_id: "i1" })).toBe(true);
+    expect(canViewProperty(inspector, { ...property, id: "p1", assigned_inspector_id: "i2" })).toBe(false);
+    expect(canViewProperty(inspector, { ...property, id: "p1" }, new Set(["p1"]))).toBe(true);
+    expect(canViewProperty(inspector, { ...property, id: "p2" }, new Set(["p1"]))).toBe(false);
   });
   it("отказва на друг клиент", () => {
     expect(canViewProperty(other, property)).toBe(false);

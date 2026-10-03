@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 
+import { isValidEmail } from "@/lib/domain/email";
 export const dynamic = "force-dynamic";
 
 const ROLES = ["admin", "client", "inspector"] as const;
@@ -66,10 +67,10 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
     const name = typeof body.full_name === "string" ? body.full_name.trim() : "";
     const role = body.role;
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!isValidEmail(email)) {
       return NextResponse.json({ error: "Невалиден имейл" }, { status: 400 });
     }
-    if (!name) return NextResponse.json({ error: "Името е задължително" }, { status: 400 });
+    if (!name || name.length > 100) return NextResponse.json({ error: "Името е задължително (до 100 знака)" }, { status: 400 });
     if (!isRole(role)) return NextResponse.json({ error: "Невалидна роля" }, { status: 400 });
     if (db.select({ id: users.id }).from(users).where(eq(users.email, email)).get()) {
       return NextResponse.json({ error: "Вече има потребител с този имейл" }, { status: 409 });

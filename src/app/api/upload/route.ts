@@ -1,85 +1,26 @@
 import { NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
-import crypto from "crypto";
 import { withAuth } from "@/lib/auth";
-import { recordUpload } from "@/lib/uploads";
+import { saveImageUpload } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
-const UPLOAD_DIR = path.join(process.cwd(), "data", "photos");
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-const ALLOWED_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-];
-
-function getExtension(filename: string): string {
-  const ext = path.extname(filename).toLowerCase();
-  // Map common extensions to canonical ones
-  const map: Record<string, string> = {
-    ".jpg": ".jpg",
-    ".jpeg": ".jpeg",
-    ".png": ".png",
-    ".webp": ".webp",
-    ".gif": ".gif",
-  };
-  return map[ext] || ext || ".jpg";
-}
-
-export const POST = withAuth({}, async (request, { session }) => {
+/**
+ * POST /api/upload — снимка, която после се закача към доказателство,
+ * констатация или оферта (claimUpload). Качват само инспектори и админ;
+ * незакачените се трият след 24 часа.
+ */
+export const POST = withAuth({ role: ["admin", "inspector"] }, async (request, { session }) => {
   try {
     const formData = await request.formData();
     const file = formData.get("file");
-
     if (!file || !(file instanceof File)) {
-      return NextResponse.json(
-        { error: "Липсва файл" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Липсва файл" }, { status: 400 });
     }
-
-    // Check file size
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: "Файлът е твърде голям (макс 10 MB)" },
-        { status: 400 },
-      );
-    }
-
-    // Check file type
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        { error: "Непозволен тип файл. Позволени: JPEG, PNG, WebP, GIF" },
-        { status: 400 },
-      );
-    }
-
-    // Ensure upload directory exists
-    if (!existsSync(UPLOAD_DIR)) {
-      await mkdir(UPLOAD_DIR, { recursive: true });
-    }
-
-    const ext = getExtension(file.name);
-    const filename = `${crypto.randomUUID()}${ext}`;
-    const filepath = path.join(UPLOAD_DIR, filename);
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(filepath, buffer);
-    recordUpload(filename, session.uid);
-
-    return NextResponse.json({
-      url: `/api/photos/${filename}`,
-      id: filename,
-    });
+    const saved = await saveImageUpload(file, session.uid);
+    if (!saved.ok) return NextResponse.json({ error: saved.error }, { status: saved.status });
+    return NextResponse.json({ url: `/api/photos/${saved.filename}`, id: saved.filename });
   } catch (error) {
     console.error("POST /api/upload error:", error);
-    return NextResponse.json(
-      { error: "Грешка при качване на файл" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Грешка при качване на файл" }, { status: 500 });
   }
 });

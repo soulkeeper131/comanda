@@ -1,4 +1,4 @@
-import { withAuth, getUser } from "@/lib/auth";
+import { withAuth, getUser, revokeSessions, sessionFor, setSession } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -50,8 +50,8 @@ export const PATCH = withAuth({}, async (request, { session }) => {
   }
 
   if (body.new_password !== undefined) {
-    if (typeof body.new_password !== "string" || body.new_password.length < 8) {
-      return NextResponse.json({ error: "Новата парола е поне 8 знака" }, { status: 400 });
+    if (typeof body.new_password !== "string" || body.new_password.length < 8 || body.new_password.length > 200) {
+      return NextResponse.json({ error: "Новата парола е от 8 до 200 знака" }, { status: 400 });
     }
     const ok = typeof body.current_password === "string" && (await bcrypt.compare(body.current_password, user.password_hash));
     if (!ok) return NextResponse.json({ error: "Текущата парола не е вярна" }, { status: 400 });
@@ -64,6 +64,9 @@ export const PATCH = withAuth({}, async (request, { session }) => {
   updates.updated_at = new Date().toISOString();
   db.update(users).set(updates).where(eq(users.id, session.uid)).run();
   if (updates.password_hash) {
+    // Другите устройства (и откраднати бисквитки) излизат; това остава влязло.
+    revokeSessions(user.id);
+    await setSession(sessionFor(user, session.org_id));
     await notify("account_password_changed", { emailTo: user.email, vars: { email: user.email } });
   }
   return NextResponse.json({ success: true });

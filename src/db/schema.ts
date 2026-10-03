@@ -38,6 +38,12 @@ export const users = sqliteTable("users", {
   terms_accepted_at: text("terms_accepted_at"),
   terms_version: text("terms_version"),
   stripe_customer_id: text("stripe_customer_id"),
+  // Версия на сесиите: смяна на паролата или „Изход от всички устройства"
+  // я вдига и всички стари бисквитки спират да важат.
+  session_version: integer("session_version").notNull().default(0),
+  // Защита от отгатване на паролата: след 5 грешни опита — заключване.
+  failed_logins: integer("failed_logins").notNull().default(0),
+  locked_until: text("locked_until"),
   created_at: text("created_at").default(sql`(datetime('now'))`),
   updated_at: text("updated_at").default(sql`(datetime('now'))`),
 });

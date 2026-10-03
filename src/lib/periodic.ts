@@ -10,6 +10,7 @@ import { bankReference, formatDateOnly } from "@/lib/format";
 import { addDays, daysOverdue, SUSPEND_AFTER_DAYS, unpaidFrom } from "@/lib/domain/plans";
 import { dueOfferReminder, duePaymentReminder, offerPrepay } from "@/lib/domain/offers";
 import { getPrepayThreshold } from "@/lib/settings";
+import { cleanupOrphanUploads } from "@/lib/uploads";
 
 /** Изтекли оферти → "expired"; констатацията пак може да поиска оферта. Клиентът и екипът знаят. */
 export async function expireOffers(now = new Date()): Promise<number> {
@@ -241,6 +242,7 @@ export type PeriodicResult = {
   plan_overdue_reminders: number;
   plans_suspended: number;
   season_pauses: number;
+  orphan_uploads_removed: number;
 };
 
 /** Един скрипт: генериране, изтичане, напомняния, преводи за абонаментите. */
@@ -255,6 +257,7 @@ export async function runPeriodic(now = new Date()): Promise<PeriodicResult> {
   const overdue = await remindOverduePlans(today);
   const suspended = await suspendOverduePlans(today);
   const pauses = await syncSeasonPauses(today);
+  const orphanUploads = await cleanupOrphanUploads(now);
   // За панела „Готовност": кога периодичните задачи са минали за последно.
   setSetting("periodic_last_run", new Date().toISOString());
   return {
@@ -269,5 +272,6 @@ export async function runPeriodic(now = new Date()): Promise<PeriodicResult> {
     plan_overdue_reminders: overdue,
     plans_suspended: suspended,
     season_pauses: pauses,
+    orphan_uploads_removed: orphanUploads,
   };
 }

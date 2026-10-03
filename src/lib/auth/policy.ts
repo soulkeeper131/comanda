@@ -9,12 +9,22 @@ export function isAdmin(session: SessionData): boolean {
   return session.role === "admin";
 }
 
-/** Имот се вижда от собственика, от админ и от инспектор (обхожда го). */
+/**
+ * Имот (адрес, кодове за вход, снимки) се вижда от собственика, от админ и
+ * от инспектор — но само ако имотът е възложен на него или там има негов
+ * обход (`inspectorScope`, виж access.ts). Иначе кодовете за вход на всички
+ * клиенти са на един изтекъл инспекторски акаунт разстояние.
+ */
 export function canViewProperty(
   session: SessionData,
-  property: { owner_id: string },
+  property: { id?: string; owner_id: string; assigned_inspector_id?: string | null },
+  inspectorScope?: ReadonlySet<string>,
 ): boolean {
-  if (session.role === "admin" || session.role === "inspector") return true;
+  if (session.role === "admin") return true;
+  if (session.role === "inspector") {
+    if (property.assigned_inspector_id && property.assigned_inspector_id === session.uid) return true;
+    return Boolean(property.id && inspectorScope?.has(property.id));
+  }
   return session.role === "client" && property.owner_id === session.uid;
 }
 

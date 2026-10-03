@@ -36,7 +36,9 @@ export function withAuth(options: AuthOptions, handler: Handler) {
     const token = raw ? verifySession(raw) : null;
     const state = token ? currentUserState(token.uid) : null;
 
-    if (!token || !state || !state.active) {
+    // Деактивиран профил или отменени сесии (нова парола, „изход от всички
+    // устройства") — бисквитката вече не важи, макар да не е изтекла.
+    if (!token || !state || !state.active || (token.sv ?? 0) !== state.sessionVersion) {
       return NextResponse.json({ error: "Не сте влезли" }, { status: 401 });
     }
 

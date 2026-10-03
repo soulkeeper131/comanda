@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { isValidEmail } from "@/lib/domain/email";
 
 const PLAN_NAMES: Record<string, string> = { year: "Пълен надзор", winter: "Зимен сезон", summer: "Летен сезон" };
 
@@ -37,7 +38,7 @@ function RegisterForm() {
 
   const validate = (): string | null => {
     if (!name.trim()) return "Името е задължително";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Невалиден имейл адрес";
+    if (!isValidEmail(email.trim().toLowerCase())) return "Невалиден имейл адрес";
     if (password.length < 8) return "Паролата трябва да е поне 8 символа";
     if (password !== confirmPassword) return "Паролите не съвпадат";
     if (!acceptTerms) return "Необходимо е съгласие с Общите условия и Политиката за поверителност";

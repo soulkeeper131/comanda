@@ -4,7 +4,7 @@ import path from "path";
 import { db } from "@/db";
 import { properties } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { withAuth, canViewProperty } from "@/lib/auth";
+import { withAuth, canAccessProperty } from "@/lib/auth";
 import { propertyIdForPhoto } from "@/lib/domain/photos";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +47,7 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
       .where(eq(properties.id, propertyId))
       .get();
 
-    if (!property || !canViewProperty(session, property)) {
+    if (!property || !canAccessProperty(session, property)) {
       // 404, не 403 — не издаваме, че снимката съществува
       return NextResponse.json(
         { error: "Файлът не е намерен" },

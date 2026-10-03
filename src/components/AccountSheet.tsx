@@ -155,9 +155,23 @@ export default function AccountSheet({ open, onClose }: { open: boolean; onClose
             variant="secondary"
             fullWidth
             disabled={busy || !pw.current_password || pw.new_password.length < 8}
-            onClick={() => save(pw, "Паролата е сменена")}
+            onClick={() => save(pw, "Паролата е сменена — другите устройства излизат от профила")}
           >
             Смени паролата
+          </Button>
+          <Button
+            variant="ghost"
+            fullWidth
+            disabled={busy}
+            onClick={async () => {
+              if (!confirm("Изход от профила на всички други устройства (телефони, компютри)? Това устройство остава влязло.")) return;
+              setBusy(true);
+              const res = await fetch("/api/me/logout-all", { method: "POST" }).catch(() => null);
+              setBusy(false);
+              setMsg(res?.ok ? { text: "Излязохте от всички други устройства", ok: true } : { text: "Не стана — опитайте пак", ok: false });
+            }}
+          >
+            Изход от всички други устройства
           </Button>
         </div>
 

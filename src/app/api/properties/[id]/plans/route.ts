@@ -15,7 +15,7 @@ import { formatEur } from "@/lib/mail-layout";
 export const dynamic = "force-dynamic";
 
 // GET /api/properties/[id]/plans — абонаментите на имота (най-новият първи)
-export const GET = withAuth({}, async (_request, { session, params }) => {
+export const GET = withAuth({ role: ["admin", "client"] }, async (_request, { session, params }) => {
   try {
     const prop = db.select().from(properties).where(eq(properties.id, params.id)).get();
     if (!prop || !canViewProperty(session, prop)) {

@@ -1,7 +1,7 @@
 # Ко Манда — production Dockerfile (Next.js standalone)
 
 ARG CACHE_BUST=20260805-2
-FROM node:20 AS build
+FROM node:22 AS build
 WORKDIR /app
 
 RUN echo "Cache bust: ${CACHE_BUST}"
@@ -18,7 +18,7 @@ RUN echo "Cache bust: ${CACHEBUST}"
 RUN mkdir -p /app/data
 RUN npm run build
 
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 WORKDIR /app
 
 # sqlite3 — за scripts/backup-db.sh: коректно копие при WAL режим

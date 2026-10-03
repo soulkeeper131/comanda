@@ -26,11 +26,28 @@ function getLimit(pathname: string): number {
     pathname === "/api/auth/forgot" ||
     pathname === "/api/auth/resend-verification" ||
     pathname === "/api/auth/reset" ||
-    pathname === "/api/auth/verify"
+    pathname === "/api/auth/verify" ||
+    // Публичната форма праща имейли до въведения адрес и до целия екип.
+    pathname === "/api/inquiries"
   ) {
     return 5;
   }
   return 60;
+}
+
+/**
+ * Ключът за лимита: IPv4 адресът, а при IPv6 — мрежата /64. Един абонат
+ * получава цяла /64 и иначе сменя адреса си при всеки опит.
+ */
+export function ipKey(ip: string): string {
+  const v = ip.trim().toLowerCase();
+  if (!v.includes(":")) return v;
+  if (v.startsWith("::ffff:") && v.includes(".")) return v.slice(7); // IPv4 през IPv6
+  const [head, tail] = v.split("::");
+  const h = head ? head.split(":") : [];
+  const t = tail !== undefined && tail ? tail.split(":") : [];
+  const groups = tail !== undefined ? [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t] : h;
+  return `${groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "") || "0").join(":")}::/64`;
 }
 
 /**
@@ -60,7 +77,7 @@ export function checkRateLimit(request: Request, pathname: string): {
   remaining: number;
   reset: number; // ms until reset
 } {
-  const ip = getIP(request);
+  const ip = ipKey(getIP(request));
   const key = `${ip}:${pathname}`;
   const now = Date.now();
   const limit = getLimit(pathname);

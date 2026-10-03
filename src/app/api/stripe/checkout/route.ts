@@ -183,14 +183,9 @@ export const POST = withAuth({ role: ["client"] }, async (request, { session }) 
       sessionId: stripeSession.id,
       paymentId,
     });
-  } catch (error: any) {
+  } catch (error) {
+    // Подробностите — в лога; на клиента — без вътрешни съобщения на Stripe.
     console.error("[stripe/checkout] Error:", error);
-    return NextResponse.json(
-      {
-        error:
-          "Грешка при създаване на Stripe сесия: " + (error.message || ""),
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Плащането с карта не можа да започне — опитайте пак след малко" }, { status: 500 });
   }
 });

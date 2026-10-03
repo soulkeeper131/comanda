@@ -57,6 +57,13 @@
       "when": 1791054323170,
       "tag": "0007_seasons_suspension",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1791055893165,
+      "tag": "0008_auth_hardening",
+      "breakpoints": true
     }
   ]
 }

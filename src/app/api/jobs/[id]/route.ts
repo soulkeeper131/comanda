@@ -49,8 +49,9 @@ export const GET = withAuth({}, async (_request, { session, params }) => {
     }
 
     const property = db.select().from(properties).where(eq(properties.id, job.property_id)).get();
-    const foreignForInspector = session.role === "inspector" && job.assignee_id !== session.uid;
-    if (!property || !canViewProperty(session, property) || foreignForInspector) {
+    // Инспекторът вижда своя обход (и имота му), независимо на кого е имотът.
+    const allowed = session.role === "inspector" ? job.assignee_id === session.uid : canViewProperty(session, property ?? { owner_id: "" });
+    if (!property || !allowed) {
       // 404, не 403 — не издаваме, че задачата съществува
       return NextResponse.json({ error: "Задачата не е намерена" }, { status: 404 });
     }

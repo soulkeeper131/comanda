@@ -1,0 +1,11 @@
+# Само каквото трябва за билда — без тайни, локална база и история.
+.git
+.env
+.env.*
+!.env.example
+node_modules
+.next
+data
+coverage
+*.log
+.DS_Store

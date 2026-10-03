@@ -48,7 +48,8 @@ export const GET = withAuth({}, async (request, { session }) => {
       .where(eq(jobs.id, effectiveJobId))
       .get();
 
-    if (!job || (session.role === "inspector" && job.assignee_id && job.assignee_id !== session.uid)) {
+    // Инспекторът — само доказателствата от своя обход.
+    if (!job || (session.role === "inspector" && job.assignee_id !== session.uid)) {
       return NextResponse.json(
         { error: "Задачата не е намерена" },
         { status: 404 }
@@ -61,7 +62,7 @@ export const GET = withAuth({}, async (request, { session }) => {
       .where(eq(properties.id, job.property_id))
       .get();
 
-    if (!property || !canViewProperty(session, property)) {
+    if (!property || (session.role !== "inspector" && !canViewProperty(session, property))) {
       // 404, не 403 — не издаваме, че задачата съществува
       return NextResponse.json(
         { error: "Задачата не е намерена" },

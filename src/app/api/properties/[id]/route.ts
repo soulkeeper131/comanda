@@ -3,7 +3,7 @@ import { properties, users, plans, jobs } from "@/db/schema";
 import { and, eq, gte, inArray } from "drizzle-orm";
 import { todaySofia } from "@/lib/jobs-generator";
 import { NextResponse } from "next/server";
-import { withAuth, canViewProperty, isAdmin } from "@/lib/auth";
+import { withAuth, canAccessProperty, canViewProperty, isAdmin } from "@/lib/auth";
 import { notify, propertyLink } from "@/lib/messages";
 import { normalizeOverrideReason } from "@/lib/domain/overrides";
 
@@ -14,7 +14,7 @@ const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : nul
 // GET /api/properties/[id]
 export const GET = withAuth({}, async (_request, { session, params }) => {
   const property = db.select().from(properties).where(eq(properties.id, params.id)).get();
-  if (!property || !canViewProperty(session, property)) {
+  if (!property || !canAccessProperty(session, property)) {
     return NextResponse.json({ error: "Имотът не е намерен" }, { status: 404 });
   }
   return NextResponse.json(property);

@@ -3,7 +3,7 @@ import { properties, jobs, findings, users } from "@/db/schema";
 import { eq, and, lt, inArray } from "drizzle-orm";
 import { notify } from "@/lib/messages";
 import { todaySofia } from "@/lib/jobs-generator";
-import { withAuth, canViewProperty } from "@/lib/auth";
+import { withAuth, canViewProperty, propertyScope } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -11,14 +11,15 @@ export const dynamic = "force-dynamic";
 export const GET = withAuth({}, async (_request, { session }) => {
   try {
     // Изтегляме всички неархивирани имоти, после филтрираме през canViewProperty
-    // (admin/inspector виждат всичко, client — само своите).
+    // (админ — всичко, клиент — своите, инспектор — възложените и с негов обход).
+    const scope = propertyScope(session);
     const all = db.select().from(properties)
       .where(eq(properties.archived, false))
       .all();
     // Инспекторът работи само по одобрени имоти; клиентът вижда своите
     // (и чакащите одобрение — с етикет), админът — всичко.
     const result = all
-      .filter((p) => canViewProperty(session, p))
+      .filter((p) => canViewProperty(session, p, scope))
       .filter((p) => session.role !== "inspector" || p.status === "active");
 
     const ownerIds = Array.from(new Set(result.map((p) => p.owner_id)));

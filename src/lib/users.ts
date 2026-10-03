@@ -16,16 +16,51 @@ export type User = {
   billing_address?: string;
 };
 
-/** Query the DB for a user by email and verify password */
-export async function validateUser(email: string, password: string): Promise<User | null> {
+/** След толкова поредни грешни пароли профилът се заключва за малко. */
+export const LOCK_AFTER_FAILURES = 5;
+const LOCK_MINUTES = 15;
+// За непознат имейл също се сравнява хеш — иначе по времето за отговор
+// личи кои адреси имат профил.
+const DUMMY_HASH = "$2b$10$N2o1Ylxc2CxcWV/V0sBdp.SUIGehJD.4GiNSuLSsBNyS4BASpqYPC";
+
+export type LoginResult =
+  | { ok: true; user: User }
+  | { ok: false; reason: "invalid" }
+  | { ok: false; reason: "locked"; minutes: number };
+
+/**
+ * Проверка на имейл и парола. След всеки 5 поредни грешни опита профилът се
+ * заключва — 15 минути, после 30, 45… (до денонощие); успешен вход или нова
+ * парола нулират брояча. Така отгатването с много адреси не помага.
+ */
+export async function validateUser(email: string, password: string, now = new Date()): Promise<LoginResult> {
   const row = db.select().from(users).where(eq(users.email, email)).get();
-  if (!row) return null;
-  if (!row.active) return null;
+  if (!row) {
+    await bcrypt.compare(password, DUMMY_HASH);
+    return { ok: false, reason: "invalid" };
+  }
+  const lockedFor = row.locked_until ? Date.parse(row.locked_until) - now.getTime() : 0;
+  if (lockedFor > 0) return { ok: false, reason: "locked", minutes: Math.ceil(lockedFor / 60_000) };
 
   const ok = await bcrypt.compare(password, row.password_hash);
-  if (!ok) return null;
+  if (!ok) {
+    const failed = (row.failed_logins ?? 0) + 1;
+    const lock = failed % LOCK_AFTER_FAILURES === 0;
+    const minutes = Math.min((failed / LOCK_AFTER_FAILURES) * LOCK_MINUTES, 24 * 60);
+    db.update(users)
+      .set({ failed_logins: failed, ...(lock ? { locked_until: new Date(now.getTime() + minutes * 60_000).toISOString() } : {}) })
+      .where(eq(users.id, row.id))
+      .run();
+    return lock ? { ok: false, reason: "locked", minutes } : { ok: false, reason: "invalid" };
+  }
+  if (!row.active) return { ok: false, reason: "invalid" };
+  if (row.failed_logins || row.locked_until) {
+    db.update(users).set({ failed_logins: 0, locked_until: null }).where(eq(users.id, row.id)).run();
+  }
 
   return {
+    ok: true,
+    user: {
     id: row.id,
     email: row.email,
     name: row.full_name ?? "",
@@ -36,6 +71,7 @@ export async function validateUser(email: string, password: string): Promise<Use
     eik: row.eik ?? undefined,
     vat_number: row.vat_number ?? undefined,
     billing_address: row.billing_address ?? undefined,
+    },
   };
 }
 
