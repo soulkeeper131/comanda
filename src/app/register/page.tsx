@@ -13,7 +13,8 @@ function RegisterForm() {
   const plan = searchParams.get("plan") || "";
   // Пакетът от началната страница се помни до избора след одобрението на
   // имота (цената идва от каталога тогава, не се показва тук твърдо).
-  const planName = PLAN_NAMES[plan] ?? "";
+  // Старите връзки (year/winter/summer) и новите — с името на пакета от каталога.
+  const planName = PLAN_NAMES[plan] ?? (plan.length <= 80 ? plan : "");
   useEffect(() => {
     if (!planName) return;
     try {

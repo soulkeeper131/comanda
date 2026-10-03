@@ -159,6 +159,7 @@ export type CatalogPackage = {
   active_from: string | null;
   active_to: string | null;
   archived: boolean | null;
+  sort: number | null;
   in_season: boolean;
   items: CatalogItem[];
 };
@@ -168,6 +169,8 @@ export type ServiceTemplate = {
   name: string;
   category: string;
   archived: boolean | null;
+  /** Точките от чек-листа (идват с /api/templates) — за обобщението в пакета. */
+  items?: { season: string | null }[];
 };
 
 export type AdminPayment = {

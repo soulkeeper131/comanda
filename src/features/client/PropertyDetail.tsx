@@ -10,6 +10,7 @@ import LastVisitSection from "./LastVisitSection";
 import UpcomingSection from "./UpcomingSection";
 import FindingsSection from "./FindingsSection";
 import SubscriptionSection from "./SubscriptionSection";
+import GettingStarted from "./GettingStarted";
 import HistorySection from "./HistorySection";
 import { getOr } from "./api";
 import { parseDate, todayKey } from "./format";
@@ -125,6 +126,14 @@ export default function PropertyDetail({ property, onBack, onPropertyChanged, fo
         </div>
       )}
 
+      <GettingStarted
+        property={property}
+        plan={livePlan}
+        hasReport={completed.length > 0}
+        onChoosePlan={() => setShowPlanSelector(true)}
+        onGoToSubscription={() => document.getElementById("subscription")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+      />
+
       <LastVisitSection job={completed[0] ?? null} />
 
       <UpcomingSection
@@ -146,18 +155,20 @@ export default function PropertyDetail({ property, onBack, onPropertyChanged, fo
         }}
       />
 
-      <SubscriptionSection
-        plan={livePlan}
-        approval={property.approval_status}
-        nextJob={nextPlanned}
-        served={!!livePlan && completed.some((j) => j.plan_id === livePlan.id)}
-        onChoose={() => setShowPlanSelector(true)}
-        onChanged={(msg) => {
-          showToast(msg);
-          loadPlans();
-          loadJobs();
-        }}
-      />
+      <div id="subscription" className="scroll-mt-4">
+        <SubscriptionSection
+          plan={livePlan}
+          approval={property.approval_status}
+          nextJob={nextPlanned}
+          served={!!livePlan && completed.some((j) => j.plan_id === livePlan.id)}
+          onChoose={() => setShowPlanSelector(true)}
+          onChanged={(msg) => {
+            showToast(msg);
+            loadPlans();
+            loadJobs();
+          }}
+        />
+      </div>
 
       <ExtraServicesSection
         propertyId={propertyId}

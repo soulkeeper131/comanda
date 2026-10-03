@@ -15,6 +15,8 @@ export type PackageInput = {
   list_price: number | null;
   active_from: string | null;
   active_to: string | null;
+  /** Ред в каталога (1 = първи); без него — не се мени. */
+  sort?: number;
   items: PackageItemInput[];
 };
 
@@ -70,9 +72,16 @@ export function parsePackageInput(body: unknown): Result {
     return { ok: false, error: "Всяка услуга може да е в пакета само веднъж" };
   }
 
+  let sort: number | undefined;
+  if (b.sort !== undefined && b.sort !== null && b.sort !== "") {
+    sort = Number(b.sort);
+    if (!Number.isInteger(sort) || sort < 0 || sort > 999) return { ok: false, error: "Редът в каталога е число от 0 до 999" };
+  }
+
   return {
     ok: true,
     value: {
+      ...(sort !== undefined ? { sort } : {}),
       name,
       description: typeof b.description === "string" && b.description.trim() ? b.description.trim() : null,
       per_month: perMonth,

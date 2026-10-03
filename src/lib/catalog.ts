@@ -250,11 +250,12 @@ const SEASONAL_STEPS: StepDef[] = [
   ["Вход", "Пощенска кутия — пощата е прибрана", "photo", false, "all"],
   ["Общо", "Показания на водомер и електромер", "photo", false, "all"],
   ["Общо", "Проветряване — 10 минути, после прозорците са затворени", "none", true, "all"],
+  ["Общо", "Сифони — пусната вода във всички, без миризма", "none", true, "all"],
   ["Общо", "Стени и ъгли — без влага и мухъл", "photo", true, "winter"],
-  ["Общо", "Отоплението работи в режим против замръзване", "photo", false, "winter"],
+  ["Общо", "Отопление — работи в режим против замръзване", "photo", false, "winter"],
   ["Баня", "Тръби в студени помещения — без лед и пукнатини", "photo", false, "winter"],
   ["Отвън", "Покрив и улуци — без натрупан сняг и лед", "photo", false, "winter"],
-  ["Общо", "Без следи от гризачи, насекоми и гнезда", "none", true, "summer"],
+  ["Общо", "Вредители — без следи от гризачи, насекоми и гнезда", "none", true, "summer"],
   ["Отвън", "Тераса и балкон — отводняването е свободно", "photo", false, "summer"],
   ["Отвън", "Двор — общ изглед, растенията, поливането", "photo", false, "summer"],
   ["Общо", "Климатик — пробно пускане, без теч", "photo", false, "summer"],
@@ -408,4 +409,41 @@ export function upgradeCatalog() {
     }
     setSetting("catalog_version", String(CATALOG_VERSION));
   });
+}
+
+export type BookableService = {
+  id: string;
+  name: string;
+  category: string;
+  description: string | null;
+  price: number;
+  duration_min: number | null;
+};
+
+/**
+ * Услугите, които клиентът заявява еднократно (и сайтът показва): пуснати,
+ * със цена. Първо тези от сайта, в техния ред; после останалите.
+ */
+export function loadBookableServices(): BookableService[] {
+  ensureDefaultCatalog();
+  const rows = db
+    .select({
+      id: serviceTemplates.id,
+      name: serviceTemplates.name,
+      category: serviceTemplates.category,
+      description: serviceTemplates.description,
+      price: serviceTemplates.price,
+      duration_min: serviceTemplates.duration_min,
+    })
+    .from(serviceTemplates)
+    .where(and(eq(serviceTemplates.archived, false), eq(serviceTemplates.bookable, true)))
+    .orderBy(asc(serviceTemplates.created_at))
+    .all()
+    .filter((t) => Number(t.price) > 0)
+    .map((t) => ({ ...t, price: Number(t.price) }));
+  const rank = (name: string) => {
+    const i = EXTRA_SERVICES.findIndex((d) => d.name === name);
+    return i === -1 ? EXTRA_SERVICES.length : i;
+  };
+  return rows.sort((a, b) => rank(a.name) - rank(b.name));
 }

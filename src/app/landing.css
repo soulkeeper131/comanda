@@ -1,0 +1,452 @@
+/* ============ НАЧАЛНА СТРАНИЦА — допълнения към l-* в globals.css ============ */
+
+.l-nav .brand img {
+  height: 52px;
+  width: auto;
+  display: block;
+}
+
+.l-nav-btn {
+  padding: 10px 16px;
+  font-size: 14.5px;
+  min-height: 44px;
+}
+
+@media (max-width: 420px) {
+  .l-nav .brand img {
+    height: 40px;
+  }
+  .l-nav-btn {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+}
+
+/* ---- Hero: текст + пример за отчет ---- */
+.l-hero-grid {
+  position: relative;
+  display: grid;
+  gap: 40px;
+  align-items: center;
+}
+
+.l-hero-grid .l-hero-text {
+  text-align: center;
+}
+
+.l-hero-grid .l-cta {
+  justify-content: center;
+}
+
+@media (min-width: 960px) {
+  .l-hero-grid {
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 56px;
+  }
+  .l-hero-grid .l-hero-text {
+    text-align: left;
+  }
+  .l-hero-grid .l-sub {
+    margin-left: 0;
+  }
+  .l-hero-grid .l-cta {
+    justify-content: flex-start;
+  }
+}
+
+.l-mock {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  box-shadow: 0 30px 60px -20px rgba(0, 100, 148, 0.35), var(--sh-2);
+  padding: 18px;
+  position: relative;
+}
+
+.l-mock::before {
+  content: "";
+  position: absolute;
+  inset: -14px -14px auto auto;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(166, 99, 204, 0.25), transparent 70%);
+  z-index: -1;
+}
+
+.l-mock-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 4px 14px;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.l-mock-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.l-mock-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 3px;
+}
+
+.l-mock-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin-top: 4px;
+}
+
+.l-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.l-chip-ok {
+  background: rgba(16, 185, 129, 0.12);
+  color: #0f8a62;
+}
+
+.l-mock-rows {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0 0;
+}
+
+.l-mock-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 4px;
+}
+
+.l-mock-row + .l-mock-row {
+  border-top: 1px dashed var(--line-2);
+}
+
+.l-mock-tick {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--s-green);
+  color: #fff;
+}
+
+.l-mock-row .t {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+.l-mock-row .z {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.l-mock-photo {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.l-ph1 { background: linear-gradient(135deg, #8fb8c9, #4d7f96); }
+.l-ph2 { background: linear-gradient(135deg, #a7c4b5, #5e8a74); }
+.l-ph3 { background: linear-gradient(135deg, #c9b8a7, #8f7660); }
+.l-ph4 { background: linear-gradient(135deg, #b5b9c9, #6b7091); }
+.l-ph5 { background: linear-gradient(135deg, #9fc4d9, #3f88b0); }
+
+.l-mock-finding {
+  margin-top: 10px;
+  border-radius: 16px;
+  background: #fff7e8;
+  border: 1px solid #fde3b4;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.l-mock-finding .i {
+  flex: none;
+  color: #d97706;
+}
+
+.l-mock-finding .t {
+  flex: 1;
+  font-size: 13px;
+  color: #7a4a06;
+  line-height: 1.35;
+}
+
+.l-mock-finding .b {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(140deg, #1b98e0, #006494);
+  border-radius: 10px;
+  padding: 7px 10px;
+}
+
+.l-mock-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 12px 4px 2px;
+}
+
+/* ---- Как работи ---- */
+.l-how {
+  display: grid;
+  gap: 14px;
+  margin-top: 30px;
+  counter-reset: how;
+}
+
+@media (min-width: 760px) {
+  .l-how {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.l-how-step {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 22px 20px 20px;
+  box-shadow: var(--sh-1);
+}
+
+.l-how-step .ic {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.l-how-step .n {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  font-size: 34px;
+  font-weight: 760;
+  letter-spacing: -0.04em;
+  color: var(--line);
+  line-height: 1;
+}
+
+.l-how-step h4 {
+  font-size: 16.5px;
+  margin-top: 14px;
+}
+
+.l-how-step p {
+  font-size: 14px;
+  color: var(--ink-2);
+  line-height: 1.55;
+  margin-top: 6px;
+}
+
+/* ---- Пакетите ---- */
+.l-sub-feats li.l-sub-season {
+  font-weight: 600;
+}
+
+.l-sub-extra {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 13.5px;
+  opacity: 0.92;
+  line-height: 1.5;
+}
+
+.l-sub-extra div + div {
+  margin-top: 4px;
+}
+
+.l-pkg-note {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin-top: 18px;
+  text-align: center;
+}
+
+/* ---- Допълнителни услуги ---- */
+.l-svcs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.l-svc {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--sh-1);
+}
+
+.l-svc .ic {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.l-svc h4 {
+  font-size: 15.5px;
+  margin-top: 12px;
+}
+
+.l-svc p {
+  font-size: 13.5px;
+  color: var(--ink-2);
+  line-height: 1.5;
+  margin-top: 6px;
+  flex: 1;
+}
+
+.l-svc .price {
+  margin-top: 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.l-svc .price .v {
+  font-size: 22px;
+  font-weight: 740;
+  letter-spacing: -0.03em;
+  color: var(--accent-ink);
+}
+
+.l-svc .price .u {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.l-svc-alt {
+  border-style: dashed;
+  border-color: rgba(166, 99, 204, 0.45);
+  background: rgba(166, 99, 204, 0.06);
+  box-shadow: none;
+}
+
+.l-svc-alt .ic {
+  background: rgba(166, 99, 204, 0.14);
+  color: #7b3fa3;
+}
+
+/* ---- Въпроси ---- */
+.l-faq {
+  margin-top: 26px;
+  display: grid;
+  gap: 10px;
+}
+
+.l-faq details {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 0 18px;
+}
+
+.l-faq summary {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  font-weight: 650;
+  font-size: 15.5px;
+  color: var(--ink);
+  list-style: none;
+}
+
+.l-faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.l-faq summary .chev {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+
+.l-faq details[open] summary .chev {
+  transform: rotate(180deg);
+}
+
+.l-faq details p {
+  padding: 0 0 16px;
+  font-size: 14.5px;
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .l-faq summary .chev,
+  .l-btn {
+    transition: none;
+  }
+}
+
+/* Четирите числа под заглавието — 2×2, за да не остане една сама на ред. */
+.l-hero-grid .l-strip {
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: 36px;
+}
+
+.l-hero-grid .l-h1 {
+  font-size: clamp(34px, 5.4vw, 54px);
+}
+
+@media (max-width: 520px) {
+  .l-hero-grid .l-cta .l-btn {
+    width: 100%;
+    max-width: 320px;
+  }
+}

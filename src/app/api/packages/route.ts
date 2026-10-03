@@ -35,7 +35,13 @@ export const POST = withAuth({ role: ["admin"] }, async (request, { session }) =
     }
 
     const pkg = db.transaction((tx) => {
-      const [created] = tx.insert(packages).values({ ...fields, org_id: session.org_id }).returning().all();
+      // Нов пакет без ред — най-отзад в каталога, не преди съществуващите.
+      const last = tx.select({ sort: packages.sort }).from(packages).all().reduce((m, p) => Math.max(m, p.sort ?? 0), 0);
+      const [created] = tx
+        .insert(packages)
+        .values({ ...fields, sort: fields.sort ?? last + 1, org_id: session.org_id })
+        .returning()
+        .all();
       items.forEach((item, i) => {
         tx.insert(packageItems).values({ ...item, package_id: created.id, sort: i + 1 }).run();
       });
