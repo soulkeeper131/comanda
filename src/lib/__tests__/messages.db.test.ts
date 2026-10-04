@@ -56,6 +56,11 @@ describe("render и промени от админа", () => {
     expect(m.render("Здравейте, {{name}}!", { name: "" })).toBe("Здравейте,!");
   });
 
+  it("дата в края на изречението — без двойна точка", () => {
+    expect(m.render("Платено до {{d}}.", { d: "03.11.2026 г." })).toBe("Платено до 03.11.2026 г.");
+    expect(m.render("До {{d}}, после спира.", { d: "03.11.2026 г." })).toBe("До 03.11.2026 г., после спира.");
+  });
+
   it("промененият текст се ползва; празното поле връща подразбиращия се", () => {
     m.saveOverride("property_approved", { title: "Готово: {{property}}", email: false });
     const e = m.effective("property_approved");

@@ -71,6 +71,8 @@ export function render(template: string, vars: Vars): string {
       return v === null || v === undefined ? "" : String(v);
     })
     .replace(/[ \t]+([,.;:!?])/g, "$1")
+    // Дата „03.11.2026 г." в края на изречение → без втора точка.
+    .replace(/(\sг)\.\./g, "$1.")
     .replace(/ {2,}/g, " ")
     .trim();
 }
