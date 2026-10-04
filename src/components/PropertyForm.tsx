@@ -87,7 +87,9 @@ export default function PropertyForm({
           setSearchError(json.error ?? "Търсенето не успя");
           setSuggestions([]);
         } else {
-          setSuggestions(json.results ?? []);
+          // Nominatim често връща един и същ адрес няколко пъти.
+          const seen = new Set<string>();
+          setSuggestions(((json.results ?? []) as AddressHit[]).filter((h) => !seen.has(h.label) && !!seen.add(h.label)));
           if ((json.results ?? []).length === 0) {
             setSearchError("Няма намерени адреси. Опитайте с по-малко детайли.");
           }
@@ -150,11 +152,21 @@ export default function PropertyForm({
   };
 
   return (
-    <Sheet open onClose={onClose} placement="center" className="max-h-[90dvh] overflow-y-auto">
-      <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-brand-dark">
-        <Icon name={initial ? "edit" : "plus"} size={20} />
-        {title}
-      </h3>
+    <Sheet open onClose={onClose} placement="center">
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-lg font-bold text-brand-dark">
+          <Icon name={initial ? "edit" : "plus"} size={20} />
+          {title}
+        </h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-brand-bg"
+          aria-label="Затвори"
+        >
+          <Icon name="x" size={22} />
+        </button>
+      </div>
       <form onSubmit={handleSubmit} className="space-y-3">
         <Input
           type="text"
@@ -195,10 +207,9 @@ export default function PropertyForm({
           )}
 
           {!picked && suggestions.length > 0 && (
-            <ul
-              className="absolute z-10 mt-1 w-full overflow-hidden rounded-card border border-line bg-white shadow-card-2"
-              role="listbox"
-            >
+            // В потока на формата, не върху следващите полета — на телефона
+            // падащото меню закриваше полетата и бутоните.
+            <ul className="mt-1 w-full overflow-hidden rounded-card border border-line bg-white shadow-card-1" role="listbox">
               {suggestions.map((hit, i) => (
                 <li key={`${hit.lat}-${hit.lng}-${i}`}>
                   <button
@@ -258,7 +269,7 @@ export default function PropertyForm({
         {submitError && (
           <p className="rounded-card bg-state-danger/10 px-3 py-2 text-sm text-state-danger">{submitError}</p>
         )}
-        <div className="flex gap-2 pt-2">
+        <div className="sticky bottom-0 -mx-1 flex gap-2 bg-white px-1 pb-1 pt-3">
           <Button type="button" variant="secondary" fullWidth onClick={onClose}>Отказ</Button>
           <Button type="submit" variant="primary" fullWidth disabled={submitting}>
             {submitting ? "Запазване…" : submitLabel}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Sheet } from "@/components/ui/Sheet";
+import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { api } from "./api";
 import { Field, inputClass } from "./ui";
@@ -88,7 +89,12 @@ export default function NewPropertySheet({
   return (
     <Sheet open={open} onClose={onClose} placement="bottom" className="max-h-[92dvh] overflow-y-auto p-5">
       <div className="space-y-3">
-        <h3 className="text-lg font-bold text-ink">Нов имот</h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-lg font-bold text-ink">Нов имот</h3>
+          <button onClick={onClose} className="-mr-2 flex h-11 w-11 items-center justify-center rounded-full text-muted" aria-label="Затвори">
+            <Icon name="x" size={22} />
+          </button>
+        </div>
         <Field label="Собственик (клиент)">
           <select className={inputClass} value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
             <option value="">— изберете клиент —</option>
@@ -112,14 +118,14 @@ export default function NewPropertySheet({
         </Field>
         {hits.length > 0 && (
           <div className="overflow-hidden rounded-card border border-line">
-            {hits.map((h) => (
+            {hits.filter((h, i) => hits.findIndex((x) => x.label === h.label) === i).map((h) => (
               <button
                 key={`${h.lat},${h.lng}`}
                 onClick={() => {
                   setPicked(h);
                   setHits([]);
                 }}
-                className="block w-full border-b border-line px-3 py-2.5 text-left text-sm last:border-0 hover:bg-brand-bg"
+                className="block min-h-touch w-full border-b border-line px-3 py-2.5 text-left text-sm last:border-0 hover:bg-brand-bg"
               >
                 <div className="font-semibold text-ink">{h.label}</div>
                 <div className="truncate text-xs text-muted">{h.display_name}</div>
@@ -145,7 +151,10 @@ export default function NewPropertySheet({
           <p className="text-sm text-state-warning">Няма клиенти. Създайте клиентски акаунт от Настройки → Екип.</p>
         )}
         {error && <p className="rounded-card bg-state-danger/10 px-3 py-2 text-sm text-state-danger">{error}</p>}
-        <div className="flex gap-2 pb-2">
+        {(!ownerId || !picked) && (
+          <p className="text-xs text-muted">За да добавите, изберете клиент и адрес от предложенията.</p>
+        )}
+        <div className="sticky bottom-0 flex gap-2 bg-white pb-2 pt-2">
           <Button variant="secondary" fullWidth onClick={onClose}>
             Отказ
           </Button>
