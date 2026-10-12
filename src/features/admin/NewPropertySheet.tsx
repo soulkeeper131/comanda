@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AddressPicker from "@/components/AddressPicker";
+import type { AddressHit } from "@/components/useAddressSearch";
 import { Sheet } from "@/components/ui/Sheet";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { api } from "./api";
 import { Field, inputClass } from "./ui";
 import type { AdminUser } from "./types";
-
-type Hit = { lat: number; lng: number; label: string; display_name: string };
 
 /**
  * Админът добавя имот от името на клиент (напр. след телефонен разговор).
@@ -28,9 +28,9 @@ export default function NewPropertySheet({
 }) {
   const [ownerId, setOwnerId] = useState("");
   const [name, setName] = useState("");
-  const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<Hit[]>([]);
-  const [picked, setPicked] = useState<Hit | null>(null);
+  const [picked, setPicked] = useState<AddressHit | null>(null);
+  // Нов ключ при всяко отваряне — полето за адрес започва празно.
+  const [round, setRound] = useState(0);
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [notes, setNotes] = useState("");
@@ -41,39 +41,24 @@ export default function NewPropertySheet({
     if (!open) return;
     setOwnerId("");
     setName("");
-    setQuery("");
-    setHits([]);
     setPicked(null);
+    setRound((r) => r + 1);
     setContactName("");
     setContactPhone("");
     setNotes("");
     setError("");
   }, [open]);
 
-  useEffect(() => {
-    if (picked || query.trim().length < 3) {
-      setHits([]);
-      return;
-    }
-    const t = setTimeout(async () => {
-      const r = await api<{ results: Hit[] }>(`/api/geocode?q=${encodeURIComponent(query.trim())}`);
-      setHits(r.ok ? r.data.results : []);
-    }, 450);
-    return () => clearTimeout(t);
-  }, [query, picked]);
-
   const submit = async () => {
     if (!picked) return;
     setBusy(true);
     setError("");
-    const parts = picked.label.split(",").map((s) => s.trim());
-    const city = parts.length > 1 ? parts[parts.length - 1] : "София";
     const res = await api("/api/properties", {
       body: {
         owner_id: ownerId,
-        name: name.trim() || parts[0],
-        city,
-        address: parts.length > 1 ? parts.slice(0, -1).join(", ") : picked.label,
+        name: name.trim() || picked.street || picked.label,
+        city: picked.city || "София",
+        address: picked.label,
         lat: picked.lat,
         lng: picked.lng,
         contact_name: contactName,
@@ -105,34 +90,11 @@ export default function NewPropertySheet({
             ))}
           </select>
         </Field>
-        <Field label="Адрес" hint="Започнете да пишете и изберете от предложенията.">
-          <input
-            className={inputClass}
-            value={picked ? picked.label : query}
-            onChange={(e) => {
-              setPicked(null);
-              setQuery(e.target.value);
-            }}
-            placeholder="ул. Оборище 45, София"
-          />
-        </Field>
-        {hits.length > 0 && (
-          <div className="overflow-hidden rounded-card border border-line">
-            {hits.filter((h, i) => hits.findIndex((x) => x.label === h.label) === i).map((h) => (
-              <button
-                key={`${h.lat},${h.lng}`}
-                onClick={() => {
-                  setPicked(h);
-                  setHits([]);
-                }}
-                className="block min-h-touch w-full border-b border-line px-3 py-2.5 text-left text-sm last:border-0 hover:bg-brand-bg"
-              >
-                <div className="font-semibold text-ink">{h.label}</div>
-                <div className="truncate text-xs text-muted">{h.display_name}</div>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Не в <label>: вътре има бутони (предложенията, „Смени“). */}
+        <div>
+          <span className="mb-1 block text-sm font-semibold text-ink-2">Адрес</span>
+          <AddressPicker key={round} picked={picked} onPick={setPicked} />
+        </div>
         <Field label="Име на имота (по желание)">
           <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="Апартамент Лозенец" />
         </Field>

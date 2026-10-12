@@ -1,17 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Sheet } from "./ui/Sheet";
 import { Button } from "./ui/Button";
 import { Input, Select, Textarea } from "./ui/Input";
 import { Icon } from "./ui/Icon";
-
-type AddressHit = {
-  lat: number;
-  lng: number;
-  label: string;
-  display_name: string;
-};
+import AddressPicker from "./AddressPicker";
+import type { AddressHit } from "./useAddressSearch";
 
 export type PropertyFormData = {
   name: string;
@@ -57,74 +52,21 @@ export default function PropertyForm({
   );
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [query, setQuery] = useState(initial?.addr ?? "");
-  const [suggestions, setSuggestions] = useState<AddressHit[]>([]);
-  const [searching, setSearching] = useState(false);
+  // Имот за поправка идва с координати — адресът му е вече избран.
   const [picked, setPicked] = useState<AddressHit | null>(
-    initial?.lat && initial?.lng ? { lat: initial.lat, lng: initial.lng, label: initial.addr, display_name: initial.addr } : null,
+    initial?.lat && initial?.lng
+      ? { lat: initial.lat, lng: initial.lng, label: initial.addr, display_name: initial.addr, street: initial.addr, city: initial.city, precise: true }
+      : null,
   );
-  const [searchError, setSearchError] = useState("");
 
-  // Търси докато потребителят пише, но изчаква да спре — иначе всяка буква
-  // праща заявка към Nominatim.
-  useEffect(() => {
-    if (picked) return;
-
-    const q = query.trim();
-    if (q.length < 3) {
-      setSuggestions([]);
-      setSearchError("");
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setSearching(true);
-      setSearchError("");
-      try {
-        const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
-        const json = await res.json();
-        if (!res.ok) {
-          setSearchError(json.error ?? "Търсенето не успя");
-          setSuggestions([]);
-        } else {
-          // Nominatim често връща един и същ адрес няколко пъти.
-          const seen = new Set<string>();
-          setSuggestions(((json.results ?? []) as AddressHit[]).filter((h) => !seen.has(h.label) && !!seen.add(h.label)));
-          if ((json.results ?? []).length === 0) {
-            setSearchError("Няма намерени адреси. Опитайте с по-малко детайли.");
-          }
-        }
-      } catch {
-        setSearchError("Търсенето не успя. Проверете връзката.");
-        setSuggestions([]);
-      }
-      setSearching(false);
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [query, picked]);
-
-  const pickAddress = (hit: AddressHit) => {
+  const pickAddress = (hit: AddressHit | null) => {
     setPicked(hit);
-    setQuery(hit.label);
-    setSuggestions([]);
-    setSearchError("");
-
-    const a = hit.display_name.split(",").map((s) => s.trim());
-    setData((prev) => ({
-      ...prev,
-      addr: hit.label,
-      // Градът е предпоследната смислена част от пълния адрес.
-      city: prev.city || a.find((part) => /софия|пловдив|варна|бургас/i.test(part)) || a[a.length - 3] || prev.city,
-      lat: hit.lat,
-      lng: hit.lng,
-    }));
-  };
-
-  const clearAddress = () => {
-    setPicked(null);
-    setQuery("");
-    setData((prev) => ({ ...prev, addr: "", lat: undefined, lng: undefined }));
+    setSubmitError("");
+    setData((prev) =>
+      hit
+        ? { ...prev, addr: hit.label, city: hit.city || prev.city || "София", lat: hit.lat, lng: hit.lng }
+        : { ...prev, addr: "", lat: undefined, lng: undefined },
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -175,60 +117,7 @@ export default function PropertyForm({
           onChange={(e) => setData({ ...data, name: e.target.value })}
           required
         />
-        <div className="relative">
-          <Input
-            type="text"
-            placeholder="Започнете да пишете адреса…"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              if (picked) setPicked(null);
-            }}
-            autoComplete="off"
-            required
-          />
-
-          {picked && (
-            <div className="mt-1 flex items-start gap-2 text-xs text-state-ok">
-              <span className="font-semibold">Избран адрес:</span>
-              <span className="flex-1">{picked.display_name}</span>
-              <button
-                type="button"
-                onClick={clearAddress}
-                className="font-semibold text-muted underline underline-offset-2"
-              >
-                смени
-              </button>
-            </div>
-          )}
-
-          {!picked && searching && (
-            <p className="mt-1 text-xs text-muted">Търси…</p>
-          )}
-
-          {!picked && suggestions.length > 0 && (
-            // В потока на формата, не върху следващите полета — на телефона
-            // падащото меню закриваше полетата и бутоните.
-            <ul className="mt-1 w-full overflow-hidden rounded-card border border-line bg-white shadow-card-1" role="listbox">
-              {suggestions.map((hit, i) => (
-                <li key={`${hit.lat}-${hit.lng}-${i}`}>
-                  <button
-                    type="button"
-                    onClick={() => pickAddress(hit)}
-                    className="min-h-touch w-full px-3 py-2 text-left hover:bg-brand-bg"
-                  >
-                    <span className="block text-sm font-medium text-ink">{hit.label}</span>
-                    <span className="block truncate text-xs text-muted">{hit.display_name}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {!picked && searchError && (
-            <p className="mt-1 text-xs font-medium text-state-danger">{searchError}</p>
-          )}
-        </div>
+        <AddressPicker picked={picked} onPick={pickAddress} initialQuery={initial?.addr} />
         <Select
           value={data.type}
           onChange={(e) => setData({ ...data, type: e.target.value })}

@@ -23,7 +23,8 @@ beforeAll(async () => {
   ]).run();
   db.insert(s.properties).values({ id: "p", org_id: "o", owner_id: "c", name: "Имот", lat: 1, lng: 1, status: "active", assigned_inspector_id: "i" }).run();
   db.insert(s.serviceTemplates).values({ id: "t", org_id: "o", category: "cleaning", name: "Прозорци", price: 40 }).run();
-  db.insert(s.serviceOrders).values({ id: "so", property_id: "p", template_id: "t", requested_by: "c", requested_date: "2026-10-10", price: 40 }).run();
+  // Датата е в бъдещето — минала дата се мести към следващия работен ден.
+  db.insert(s.serviceOrders).values({ id: "so", property_id: "p", template_id: "t", requested_by: "c", requested_date: "2030-10-09", price: 40 }).run();
   db.insert(s.payments).values({ id: "pay", user_id: "c", order_id: "so", amount: 40, method: "bank", status: "pending" }).run();
 });
 
@@ -32,7 +33,7 @@ describe("допълнителна услуга", () => {
     const res = await orders.settleServiceOrder({ orderId: "so", method: "bank" });
     expect(res.ok).toBe(true);
     const job = db.select().from(s.jobs).all()[0];
-    expect(job.planned_at).toBe("2026-10-10");
+    expect(job.planned_at).toBe("2030-10-09");
     expect(job.assignee_id).toBe("i");
     expect(db.select().from(s.payments).all()[0].status).toBe("paid");
     expect(db.select().from(s.invoices).all()).toHaveLength(1);

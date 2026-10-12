@@ -4,6 +4,7 @@ import { eq, and, lt, inArray } from "drizzle-orm";
 import { notify } from "@/lib/messages";
 import { todaySofia } from "@/lib/jobs-generator";
 import { withAuth, canViewProperty, propertyScope } from "@/lib/auth";
+import { geocodeOne } from "@/lib/geocode";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -120,7 +121,7 @@ export const POST = withAuth({ role: ["admin", "client"] }, async (request, { se
     }
 
     if (typeof lat !== "number" || typeof lng !== "number") {
-      const hit = await geocode(`${text(city)}, ${text(address)}`);
+      const hit = await geocodeOne(`${text(address)}, ${text(city)}`);
       if (!hit) {
         return NextResponse.json(
           { error: "Адресът не е намерен. Изберете го от предложенията." },
@@ -169,18 +170,3 @@ export const POST = withAuth({ role: ["admin", "client"] }, async (request, { se
     return NextResponse.json({ error: "Грешка при създаване" }, { status: 500 });
   }
 });
-
-async function geocode(q: string): Promise<{ lat: number; lng: number } | null> {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1&accept-language=bg`,
-      { headers: { "User-Agent": "KoManda/1.0 (comanda.bg)" } },
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) return null;
-    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-  } catch {
-    return null;
-  }
-}
